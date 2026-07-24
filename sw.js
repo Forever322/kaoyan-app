@@ -3,7 +3,7 @@
  * 提供离线缓存和PWA能力
  */
 
-const CACHE_NAME = 'kaoyan-app-v3';
+const CACHE_NAME = 'kaoyan-app-v4';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
@@ -53,7 +53,7 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  const isPageOrScript = url.pathname.endsWith('.html') || url.pathname.endsWith('.js');
+  const isPageOrScript = url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
 
   if (isPageOrScript) {
     // HTML/JS: 网络优先，失败时回退缓存
