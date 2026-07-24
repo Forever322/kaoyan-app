@@ -18,11 +18,9 @@
 </head>
 <body>
 
-  <!-- ===== 启动画面：24格拼图加载页 ===== -->
+  <!-- ===== 拼图启动画面：inline保证最先执行 ===== -->
   <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;">
-    <div id="puzzleGrid" class="puzzle-grid">
-      <!-- 24格由JS动态生成，保证图片加载完才渲染 -->
-    </div>
+    <div id="puzzleGrid" class="puzzle-grid"></div>
     <div id="splashLoader" class="splash-loader">
       <div class="splash-spinner"></div>
       <p class="splash-loading-text">v4 · 拼图加载中...</p>
@@ -33,6 +31,60 @@
     </div>
     <button id="splashSkipBtn" class="splash-skip-btn">跳过 ›</button>
   </div>
+  <script>
+  (function(){
+    var COLS=6, ROWS=4, TOTAL=24, DURATION=4000, DELAY=50;
+    var splash=document.getElementById('splashScreen'),
+        grid=document.getElementById('puzzleGrid'),
+        loader=document.getElementById('splashLoader'),
+        skipBtn=document.getElementById('splashSkipBtn');
+    if(!splash||!grid) return;
+    var skipped=false, timer=null, tiles=[], frame=0;
+
+    function hide(){
+      splash.classList.add('fade-out');
+      setTimeout(function(){ splash.style.display='none'; },500);
+    }
+
+    skipBtn.onclick=function(){ skipped=true; clearTimeout(timer); hide(); };
+    splash.addEventListener('click',function(e){
+      if(e.target===splash||e.target===grid){ skipped=true; clearTimeout(timer); hide(); }
+    });
+
+    // 生成24格
+    for(var r=0; r<ROWS; r++){
+      for(var c=0; c<COLS; c++){
+        var t=document.createElement('div');
+        t.className='puzzle-tile';
+        t.style.gridColumn=c+1;
+        t.style.gridRow=r+1;
+        t.style.backgroundImage='url(splash.png)';
+        t.style.backgroundPosition=(c/(COLS-1)*100)+'% '+(r/(ROWS-1)*100)+'%';
+        grid.appendChild(t);
+        tiles.push(t);
+      }
+    }
+    if(loader) loader.classList.add('hidden');
+
+    // 用rAF逐个reveal，比setTimeout更可靠
+    var idx=0, lastTime=0;
+    function revealStep(ts){
+      if(skipped) return;
+      if(!lastTime) lastTime=ts;
+      if(ts-lastTime >= DELAY && idx<TOTAL){
+        tiles[idx].classList.add('reveal');
+        idx++; lastTime=ts;
+      }
+      if(idx<TOTAL){
+        requestAnimationFrame(revealStep);
+      }
+    }
+    requestAnimationFrame(revealStep);
+
+    // 4秒后自动隐藏
+    timer=setTimeout(function(){ if(!skipped) hide(); }, DURATION+800);
+  })();
+  </script>
 
   <!-- ===== 顶部栏 ===== -->
   <header class="app-header">
