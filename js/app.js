@@ -541,10 +541,8 @@ function openDetailPage(result) {
     <div class="detail-info-item"><div class="info-value">${uni.zone}区</div><div class="info-label">考研分区</div></div>
   `;
 
-  // Photo link - Baidu image search for campus photos
-  const photoUrl = `https://image.baidu.com/search?word=${encodeURIComponent(uni.name+'校园')}`;
-  const photoBtn = document.getElementById('detailPhotoBtn');
-  if (photoBtn) photoBtn.onclick = () => { window.open(photoUrl, '_blank'); };
+  // Photos grid - 显示真实照片
+  renderPhotos(uni.name, detail.color);
 
   // Filter label
   document.getElementById('detailFilter').textContent =
@@ -602,3 +600,54 @@ function closeDetailPage() {
 }
 
 window.deleteUniversity = deleteUniversity;
+
+// ==================== 照片渲染 ====================
+async function renderPhotos(name, color) {
+  const container = document.getElementById('detailPhotos');
+  container.innerHTML = [1,2,3,4].map(() =>
+    `<div class="photo-item"><div class="photo-loading" style="background:${color}22;display:flex;align-items:center;justify-content:center;height:100%;color:${color};font-size:2rem">📷</div></div>`
+  ).join('');
+
+  let urls = [];
+  if (typeof UNI_PHOTOS !== 'undefined' && UNI_PHOTOS[name]) {
+    urls = UNI_PHOTOS[name];
+  } else {
+    urls = await fetchWikimediaPhotos(name);
+  }
+
+  container.innerHTML = urls.map(url =>
+    `<div class="photo-item"><img src="${url}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML=this.parentElement.innerHTML"></div>`
+  ).join('');
+
+  // 不够4张用搜索链接补
+  while (container.children.length < 4) {
+    const d = document.createElement('div');
+    d.className = 'photo-item photo-search-link';
+    d.style.cssText = `background:${color}22;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2rem`;
+    d.textContent = '🔍';
+    d.onclick = () => window.open(`https://image.baidu.com/search?word=${encodeURIComponent(name+'校园实景')}`);
+    container.appendChild(d);
+  }
+}
+
+async function fetchWikimediaPhotos(name) {
+  try {
+    const queries = [name + '大学校园', name.replace('大学','') + '大学 校门'];
+    const results = [];
+    for (const q of queries) {
+      const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=5`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.query && data.query.pages) {
+        for (const page of Object.values(data.query.pages)) {
+          if (page.imageinfo && page.imageinfo[0]) {
+            const u = page.imageinfo[0].thumburl || page.imageinfo[0].url;
+            if (u && !results.includes(u)) results.push(u);
+            if (results.length >= 4) return results;
+          }
+        }
+      }
+    }
+    return results;
+  } catch(e) { return []; }
+}
