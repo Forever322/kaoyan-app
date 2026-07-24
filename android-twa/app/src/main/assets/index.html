@@ -18,10 +18,30 @@
 </head>
 <body>
 
+  <!-- ===== 启动画面：24格拼图加载页 ===== -->
+  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;">
+    <div id="puzzleGrid" class="puzzle-grid">
+      <!-- 24格由JS动态生成，保证图片加载完才渲染 -->
+    </div>
+    <div id="splashLoader" class="splash-loader">
+      <div class="splash-spinner"></div>
+      <p class="splash-loading-text">正在加载...</p>
+    </div>
+    <div id="splashError" class="splash-error">
+      <span class="error-icon">🎓</span>
+      <p>考研择校助手</p>
+    </div>
+    <button id="splashSkipBtn" class="splash-skip-btn">跳过 ›</button>
+  </div>
+
   <!-- ===== 顶部栏 ===== -->
   <header class="app-header">
     <h1>🎓 考研择校助手</h1>
     <span class="subtitle">输入分数，匹配最适合的院校</span>
+    <div class="header-search">
+      <input type="text" id="globalUniSearch" class="header-search-input" placeholder="🔍 直接搜院校..." autocomplete="off">
+      <div id="globalUniDropdown" class="header-search-dropdown" style="display:none;"></div>
+    </div>
   </header>
 
   <!-- ===== 主内容区 ===== -->
@@ -51,6 +71,14 @@
       <div class="form-group">
         <label class="form-label">📚 学科门类</label>
         <select id="categorySelect" class="form-select"></select>
+      </div>
+
+      <!-- 专业方向子类 -->
+      <div class="form-group" id="majorGroup" style="display:none;">
+        <label class="form-label" id="majorLabel">🔧 专业方向</label>
+        <input type="text" id="majorSearch" class="form-input" placeholder="🔍 输入关键词筛选专业..." autocomplete="off" style="margin-bottom:8px;font-size:0.85rem;">
+        <select id="majorSelect" class="form-select" size="8"></select>
+        <span class="form-hint">选择具体专业可更精确匹配院校录取数据</span>
       </div>
 
       <!-- 招生分区 -->
@@ -170,6 +198,68 @@
     </div>
   </div>
 
+  <!-- ===== 院校详情页 ===== -->
+  <div class="detail-overlay" id="detailPage" style="display:none;">
+    <div class="detail-content">
+      <!-- 顶部照片区 -->
+      <div class="detail-hero" id="detailHero">
+        <button class="detail-back" id="detailBackBtn">← 返回</button>
+        <button class="detail-photo-btn" id="detailPhotoBtn">📷 校园实景</button>
+        <div class="hero-content">
+          <h2 id="detailName">院校名称</h2>
+          <div class="hero-badges" id="detailBadges"></div>
+        </div>
+      </div>
+
+      <!-- 校园照片 -->
+      <div class="detail-section">
+        <h3 class="detail-section-title">📷 校园风光</h3>
+        <div class="photo-grid" id="detailPhotos"></div>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="detail-section">
+        <div class="detail-info-row" id="detailInfo"></div>
+      </div>
+
+      <!-- 历年分数线对比表 -->
+      <div class="detail-section">
+        <h3 class="detail-section-title">📊 历年分数线对比</h3>
+        <div class="detail-nl-note">当前筛选条件：<span id="detailFilter"></span></div>
+        <div class="score-table-wrap">
+          <table class="score-table">
+            <thead><tr>
+              <th>年份</th><th>国家线</th><th>院校线</th><th>你的分数</th><th>差值</th>
+            </tr></thead>
+            <tbody id="detailScoreTable"></tbody>
+          </table>
+        </div>
+        <div class="detail-verdict" id="detailVerdict"></div>
+      </div>
+
+      <!-- 优缺点 -->
+      <div class="detail-section">
+        <h3 class="detail-section-title">👍 优势与不足</h3>
+        <div class="pros-cons-grid">
+          <div class="pros-column">
+            <h4>✅ 优势</h4>
+            <ul id="detailPros"></ul>
+          </div>
+          <div class="cons-column">
+            <h4>⚠️ 不足</h4>
+            <ul id="detailCons"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 校园特色 -->
+      <div class="detail-section">
+        <h3 class="detail-section-title">🏫 院校简介</h3>
+        <p class="detail-features" id="detailFeatures"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Service Worker 注册 ===== -->
   <script>
     if ('serviceWorker' in navigator) {
@@ -183,6 +273,8 @@
   <script src="js/data/national-lines.js"></script>
   <script src="js/data/universities.js"></script>
   <script src="js/data/admission-scores.js"></script>
+  <script src="js/data/uni-photos.js"></script>
+  <script src="js/data/uni-details.js"></script>
   <script src="js/matcher.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/app.js"></script>

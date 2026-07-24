@@ -4,17 +4,155 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 先初始化拼图启动画面
+  initPuzzleSplash();
+
   initStorage();
   initUI();
   bindEvents();
   restoreLastSearch();
-  // 隐藏启动画面
-  const splash = document.getElementById('splashScreen');
-  if (splash) {
-    splash.style.opacity = '0';
-    setTimeout(() => { splash.style.display = 'none'; }, 500);
-  }
 });
+
+// ==================== 24格拼图启动画面 ====================
+const PUZZLE_COLS = 6;
+const PUZZLE_ROWS = 4;
+const PUZZLE_TOTAL = PUZZLE_COLS * PUZZLE_ROWS;
+const SPLASH_DURATION_MS = 4000; // 启动画面总持续时间 4 秒
+const TILE_DELAY_MS = 50;        // 每块拼图间隔延迟
+let splashTimer = null;          // 自动隐藏的定时器
+let splashSkipped = false;       // 是否已跳过
+
+function initPuzzleSplash() {
+  const splash = document.getElementById('splashScreen');
+  const grid = document.getElementById('puzzleGrid');
+  const loader = document.getElementById('splashLoader');
+  const skipBtn = document.getElementById('splashSkipBtn');
+
+  if (!splash || !grid) return;
+
+  const splashStarted = Date.now();
+
+  // 跳过按钮点击
+  if (skipBtn) {
+    skipBtn.addEventListener('click', function () {
+      skipSplash(splash);
+    });
+  }
+
+  // 点击拼图画面也可以跳过（除了按钮本身）
+  splash.addEventListener('click', function (e) {
+    if (e.target === splash || e.target === grid) {
+      skipSplash(splash);
+    }
+  });
+
+  // 生成24个拼图格子
+  const tiles = [];
+  for (let row = 0; row < PUZZLE_ROWS; row++) {
+    for (let col = 0; col < PUZZLE_COLS; col++) {
+      const tile = document.createElement('div');
+      tile.className = 'puzzle-tile';
+      tile.style.gridColumn = (col + 1);
+      tile.style.gridRow = (row + 1);
+
+      // 计算背景位置百分比
+      const bgX = col / (PUZZLE_COLS - 1) * 100;
+      const bgY = row / (PUZZLE_ROWS - 1) * 100;
+      tile.dataset.bgX = bgX;
+      tile.dataset.bgY = bgY;
+
+      grid.appendChild(tile);
+      tiles.push(tile);
+    }
+  }
+
+  // 预加载 splash.png
+  const img = new Image();
+
+  img.onload = function () {
+    if (splashSkipped) return;
+
+    tiles.forEach(function (tile) {
+      tile.style.backgroundImage = 'url(splash.png)';
+      tile.style.backgroundPosition =
+        tile.dataset.bgX + '% ' + tile.dataset.bgY + '%';
+    });
+
+    if (loader) loader.classList.add('hidden');
+
+    // 逐个延迟显示拼图
+    const puzzleRevealMs = TILE_DELAY_MS * (PUZZLE_TOTAL - 1) + 400;
+
+    tiles.forEach(function (tile, i) {
+      setTimeout(function () {
+        if (splashSkipped) return;
+        tile.classList.add('reveal');
+      }, i * TILE_DELAY_MS);
+    });
+
+    // 拼图动画结束后，等够4秒再自动隐藏
+    const elapsed = Date.now() - splashStarted;
+    const remaining = Math.max(SPLASH_DURATION_MS - elapsed, puzzleRevealMs);
+
+    splashTimer = setTimeout(function () {
+      hideSplash(splash);
+    }, remaining);
+  };
+
+  img.onerror = function () {
+    if (splashSkipped) return;
+
+    tiles.forEach(function (tile) {
+      tile.classList.add('no-image');
+    });
+
+    if (loader) loader.classList.add('hidden');
+
+    var errorEl = document.getElementById('splashError');
+    if (errorEl) errorEl.classList.add('show');
+
+    splashTimer = setTimeout(function () {
+      hideSplash(splash);
+    }, 3000);
+  };
+
+  img.src = 'splash.png';
+
+  // 超时保护：5秒后兜底
+  setTimeout(function () {
+    if (!img.complete && !splashSkipped) {
+      tiles.forEach(function (tile) {
+        if (!tile.classList.contains('reveal') &&
+            !tile.classList.contains('no-image')) {
+          tile.classList.add('no-image');
+        }
+      });
+      if (loader) loader.classList.add('hidden');
+      hideSplash(splash);
+    }
+  }, 5000);
+}
+
+function skipSplash(splash) {
+  if (splashSkipped) return;
+  splashSkipped = true;
+
+  if (splashTimer) {
+    clearTimeout(splashTimer);
+    splashTimer = null;
+  }
+
+  hideSplash(splash);
+}
+
+function hideSplash(splash) {
+  splash.classList.add('fade-out');
+  setTimeout(function () {
+    if (splash.parentNode) {
+      splash.style.display = 'none';
+    }
+  }, 500);
+}
 
 let currentDegree = 'xueshuo';
 let currentZone = 'A';

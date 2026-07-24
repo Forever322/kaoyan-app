@@ -18,9 +18,20 @@
 </head>
 <body>
 
-  <!-- ===== 启动画面 ===== -->
-  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#fff;display:flex;align-items:center;justify-content:center;transition:opacity 0.4s;">
-    <img src="splash.png" alt="加载中" style="width:100%;height:100%;object-fit:cover;">
+  <!-- ===== 启动画面：24格拼图加载页 ===== -->
+  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;">
+    <div id="puzzleGrid" class="puzzle-grid">
+      <!-- 24格由JS动态生成，保证图片加载完才渲染 -->
+    </div>
+    <div id="splashLoader" class="splash-loader">
+      <div class="splash-spinner"></div>
+      <p class="splash-loading-text">正在加载...</p>
+    </div>
+    <div id="splashError" class="splash-error">
+      <span class="error-icon">🎓</span>
+      <p>考研择校助手</p>
+    </div>
+    <button id="splashSkipBtn" class="splash-skip-btn">跳过 ›</button>
   </div>
 
   <!-- ===== 顶部栏 ===== -->

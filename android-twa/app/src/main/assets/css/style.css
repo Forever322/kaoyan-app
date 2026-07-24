@@ -76,6 +76,77 @@ body {
   margin-top: 4px;
 }
 
+/* 院校全局搜索 */
+.header-search {
+  margin-top: 10px;
+  position: relative;
+}
+.header-search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  outline: none;
+  transition: background 0.2s;
+}
+.header-search-input::placeholder {
+  color: rgba(255,255,255,0.7);
+}
+.header-search-input:focus {
+  background: rgba(255,255,255,0.35);
+}
+.header-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 4px;
+}
+.header-search-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+}
+.header-search-item:last-child {
+  border-bottom: none;
+}
+.header-search-item:hover,
+.header-search-item:active {
+  background: #f5f7fa;
+}
+.header-search-item .s-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+.header-search-item .s-level {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  white-space: nowrap;
+}
+.header-search-item .s-loc {
+  font-size: 0.7rem;
+  color: #999;
+  white-space: nowrap;
+}
+
 /* ----- Main ----- */
 .app-main {
   padding: 16px;
@@ -706,6 +777,488 @@ body {
 .import-result.error {
   background: #fce8e6;
   color: var(--color-danger);
+}
+
+/* ----- National Line Table ----- */
+.nl-title {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.nl-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+}
+
+.nl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.nl-table th, .nl-table td {
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nl-table th {
+  background: #e8f0fe;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.nl-val {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.nl-above { color: var(--color-success); }
+.nl-below { color: var(--color-danger); }
+
+.nl-diff {
+  font-size: 0.7rem;
+  margin-top: 2px;
+}
+
+.nl-note {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ----- Score Comparison Table ----- */
+.score-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 10px -8px 6px;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 320px;
+}
+
+.score-table th {
+  background: #f1f3f4;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 6px 6px;
+  text-align: center;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.score-table td {
+  padding: 5px 6px;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.score-table tr:last-child td {
+  border-bottom: none;
+}
+
+.td-nl { color: var(--color-text-secondary); }
+.td-ul { color: var(--color-primary); font-weight: 600; }
+.td-you { font-weight: 700; color: var(--color-text); }
+
+.td-ok {
+  color: var(--color-success);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.td-fail {
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+
+/* ----- Detail Page ----- */
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg);
+  z-index: 50;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.detail-content {
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+/* Hero/Photo area */
+.detail-hero {
+  position: relative;
+  height: 220px;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+  /* Default gradient fallback */
+  background: linear-gradient(135deg, #1a73e8 0%, #4285f4 50%, #6c5ce7 100%);
+}
+
+.detail-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.65) 0%, rgba(0,0,0,.1) 60%, rgba(0,0,0,.3) 100%);
+  z-index: 0;
+}
+
+.detail-hero .hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.detail-hero h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+
+.hero-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hero-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.25);
+  backdrop-filter: blur(4px);
+}
+
+.detail-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  background: rgba(0,0,0,.45);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-back:active { background: rgba(0,0,0,.65); }
+
+.detail-photo-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  background: rgba(255,255,255,.25);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.4);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  font-weight: 500;
+}
+
+.detail-photo-btn:active { background: rgba(255,255,255,.4); }
+
+/* Photo grid */
+.photo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.photo-item {
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1.6;
+  background: #e8eaed;
+  cursor: pointer;
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Detail sections */
+.detail-section {
+  margin: 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.detail-section-title {
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-info-item {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.detail-info-item .info-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.detail-info-item .info-label {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.detail-nl-note {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.detail-verdict {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Pros/Cons grid */
+.pros-cons-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pros-column, .cons-column {
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.pros-column {
+  background: #e6f4ea;
+}
+
+.cons-column {
+  background: #fce8e6;
+}
+
+.pros-column h4, .cons-column h4 {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.pros-column ul, .cons-column ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.pros-column li { color: #137333; }
+.cons-column li { color: #c5221f; }
+
+.detail-features {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+
+/* Make result cards clickable */
+.result-card {
+  cursor: pointer;
+}
+
+/* ----- Estimated Data Tag ----- */
+.estimated-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #fef7e0;
+  color: var(--color-warning);
+  border: 1px dashed var(--color-warning);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* ----- Splash: 24格拼图启动画面 ----- */
+#splashScreen {
+  transition: opacity 0.5s ease-out;
+}
+
+#splashScreen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.puzzle-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.puzzle-tile {
+  position: relative;
+  overflow: hidden;
+  background-size: 600% 400%;  /* 6 cols × 4 rows */
+  background-repeat: no-repeat;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+  will-change: opacity, transform;
+}
+
+/* 图片加载完成后逐个显示 */
+.puzzle-tile.reveal {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 图片加载失败时，用渐变伪装 */
+.puzzle-tile.no-image {
+  opacity: 1;
+  transform: scale(1);
+  background-image: none !important;
+  background: linear-gradient(135deg, #1a3a5c, #1a6fb5, #0d2b45);
+}
+
+/* 加载指示器：图片未加载完时显示 */
+.splash-loader {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: opacity 0.3s ease-out;
+}
+
+.splash-loader.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255,255,255,0.2);
+  border-top-color: rgba(255,255,255,0.8);
+  border-radius: 50%;
+  animation: splashSpin 0.8s linear infinite;
+}
+
+@keyframes splashSpin {
+  to { transform: rotate(360deg); }
+}
+
+.splash-loading-text {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+}
+
+/* 错误提示（图片完全加载失败时） */
+.splash-error {
+  display: none;
+  position: relative;
+  z-index: 2;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 20px;
+}
+
+.splash-error.show {
+  display: block;
+}
+
+.splash-error .error-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* 跳过按钮 */
+.splash-skip-btn {
+  position: absolute;
+  bottom: 40px;
+  right: 24px;
+  z-index: 3;
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.25s;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.splash-skip-btn:active {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+  border-color: rgba(255,255,255,0.4);
+  transform: scale(0.96);
 }
 
 /* ----- Scrollbar ----- */
