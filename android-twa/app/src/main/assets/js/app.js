@@ -46,7 +46,7 @@ function initPuzzleSplash() {
     }
   });
 
-  // 生成24个拼图格子
+  // 生成24个拼图格子，直接设置背景图（本地文件无需预加载）
   const tiles = [];
   for (let row = 0; row < PUZZLE_ROWS; row++) {
     for (let col = 0; col < PUZZLE_COLS; col++) {
@@ -58,76 +58,45 @@ function initPuzzleSplash() {
       // 计算背景位置百分比
       const bgX = col / (PUZZLE_COLS - 1) * 100;
       const bgY = row / (PUZZLE_ROWS - 1) * 100;
-      tile.dataset.bgX = bgX;
-      tile.dataset.bgY = bgY;
+
+      // 直接设置背景图（本地 assets 文件，瞬时可用）
+      tile.style.backgroundImage = 'url(splash.png)';
+      tile.style.backgroundPosition = bgX + '% ' + bgY + '%';
 
       grid.appendChild(tile);
       tiles.push(tile);
     }
   }
 
-  // 预加载 splash.png
-  const img = new Image();
+  // 隐藏加载指示器
+  if (loader) loader.classList.add('hidden');
 
-  img.onload = function () {
-    if (splashSkipped) return;
+  // 逐个延迟显示拼图
+  const puzzleRevealMs = TILE_DELAY_MS * (PUZZLE_TOTAL - 1) + 400;
+  tiles.forEach(function (tile, i) {
+    setTimeout(function () {
+      if (splashSkipped) return;
+      tile.classList.add('reveal');
+    }, i * TILE_DELAY_MS);
+  });
 
-    tiles.forEach(function (tile) {
-      tile.style.backgroundImage = 'url(splash.png)';
-      tile.style.backgroundPosition =
-        tile.dataset.bgX + '% ' + tile.dataset.bgY + '%';
-    });
+  // 拼图动画结束后，等够4秒再自动隐藏
+  const remaining = Math.max(SPLASH_DURATION_MS, puzzleRevealMs);
+  splashTimer = setTimeout(function () {
+    hideSplash(splash);
+  }, remaining);
 
-    if (loader) loader.classList.add('hidden');
-
-    // 逐个延迟显示拼图
-    const puzzleRevealMs = TILE_DELAY_MS * (PUZZLE_TOTAL - 1) + 400;
-
-    tiles.forEach(function (tile, i) {
-      setTimeout(function () {
-        if (splashSkipped) return;
-        tile.classList.add('reveal');
-      }, i * TILE_DELAY_MS);
-    });
-
-    // 拼图动画结束后，等够4秒再自动隐藏
-    const elapsed = Date.now() - splashStarted;
-    const remaining = Math.max(SPLASH_DURATION_MS - elapsed, puzzleRevealMs);
-
-    splashTimer = setTimeout(function () {
-      hideSplash(splash);
-    }, remaining);
-  };
-
-  img.onerror = function () {
-    if (splashSkipped) return;
-
-    tiles.forEach(function (tile) {
-      tile.classList.add('no-image');
-    });
-
-    if (loader) loader.classList.add('hidden');
-
-    var errorEl = document.getElementById('splashError');
-    if (errorEl) errorEl.classList.add('show');
-
-    splashTimer = setTimeout(function () {
-      hideSplash(splash);
-    }, 3000);
-  };
-
-  img.src = 'splash.png';
-
-  // 超时保护：5秒后兜底
+  // 容错：如果图片完全加载失败（CSS背景图不触发error），
+  // 5秒后检查是否有tile显示了背景，没有则显示fallback
   setTimeout(function () {
-    if (!img.complete && !splashSkipped) {
-      tiles.forEach(function (tile) {
-        if (!tile.classList.contains('reveal') &&
-            !tile.classList.contains('no-image')) {
-          tile.classList.add('no-image');
-        }
-      });
-      if (loader) loader.classList.add('hidden');
+    if (splashSkipped) return;
+    // 检查第一个tile的背景图是否真的加载了
+    var testTile = tiles[0];
+    if (testTile && !testTile.classList.contains('reveal')) {
+      // tiles还没reveal说明出问题了，强制显示
+      tiles.forEach(function (t) { t.classList.add('no-image'); });
+      var errorEl = document.getElementById('splashError');
+      if (errorEl) errorEl.classList.add('show');
       hideSplash(splash);
     }
   }, 5000);
