@@ -25,12 +25,19 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Build debug APK
+      - name: Generate keystore
+        run: |
+          keytool -genkey -v -keystore android-twa/release.keystore \
+            -alias kaoyan -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass kaoyan123 -keypass kaoyan123 \
+            -dname "CN=Kaoyan, OU=App, O=Kaoyan, L=Beijing, ST=Beijing, C=CN"
+
+      - name: Build release APK
         working-directory: android-twa
-        run: gradle assembleDebug
+        run: gradle assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: kaoyan-app-debug
-          path: android-twa/app/build/outputs/apk/debug/app-debug.apk
+          name: kaoyan-app-release
+          path: android-twa/app/build/outputs/apk/release/app-release.apk
