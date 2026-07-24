@@ -366,7 +366,7 @@ function generateDefaultDetail(name) {
     pros: uniqPros,
     cons: uniqCons,
     features: features,
-    address: uni.city === uni.province ? `${uni.province}${uni.city}` : `${uni.province}省${uni.city}市`,
+    address: (uni.city || uni.province) === uni.province ? `${uni.province}市` : `${uni.province}省${uni.city || uni.province}市`,
     color: '#' + Math.abs(hashCode(name)).toString(16).slice(0,6).padStart(6,'3')
   };
 }

@@ -532,13 +532,19 @@ function openDetailPage(result) {
     ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g,'')}</span>` : ''}
   `;
 
-  // Info row with address
+  // Info row with address (fix undefined fallback)
+  const cityName = uni.city || uni.province;
   document.getElementById('detailInfo').innerHTML = `
     <div class="detail-info-item"><div class="info-value">${uni.province}</div><div class="info-label">省份</div></div>
-    <div class="detail-info-item"><div class="info-value">${uni.city}</div><div class="info-label">城市</div></div>
+    <div class="detail-info-item"><div class="info-value">${cityName}</div><div class="info-label">城市</div></div>
     <div class="detail-info-item"><div class="info-value">${uni.level}</div><div class="info-label">层次</div></div>
     <div class="detail-info-item"><div class="info-value">${uni.zone}区</div><div class="info-label">考研分区</div></div>
   `;
+
+  // Photo link - Baidu image search for campus photos
+  const photoUrl = `https://image.baidu.com/search?word=${encodeURIComponent(uni.name+'校园')}`;
+  const photoBtn = document.getElementById('detailPhotoBtn');
+  if (photoBtn) photoBtn.onclick = () => { window.open(photoUrl, '_blank'); };
 
   // Filter label
   document.getElementById('detailFilter').textContent =
