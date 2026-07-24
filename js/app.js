@@ -612,7 +612,7 @@ async function renderPhotos(name, color) {
   if (typeof UNI_PHOTOS !== 'undefined' && UNI_PHOTOS[name]) {
     urls = UNI_PHOTOS[name];
   } else {
-    urls = await fetchWikimediaPhotos(name);
+    urls = await fetchBaiduPhotos(name);
   }
 
   container.innerHTML = urls.map(url =>
@@ -630,22 +630,21 @@ async function renderPhotos(name, color) {
   }
 }
 
-async function fetchWikimediaPhotos(name) {
+/** 从百度图片搜索API获取真实校园照片（国内CDN，秒开） */
+async function fetchBaiduPhotos(name) {
   try {
-    const queries = [name + '大学校园', name.replace('大学','') + '大学 校门'];
     const results = [];
+    const queries = [name + '校园', name + '大学校门', name + '图书馆', name + '校园风景'];
     for (const q of queries) {
-      const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*&gsrlimit=5`;
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.query && data.query.pages) {
-        for (const page of Object.values(data.query.pages)) {
-          if (page.imageinfo && page.imageinfo[0]) {
-            const u = page.imageinfo[0].thumburl || page.imageinfo[0].url;
-            if (u && !results.includes(u)) results.push(u);
-            if (results.length >= 4) return results;
-          }
-        }
+      const apiUrl = `https://image.baidu.com/search/acjson?tn=resultjson_com&word=${encodeURIComponent(q)}&pn=0&rn=3`;
+      const resp = await fetch(apiUrl);
+      const text = await resp.text();
+      // 百度返回JSON，提取thumbURL
+      const thumbMatches = text.matchAll(/"thumbURL":"(https:[^"]+)"/g);
+      for (const m of thumbMatches) {
+        const thumbUrl = m[1].replace(/\\\//g, '/');
+        if (thumbUrl && !results.includes(thumbUrl)) results.push(thumbUrl);
+        if (results.length >= 4) return results;
       }
     }
     return results;
