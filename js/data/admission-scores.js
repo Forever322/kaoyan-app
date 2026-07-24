@@ -540,17 +540,17 @@ const ADMISSION_SCORES = {
  */
 function mapCategoryToScoreKey(category, degree, major) {
   const short = degree === 'xueshuo' ? '学硕' : '专硕';
+  const exactKey = `${category}-${short}`;
 
-  // Build all possible keys
+  // Build candidate keys in priority order
   const keys = [];
   if (major && major !== '不限专业') {
-    // e.g., "工学-计算机科学与技术-学硕"
     const majorName = major.replace(/\([^)]*\)/g, '').trim();
     keys.push(`${category}-${majorName}-${short}`);
   }
-  keys.push(`${category}-${short}`);
+  keys.push(exactKey); // "工学-学硕" as fallback
 
-  // Collect all known keys
+  // Collect keys from ALL universities for fuzzy matching
   const allKeys = new Set();
   for (const uni of Object.values(ADMISSION_SCORES)) {
     for (const k of Object.keys(uni)) {
@@ -558,23 +558,21 @@ function mapCategoryToScoreKey(category, degree, major) {
     }
   }
 
-  // Return first matching key
+  // Step 1: exact match in known keys
   for (const k of keys) {
     if (allKeys.has(k)) return k;
   }
 
-  // Fuzzy match
+  // Step 2: fuzzy match for the specific major
   if (major && major !== '不限专业') {
     const majorName = major.replace(/\([^)]*\)/g, '').trim();
     for (const k of allKeys) {
       if (k.endsWith(`-${short}`) && k.includes(majorName)) return k;
     }
   }
-  for (const k of allKeys) {
-    if (k.endsWith(`-${short}`) && k.includes(category)) return k;
-  }
 
-  return keys[keys.length - 1]; // fallback
+  // Step 3: fallback to exactKey (this will be used for estimation if not found)
+  return exactKey;
 }
 
 /** 获取某院校某门类的历年录取分数。无真实数据时自动生成预估值 */
