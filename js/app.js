@@ -38,9 +38,14 @@ function updateCategorySelect() {
 function updateMajorSelect() {
   const select = document.getElementById('majorSelect');
   const category = document.getElementById('categorySelect').value;
-  const majors = getMajorsForCategory(category);
+  const searchQuery = (document.getElementById('majorSearch').value || '').toLowerCase().trim();
+  const allMajors = getMajorsForCategory(category);
+  // 根据搜索词过滤
+  const filtered = searchQuery
+    ? allMajors.filter(m => m === '不限专业' || m.toLowerCase().includes(searchQuery))
+    : allMajors;
   select.innerHTML = '';
-  for (const m of majors) {
+  for (const m of filtered) {
     const option = document.createElement('option');
     option.value = m;
     option.textContent = m;
@@ -51,9 +56,16 @@ function updateMajorSelect() {
 function checkMajorVisibility() {
   const category = document.getElementById('categorySelect').value;
   const majorGroup = document.getElementById('majorGroup');
+  const majorLabel = document.getElementById('majorLabel');
   const show = hasSubMajors(category);
   majorGroup.style.display = show ? 'block' : 'none';
-  if (show) updateMajorSelect();
+  // 动态更新标签
+  if (show) {
+    const isEng = (category === '工学');
+    majorLabel.textContent = isEng ? '🔧 工学专业方向' : '💼 专硕专业方向';
+    document.getElementById('majorSearch').value = '';
+    updateMajorSelect();
+  }
 }
 
 // ==================== 事件绑定 ====================
@@ -87,6 +99,11 @@ function bindEvents() {
   document.getElementById('categorySelect').addEventListener('change', () => {
     checkMajorVisibility();
     clearResults();
+  });
+
+  // 专业搜索 → 实时过滤列表
+  document.getElementById('majorSearch').addEventListener('input', () => {
+    updateMajorSelect();
   });
 
   // 查询按钮
