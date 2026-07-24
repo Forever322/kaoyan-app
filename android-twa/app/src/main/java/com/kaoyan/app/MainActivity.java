@@ -37,6 +37,9 @@ public class MainActivity extends Activity {
             settings.setDatabaseEnabled(true);
             settings.setAllowFileAccess(true);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+            // 清除旧缓存，确保加载最新本地文件
+            webView.clearCache(true);
+            webView.clearHistory();
             settings.setUseWideViewPort(true);
             settings.setLoadWithOverviewMode(true);
             settings.setSupportZoom(false);
