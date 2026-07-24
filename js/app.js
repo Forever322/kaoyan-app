@@ -532,7 +532,15 @@ function openDetailPage(result) {
     ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g,'')}</span>` : ''}
   `;
 
-  // Info row
+  // Info row with address
+  document.getElementById('detailInfo').innerHTML = `
+    <div class="detail-info-item"><div class="info-value">${uni.province}</div><div class="info-label">省份</div></div>
+    <div class="detail-info-item"><div class="info-value">${uni.city}</div><div class="info-label">城市</div></div>
+    <div class="detail-info-item"><div class="info-value">${uni.level}</div><div class="info-label">层次</div></div>
+    <div class="detail-info-item"><div class="info-value">${uni.zone}区</div><div class="info-label">考研分区</div></div>
+  `;
+
+  // Filter label
   document.getElementById('detailFilter').textContent =
     `${currentDegree === 'xueshuo' ? '学硕' : '专硕'} · ${category}${major && major !== '不限专业' ? ' · ' + major.replace(/\([^)]*\)/g,'') : ''}`;
 
