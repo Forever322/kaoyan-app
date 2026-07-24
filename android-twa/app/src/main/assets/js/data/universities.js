@@ -228,6 +228,6 @@ function searchUniversities(query) {
   return UNIVERSITIES.filter(u =>
     u.name.toLowerCase().includes(q) ||
     u.province.toLowerCase().includes(q) ||
-    u.city.toLowerCase().includes(q)
+    (u.city && u.city.toLowerCase().includes(q))
   );
 }

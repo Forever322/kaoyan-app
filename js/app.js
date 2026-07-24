@@ -111,6 +111,13 @@ function bindEvents() {
   // 详情页返回按钮
   document.getElementById('detailBackBtn').addEventListener('click', closeDetailPage);
 
+  // 校园实景按钮 - 打开百度图片搜索
+  document.getElementById('detailPhotoBtn').addEventListener('click', () => {
+    const name = document.getElementById('detailName').textContent;
+    const url = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(name + ' 校园')}`;
+    window.open(url, '_blank');
+  });
+
   // 管理院校列表点击也打开详情
   document.getElementById('uniList').addEventListener('click', (e) => {
     const row = e.target.closest('.uni-edit-item');
@@ -329,7 +336,7 @@ function renderResultCard(result, userScore, nationalLines, index) {
         ${dataTag}
       </div>
       <div class="uni-meta">
-        <span>📍 ${uni.province}${uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
+        <span>📍 ${uni.province}${uni.city && uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
         <span>🏷️ ${uni.zone}区</span>${majorText ? `<span>🔧 ${majorText}</span>` : ''}
       </div>
       <div class="score-table-wrap">
@@ -528,12 +535,12 @@ function openDetailPage(result) {
   badges.innerHTML = `
     <span class="hero-badge">${uni.level}</span>
     <span class="hero-badge">${uni.zone}区</span>
-    <span class="hero-badge">${uni.province}${uni.city !== uni.province ? '·' + uni.city : ''}</span>
+    <span class="hero-badge">${uni.province}${uni.city && uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
     ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g,'')}</span>` : ''}
   `;
 
   // Info row - use full address from detail data
-  const addr = detail.address || `${uni.province}${uni.city !== uni.province ? uni.city : ''}`;
+  const addr = detail.address || `${uni.province}${uni.city && uni.city !== uni.province ? uni.city : ''}`;
   document.getElementById('detailInfo').innerHTML = `
     <div class="detail-info-item" style="flex:2;min-width:180px"><div class="info-value" style="font-size:.85rem">${addr}</div><div class="info-label">📍 地址</div></div>
     <div class="detail-info-item"><div class="info-value">${uni.level}</div><div class="info-label">层次</div></div>
@@ -625,7 +632,8 @@ async function renderPhotos(name, color) {
     d.className = 'photo-item photo-search-link';
     d.style.cssText = `background:${color}22;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2rem`;
     d.textContent = '🔍';
-    d.onclick = () => window.open(`https://image.baidu.com/search?word=${encodeURIComponent(name+'校园实景')}`);
+    const searchUrl = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(name+' 校园')}`;
+    d.onclick = () => { window.open(searchUrl, '_blank'); };
     container.appendChild(d);
   }
 }

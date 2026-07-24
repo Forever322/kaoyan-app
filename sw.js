@@ -16,7 +16,9 @@ const STATIC_ASSETS = [
   'js/storage.js',
   'js/data/national-lines.js',
   'js/data/universities.js',
-  'js/data/admission-scores.js'
+  'js/data/admission-scores.js',
+  'js/data/uni-photos.js',
+  'js/data/uni-details.js'
 ];
 
 // 安装: 预缓存静态资源

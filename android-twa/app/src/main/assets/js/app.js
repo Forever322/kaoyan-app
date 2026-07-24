@@ -252,7 +252,7 @@ function renderResultCard(result) {
         <span class="level-badge ${levelBadgeClass}">${uni.level}</span>
       </div>
       <div class="uni-meta">
-        <span>📍 ${uni.province}${uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
+        <span>📍 ${uni.province}${uni.city && uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
         <span>🏷️ ${uni.zone}区</span>
       </div>
       <div class="uni-scores">${scoreChips}</div>

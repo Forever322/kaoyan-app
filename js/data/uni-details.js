@@ -153,11 +153,13 @@ function inferType(name) {
 
 /** 城市等级判定 */
 function getCityTier(province, city) {
+  // 如果城市未定义，尝试从省份推导：直辖市省份=城市，否则用省份名
+  const effectiveCity = city || (['北京','上海','天津','重庆'].includes(province) ? province : province);
   const tier1 = ['北京','上海','广州','深圳'];
   const newTier1 = ['成都','重庆','杭州','武汉','西安','南京','天津','苏州','长沙','郑州','东莞','青岛','宁波','佛山','合肥','无锡'];
-  if (tier1.includes(city)) return { tier:1, label:'一线城市' };
-  if (newTier1.includes(city)) return { tier:2, label:'新一线城市' };
-  if (city === province || ['厦门','大连','福州','济南','沈阳','哈尔滨','长春','石家庄','太原','南昌','南宁','昆明','贵阳','海口','兰州','乌鲁木齐','呼和浩特','银川','西宁','拉萨'].includes(city)) return { tier:3, label:'省会/二线城市' };
+  if (tier1.includes(effectiveCity)) return { tier:1, label:'一线城市' };
+  if (newTier1.includes(effectiveCity)) return { tier:2, label:'新一线城市' };
+  if (effectiveCity === province || ['厦门','大连','福州','济南','沈阳','哈尔滨','长春','石家庄','太原','南昌','南宁','昆明','贵阳','海口','兰州','乌鲁木齐','呼和浩特','银川','西宁','拉萨'].includes(effectiveCity)) return { tier:3, label:'省会/二线城市' };
   return { tier:4, label:'地级市' };
 }
 
@@ -325,7 +327,7 @@ function generateDefaultDetail(name) {
     pros.push(locPro);
     cons.push(locCon);
   } else if (cityTier.tier === 2) {
-    pros.push(`位于${uni.city}（${cityTier.label}），经济发达，就业机会多`);
+    pros.push(`位于${uni.city || uni.province}（${cityTier.label}），经济发达，就业机会多`);
     pros.push(locPro);
     if (locCon) cons.push(locCon);
   } else if (cityTier.tier === 3) {
@@ -350,7 +352,7 @@ function generateDefaultDetail(name) {
 
   // === 特色描述 ===
   const featuresParts = [];
-  featuresParts.push(`${name}位于${uni.province}${uni.city !== uni.province ? uni.city : ''}`);
+  featuresParts.push(`${name}位于${uni.province}${uni.city && uni.city !== uni.province ? uni.city : ''}`);
   featuresParts.push(`是一所${uni.level === '985' ? '985工程' : uni.level === '211' ? '211工程' : uni.level === '双一流' ? '双一流建设' : '省属重点'}${type !== '综合' ? type + '类' : '综合性'}院校`);
   featuresParts.push(`属于考研${uni.zone}区院校`);
   if (cityTier.tier <= 2) featuresParts.push(`地处${cityTier.label}`);
