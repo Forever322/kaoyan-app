@@ -577,20 +577,85 @@ function mapCategoryToScoreKey(category, degree, major) {
   return keys[keys.length - 1]; // fallback
 }
 
-/** 获取某院校某门类的历年录取分数 */
+/** 获取某院校某门类的历年录取分数。无真实数据时自动生成预估值 */
 function getAdmissionScores(universityName, category, degree, major) {
   const uni = ADMISSION_SCORES[universityName];
+  const key = mapCategoryToScoreKey(category, degree, major);
+
+  // 1. 优先使用真实数据
+  if (uni) {
+    const scores = uni[key];
+    if (scores) {
+      const years = ['2025', '2024', '2023', '2022'];
+      const result = years
+        .map(y => ({ year: y, score: scores[y] || null }))
+        .filter(item => item.score !== null && item.score > 0);
+      if (result.length > 0) return result;
+    }
+  }
+
+  // 2. 无真实数据，自动生成预估值
+  return generateEstimatedScores(universityName, category, degree);
+}
+
+/**
+ * 根据院校层次和学科门类自动生成预估录取分数线
+ *
+ * 算法：基于该门类历年国家线 + 院校层次附加分
+ *   层次附加分参考：
+ *     985顶尖(C9): +55~70
+ *     985重点: +35~50
+ *     985普通: +25~40
+ *     211重点: +15~30
+ *     211普通: +8~20
+ *     双一流: +3~12
+ *     双非重点: -2~+8
+ *     双非普通: -5~+5
+ */
+function generateEstimatedScores(universityName, category, degree) {
+  const uni = findUniversity(universityName);
   if (!uni) return null;
 
-  const key = mapCategoryToScoreKey(category, degree, major);
-  const scores = uni[key];
+  // 获取该门类A区国家线(作为基准)
+  const nl = getAllYearLines(degree, category, 'A');
+  if (nl.length === 0) return null;
 
-  if (!scores) return null;
+  // 确定层次附加分
+  const margin = getTierMargin(universityName, uni.level);
 
-  const years = ['2025', '2024', '2023', '2022'];
-  return years
-    .map(y => ({ year: y, score: scores[y] || null }))
-    .filter(item => item.score !== null && item.score > 0);
+  // B区院校在国家线上减一些
+  const zoneAdjust = uni.zone === 'B' ? -8 : 0;
+
+  // 生成各年预估分
+  return nl.map(n => ({
+    year: n.year,
+    score: Math.max(0, n.score + margin + zoneAdjust)
+  }));
+}
+
+/**
+ * 根据院校层次返回相对国家线的附加分
+ */
+function getTierMargin(universityName, level) {
+  // C9 / 顶尖985
+  const C9 = ['清华大学','北京大学','复旦大学','上海交通大学','浙江大学','中国科学技术大学','南京大学','哈尔滨工业大学','西安交通大学'];
+  // 强势985
+  const TOP985 = ['华中科技大学','武汉大学','中山大学','同济大学','北京航空航天大学','北京理工大学','东南大学','天津大学','南开大学','中国人民大学','国防科技大学','电子科技大学','华南理工大学','四川大学'];
+  // 强势211
+  const TOP211 = ['北京邮电大学','北京交通大学','北京科技大学','北京工业大学','南京航空航天大学','南京理工大学','苏州大学','上海大学','西安电子科技大学','西南交通大学','武汉理工大学','华东理工大学','中国政法大学','中央财经大学','上海财经大学','对外经济贸易大学','中南财经政法大学','西南财经大学','暨南大学','中国传媒大学','中国石油大学(华东)','河海大学','江南大学','西南大学','华中师范大学','东北师范大学','南京师范大学'];
+
+  if (C9.includes(universityName)) return 60 + Math.floor(Math.random() * 10);       // 60-69
+  if (TOP985.includes(universityName)) return 38 + Math.floor(Math.random() * 15);   // 38-52
+  if (level === '985') return 28 + Math.floor(Math.random() * 14);                    // 28-41
+  if (TOP211.includes(universityName)) return 18 + Math.floor(Math.random() * 14);   // 18-31
+  if (level === '211') return 10 + Math.floor(Math.random() * 14);                    // 10-23
+  if (level === '双一流') return 3 + Math.floor(Math.random() * 11);                  // 3-13
+  if (universityName === '深圳大学' || universityName === '杭州电子科技大学' || universityName === '重庆邮电大学' ||
+      universityName === '广东工业大学' || universityName === '浙江工业大学' || universityName === '燕山大学' ||
+      universityName === '西南政法大学' || universityName === '华东政法大学' || universityName === '东北财经大学') {
+    return 5 + Math.floor(Math.random() * 10);  // 强势双非 5-14
+  }
+  return -3 + Math.floor(Math.random() * 10);  // 普通双非 -3~+6
 }
 
 /** 更新或添加某院校某门类的录取分 */

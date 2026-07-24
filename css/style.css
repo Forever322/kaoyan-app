@@ -810,6 +810,20 @@ body {
   font-size: 0.72rem;
 }
 
+/* ----- Estimated Data Tag ----- */
+.estimated-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #fef7e0;
+  color: var(--color-warning);
+  border: 1px dashed var(--color-warning);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
 /* ----- Scrollbar ----- */
 ::-webkit-scrollbar {
   width: 4px;

@@ -247,7 +247,15 @@ function renderResultCard(result, userScore, nationalLines) {
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
   const cardClass = `result-card ${verdict}`;
 
-  // Build comparison table: Year | National Line | University Line | Your Score | Result
+  // Check if data is real or estimated
+  const uniData = ADMISSION_SCORES[uni.name];
+  const category = document.getElementById('categorySelect').value;
+  const majorEl = document.getElementById('majorSelect');
+  const major = isEngineering(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+  const key = mapCategoryToScoreKey(category, currentDegree, major);
+  const isRealData = uniData && uniData[key];
+
+  // Build comparison table
   let tableRows = '';
   const years = ['2025', '2024', '2023', '2022'];
 
@@ -270,40 +278,21 @@ function renderResultCard(result, userScore, nationalLines) {
           <td class="td-nl">${nl || '-'}</td>
           <td class="td-ul">${ul || '-'}</td>
           <td class="td-you">${userScore}</td>
-          <td class="${ok ? 'td-ok' : 'td-fail'}">${ok ? '✅过' : '❌差' + (ul ? (ul-userScore) : '')}</td>
-        </tr>`;
-      }
-    }
-  } else {
-    // No admission scores, just show national lines
-    const nlMap = {};
-    if (nationalLines) {
-      nationalLines.forEach(n => { nlMap[n.year] = n.score; });
-    }
-    for (const y of years) {
-      const nl = nlMap[y];
-      if (nl) {
-        const ok = userScore >= nl;
-        tableRows += `<tr>
-          <td>${y}年</td>
-          <td class="td-nl">${nl}</td>
-          <td class="td-ul" style="color:#999;">-</td>
-          <td class="td-you">${userScore}</td>
-          <td class="${ok ? 'td-ok' : 'td-fail'}">${ok ? '✅过线' : '❌'}</td>
+          <td class="${ok ? 'td-ok' : 'td-fail'}">${ok ? '✅' : '❌'}</td>
         </tr>`;
       }
     }
   }
 
-  const majorInfo = document.getElementById('majorSelect');
-  const majorVal = majorInfo && majorInfo.style.display !== 'none' ? majorInfo.value : '';
-  const majorText = majorVal && majorVal !== '不限专业' ? ` · ${majorVal.replace(/\([^)]*\)/g, '')}` : '';
+  const majorText = major && major !== '不限专业' ? ` · ${major.replace(/\([^)]*\)/g, '')}` : '';
+  const dataTag = isRealData ? '' : '<span class="estimated-tag">预估值</span>';
 
   return `
     <div class="${cardClass}">
       <div class="uni-name">
         <span class="name-text">🏫 ${uni.name}</span>
         <span class="level-badge ${levelBadgeClass}">${uni.level}</span>
+        ${dataTag}
       </div>
       <div class="uni-meta">
         <span>📍 ${uni.province}${uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
