@@ -106,6 +106,58 @@ function bindEvents() {
     updateMajorSelect();
   });
 
+  // 全局院校搜索
+  const globalSearch = document.getElementById('globalUniSearch');
+  const globalDropdown = document.getElementById('globalUniDropdown');
+  globalSearch.addEventListener('input', () => {
+    const q = globalSearch.value.trim().toLowerCase();
+    if (!q) { globalDropdown.style.display = 'none'; return; }
+    const matches = UNIVERSITIES.filter(u =>
+      u.name.toLowerCase().includes(q) || u.province.toLowerCase().includes(q)
+    ).slice(0, 15);
+    if (matches.length === 0) {
+      globalDropdown.innerHTML = '<div style="padding:14px;color:#999;text-align:center;font-size:0.85rem;">未找到匹配院校</div>';
+    } else {
+      globalDropdown.innerHTML = matches.map(u => `
+        <div class="header-search-item" data-uni-name="${u.name}">
+          <span class="s-name">${u.name}</span>
+          <span class="s-level">${u.level}</span>
+          <span class="s-loc">📍 ${u.province}${u.city && u.city !== u.province ? ' ' + u.city : ''}</span>
+        </div>
+      `).join('');
+    }
+    globalDropdown.style.display = 'block';
+  });
+  globalSearch.addEventListener('blur', () => {
+    setTimeout(() => { globalDropdown.style.display = 'none'; }, 200);
+  });
+  globalSearch.addEventListener('focus', () => {
+    if (globalSearch.value.trim()) globalDropdown.style.display = 'block';
+  });
+  globalDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('.header-search-item');
+    if (!item) return;
+    const uni = findUniversity(item.dataset.uniName);
+    if (uni) {
+      const userScore = parseInt(document.getElementById('scoreInput').value) || 0;
+      const category = document.getElementById('categorySelect').value;
+      const majorEl = document.getElementById('majorSelect');
+      const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+      const admissionScores = getAdmissionScores(uni.name, category, currentDegree, major);
+      const matchResult = evaluateMatch(userScore, admissionScores);
+      openDetailPage({
+        university: uni,
+        admissionScores,
+        verdict: matchResult.verdict,
+        verdictLabel: matchResult.label,
+        verdictClass: matchResult.cssClass,
+        avgScore: matchResult.avgScore
+      });
+      globalDropdown.style.display = 'none';
+      globalSearch.value = '';
+    }
+  });
+
   // 查询按钮
   document.getElementById('searchBtn').addEventListener('click', doSearch);
   document.getElementById('scoreInput').addEventListener('keydown', (e) => {

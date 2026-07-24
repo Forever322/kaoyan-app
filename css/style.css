@@ -76,6 +76,77 @@ body {
   margin-top: 4px;
 }
 
+/* 院校全局搜索 */
+.header-search {
+  margin-top: 10px;
+  position: relative;
+}
+.header-search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  outline: none;
+  transition: background 0.2s;
+}
+.header-search-input::placeholder {
+  color: rgba(255,255,255,0.7);
+}
+.header-search-input:focus {
+  background: rgba(255,255,255,0.35);
+}
+.header-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 4px;
+}
+.header-search-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+}
+.header-search-item:last-child {
+  border-bottom: none;
+}
+.header-search-item:hover,
+.header-search-item:active {
+  background: #f5f7fa;
+}
+.header-search-item .s-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+.header-search-item .s-level {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  white-space: nowrap;
+}
+.header-search-item .s-loc {
+  font-size: 0.7rem;
+  color: #999;
+  white-space: nowrap;
+}
+
 /* ----- Main ----- */
 .app-main {
   padding: 16px;

@@ -3,7 +3,7 @@
  * 提供离线缓存和PWA能力
  */
 
-const CACHE_NAME = 'kaoyan-app-v2';
+const CACHE_NAME = 'kaoyan-app-v3';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
@@ -48,37 +48,38 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 请求拦截: 缓存优先策略
+// 请求拦截: 网络优先策略（HTML/JS），保证实时更新
 self.addEventListener('fetch', (event) => {
-  // 只拦截 GET 请求
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      // 缓存命中: 返回缓存
-      if (cached) return cached;
+  const url = new URL(event.request.url);
+  const isPageOrScript = url.pathname.endsWith('.html') || url.pathname.endsWith('.js');
 
-      // 缓存未命中: 网络请求并缓存
-      return fetch(event.request).then((response) => {
-        // 只缓存成功的同源请求
-        if (!response || response.status !== 200) return response;
-
-        const url = new URL(event.request.url);
-        if (url.origin === self.location.origin) {
+  if (isPageOrScript) {
+    // HTML/JS: 网络优先，失败时回退缓存
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200 && url.origin === self.location.origin) {
           const cloned = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, cloned);
-          });
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
         }
-
         return response;
-      }).catch(() => {
-        // 网络失败: 返回离线页面（对于HTML请求）
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('index.html');
-        }
-        // 其他资源静默失败
-      });
-    })
-  );
+      }).catch(() => caches.match(event.request))
+    );
+  } else {
+    // CSS/图片/字体等: 缓存优先
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response && response.status === 200 && url.origin === self.location.origin) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          }
+          return response;
+        });
+      })
+    );
+  }
+});
 });
