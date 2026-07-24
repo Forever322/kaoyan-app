@@ -98,6 +98,44 @@ function bindEvents() {
     renderResults(sortResults(currentResults, e.target.value));
   });
 
+  // 院校卡片点击 → 打开详情页
+  document.getElementById('resultsList').addEventListener('click', (e) => {
+    const card = e.target.closest('.result-card');
+    if (!card) return;
+    const idx = parseInt(card.dataset.index);
+    if (!isNaN(idx) && currentResults[idx]) {
+      openDetailPage(currentResults[idx]);
+    }
+  });
+
+  // 详情页返回按钮
+  document.getElementById('detailBackBtn').addEventListener('click', closeDetailPage);
+
+  // 管理院校列表点击也打开详情
+  document.getElementById('uniList').addEventListener('click', (e) => {
+    const row = e.target.closest('.uni-edit-item');
+    if (!row) return;
+    const name = row.dataset.uniName;
+    if (name) {
+      const uni = findUniversity(name);
+      if (uni) {
+        const category = document.getElementById('categorySelect').value;
+        const degree = currentDegree;
+        const major = document.getElementById('majorSelect').value;
+        const result = matchUniversities(
+          parseInt(document.getElementById('scoreInput').value) || 0,
+          degree, category, currentZone,
+          isEngineering(category) ? major : null
+        );
+        const matched = result.results.find(r => r.university.name === name);
+        if (matched) {
+          closeEditModal();
+          setTimeout(() => openDetailPage(matched), 300);
+        }
+      }
+    }
+  });
+
   // B区尝试
   document.getElementById('tryBZoneBtn').addEventListener('click', () => {
     currentZone = 'B';
@@ -232,16 +270,12 @@ function renderResults(results) {
 
   const userScore = parseInt(document.getElementById('scoreInput').value, 10);
   const category = document.getElementById('categorySelect').value;
-  const majorEl = document.getElementById('majorSelect');
-  const major = isEngineering(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
-
-  // Build national lines data for comparison
   const allNL = getAllYearLines(currentDegree, category, currentZone === 'all' ? 'A' : currentZone);
 
-  list.innerHTML = results.map(r => renderResultCard(r, userScore, allNL)).join('');
+  list.innerHTML = results.map((r, i) => renderResultCard(r, userScore, allNL, i)).join('');
 }
 
-function renderResultCard(result, userScore, nationalLines) {
+function renderResultCard(result, userScore, nationalLines, index) {
   const { university: uni, verdict, verdictLabel, verdictClass, admissionScores } = result;
 
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
@@ -288,7 +322,7 @@ function renderResultCard(result, userScore, nationalLines) {
   const dataTag = isRealData ? '' : '<span class="estimated-tag">预估值</span>';
 
   return `
-    <div class="${cardClass}">
+    <div class="${cardClass}" data-index="${index}">
       <div class="uni-name">
         <span class="name-text">🏫 ${uni.name}</span>
         <span class="level-badge ${levelBadgeClass}">${uni.level}</span>
@@ -388,7 +422,7 @@ function renderUniEditList(query) {
   }
 
   container.innerHTML = filtered.map(u => `
-    <div class="uni-edit-item">
+    <div class="uni-edit-item" data-uni-name="${u.name}">
       <div class="uni-edit-info">
         <div class="uni-edit-name">${u.name} ${u.isCustom ? '✏️' : ''}</div>
         <div class="uni-edit-meta">${u.province} · ${u.zone}区 · ${u.level} ${u.scores ? '· 有录取数据' : '· 无录取数据'}</div>
@@ -472,5 +506,85 @@ shakeStyle.textContent = `
   }
 `;
 document.head.appendChild(shakeStyle);
+
+// ==================== 院校详情页 ====================
+function openDetailPage(result) {
+  const { university: uni, admissionScores, verdict, verdictLabel, verdictClass } = result;
+  const detail = getUniversityDetail(uni.name);
+  const userScore = parseInt(document.getElementById('scoreInput').value) || 0;
+  const category = document.getElementById('categorySelect').value;
+  const allNL = getAllYearLines(currentDegree, category, currentZone === 'all' ? 'A' : currentZone);
+  const majorEl = document.getElementById('majorSelect');
+  const major = isEngineering(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+
+  // Hero area
+  const hero = document.getElementById('detailHero');
+  hero.style.background = `linear-gradient(135deg, ${detail.color} 0%, ${detail.color}dd 60%, ${detail.color}99 100%)`;
+
+  document.getElementById('detailName').textContent = uni.name;
+
+  // Badges
+  const badges = document.getElementById('detailBadges');
+  badges.innerHTML = `
+    <span class="hero-badge">${uni.level}</span>
+    <span class="hero-badge">${uni.zone}区</span>
+    <span class="hero-badge">${uni.province}${uni.city !== uni.province ? '·' + uni.city : ''}</span>
+    ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g,'')}</span>` : ''}
+  `;
+
+  // Info row
+  document.getElementById('detailFilter').textContent =
+    `${currentDegree === 'xueshuo' ? '学硕' : '专硕'} · ${category}${major && major !== '不限专业' ? ' · ' + major.replace(/\([^)]*\)/g,'') : ''}`;
+
+  // Score comparison table
+  let tableRows = '';
+  const years = ['2025', '2024', '2023', '2022'];
+  const nlMap = {};
+  allNL.forEach(n => { nlMap[n.year] = n.score; });
+  const scoreMap = {};
+  if (admissionScores) admissionScores.forEach(s => { scoreMap[s.year] = s.score; });
+
+  for (const y of years) {
+    const nl = nlMap[y];
+    const ul = scoreMap[y];
+    if (nl || ul) {
+      const refScore = ul || nl;
+      const diff = userScore > 0 ? userScore - refScore : 0;
+      const ok = diff >= 0;
+      tableRows += `<tr>
+        <td>${y}年</td>
+        <td class="td-nl">${nl || '-'}</td>
+        <td class="td-ul">${ul || '-'}</td>
+        <td class="td-you">${userScore || '-'}</td>
+        <td class="${ok ? 'td-ok' : 'td-fail'}">${userScore > 0 ? (ok ? '✅ +' + diff : '❌ ' + diff) : '-'}</td>
+      </tr>`;
+    }
+  }
+  document.getElementById('detailScoreTable').innerHTML = tableRows;
+
+  // Verdict
+  const uniData = ADMISSION_SCORES[uni.name];
+  const key = mapCategoryToScoreKey(category, currentDegree, major);
+  const isReal = uniData && uniData[key];
+  document.getElementById('detailVerdict').innerHTML = `
+    <span class="${verdictClass}">${verdict === 'safe' ? '✅ 稳过' : verdict === 'likely' ? '👍 大概率录取' : verdict === 'reach' ? '🎯 可冲刺' : verdict === 'nodata' ? '📋 参考数据' : '⚠️ 差距较大'}</span>
+    ${!isReal ? '<span class="estimated-tag">预估值</span>' : ''}
+  `;
+
+  // Pros/Cons
+  document.getElementById('detailPros').innerHTML = (detail.pros || []).map(p => `<li>${p}</li>`).join('');
+  document.getElementById('detailCons').innerHTML = (detail.cons || []).map(c => `<li>${c}</li>`).join('');
+
+  // Features
+  document.getElementById('detailFeatures').textContent = detail.features || '';
+
+  // Show detail page
+  document.getElementById('detailPage').style.display = 'block';
+  document.getElementById('detailPage').scrollTop = 0;
+}
+
+function closeDetailPage() {
+  document.getElementById('detailPage').style.display = 'none';
+}
 
 window.deleteUniversity = deleteUniversity;
