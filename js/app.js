@@ -37,7 +37,8 @@ function updateCategorySelect() {
 
 function updateMajorSelect() {
   const select = document.getElementById('majorSelect');
-  const majors = getEngineeringMajors();
+  const category = document.getElementById('categorySelect').value;
+  const majors = getMajorsForCategory(category);
   select.innerHTML = '';
   for (const m of majors) {
     const option = document.createElement('option');
@@ -50,8 +51,9 @@ function updateMajorSelect() {
 function checkMajorVisibility() {
   const category = document.getElementById('categorySelect').value;
   const majorGroup = document.getElementById('majorGroup');
-  const isEng = isEngineering(category);
-  majorGroup.style.display = isEng ? 'block' : 'none';
+  const show = hasSubMajors(category);
+  majorGroup.style.display = show ? 'block' : 'none';
+  if (show) updateMajorSelect();
 }
 
 // ==================== 事件绑定 ====================
@@ -95,7 +97,8 @@ function bindEvents() {
 
   // 排序
   document.getElementById('sortSelect').addEventListener('change', (e) => {
-    renderResults(sortResults(currentResults, e.target.value));
+    currentResults = sortResults(currentResults, e.target.value);
+    renderResults(currentResults);
   });
 
   // 院校卡片点击 → 打开详情页
@@ -132,7 +135,7 @@ function bindEvents() {
         const result = matchUniversities(
           parseInt(document.getElementById('scoreInput').value) || 0,
           degree, category, currentZone,
-          isEngineering(category) ? major : null
+          hasSubMajors(category) ? major : null
         );
         const matched = result.results.find(r => r.university.name === name);
         if (matched) {
@@ -190,7 +193,7 @@ function doSearch() {
   if (!category) return;
 
   const majorSelect = document.getElementById('majorSelect');
-  const major = isEngineering(category) ? majorSelect.value : null;
+  const major = hasSubMajors(category) ? majorSelect.value : null;
 
   saveLastSearch({ score, degree: currentDegree, category, zone: currentZone, major });
 
@@ -292,7 +295,7 @@ function renderResultCard(result, userScore, nationalLines, index) {
   const uniData = ADMISSION_SCORES[uni.name];
   const category = document.getElementById('categorySelect').value;
   const majorEl = document.getElementById('majorSelect');
-  const major = isEngineering(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
   const key = mapCategoryToScoreKey(category, currentDegree, major);
   const isRealData = uniData && uniData[key];
 
@@ -522,7 +525,7 @@ function openDetailPage(result) {
   const category = document.getElementById('categorySelect').value;
   const allNL = getAllYearLines(currentDegree, category, currentZone === 'all' ? 'A' : currentZone);
   const majorEl = document.getElementById('majorSelect');
-  const major = isEngineering(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
 
   // Hero area
   const hero = document.getElementById('detailHero');

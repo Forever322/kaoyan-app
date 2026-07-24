@@ -224,13 +224,43 @@ function getCategories(degree) {
   return degData ? Object.keys(degData) : [];
 }
 
-/** 判断某个门类是否为工学 */
-function isEngineering(category) {
-  return category === '工学' || category.includes('电子信息') || category.includes('机械') ||
-         category.includes('建筑') || category.includes('土木');
+/** 专硕专业细分映射：组合门类 → 独立专业列表 */
+const ZHUANSHUO_MAJOR_MAP = {
+  '金融/应用统计/税务/国际商务/保险/资产评估': ['金融','应用统计','税务','国际商务','保险','资产评估'],
+  '法律(非法学)/法律(法学)/社会工作/警务': ['法律(非法学)','法律(法学)','社会工作','警务'],
+  '教育/汉语国际教育': ['教育','汉语国际教育'],
+  '电子信息/机械/材料与化工/资源与环境/能源动力/土木水利/生物与医药/交通运输': ['电子信息','机械','材料与化工','资源与环境','能源动力','土木水利','生物与医药','交通运输'],
+  '农业/兽医/风景园林/林业': ['农业','兽医','风景园林','林业'],
+  '临床医学/口腔医学/公共卫生/护理/药学/中药学': ['临床医学','口腔医学','公共卫生','护理','药学','中药学'],
+  '工商管理/旅游管理': ['工商管理','旅游管理'],
+  '翻译/新闻与传播/出版': ['翻译','新闻与传播','出版']
+};
+
+/** 判断某门类是否有专业细分（工学或专硕组合类） */
+function hasSubMajors(category) {
+  if (category === '工学') return true;
+  if (ZHUANSHUO_MAJOR_MAP[category]) return true;
+  return false;
 }
 
-/** 获取工学二级专业列表 */
-function getEngineeringMajors() {
-  return ENGINEERING_MAJORS;
+/** 判断某个门类是否为工学（学硕） */
+function isEngineering(category) {
+  return category === '工学';
+}
+
+/** 获取专业细分列表（学硕工学 / 专硕组合类通用） */
+function getMajorsForCategory(category) {
+  // 专硕：返回该组合类别下的独立专业
+  if (ZHUANSHUO_MAJOR_MAP[category]) {
+    const subs = ZHUANSHUO_MAJOR_MAP[category];
+    return ['不限专业', ...subs.map((s, i) => `${i+1}. ${s}`)];
+  }
+  // 学硕工学：返回工学二级专业（带编号）
+  if (category === '工学') {
+    return ENGINEERING_MAJORS.map((m, i) => {
+      if (i === 0) return m; // 不限专业不加编号
+      return `${i}. ${m}`;
+    });
+  }
+  return ['不限专业'];
 }

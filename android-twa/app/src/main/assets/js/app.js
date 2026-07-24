@@ -82,8 +82,8 @@ function bindEvents() {
 
   // 排序切换
   document.getElementById('sortSelect').addEventListener('change', (e) => {
-    const sorted = sortResults(currentResults, e.target.value);
-    renderResults(sorted);
+    currentResults = sortResults(currentResults, e.target.value);
+    renderResults(currentResults);
   });
 
   // B区尝试按钮
