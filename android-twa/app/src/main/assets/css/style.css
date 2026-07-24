@@ -1156,21 +1156,19 @@ body {
 .puzzle-tile {
   position: relative;
   overflow: hidden;
-  background-size: 600% 400%;  /* 6 cols × 4 rows */
+  background-size: 600% 400%;
   background-repeat: no-repeat;
   opacity: 0;
   transform: scale(0.85);
+  /* transition-delay 由JS inline设置，实现逐个延迟 */
   transition: opacity 0.35s ease-out, transform 0.35s ease-out;
-  will-change: opacity, transform;
 }
 
-/* 图片加载完成后逐个显示 */
 .puzzle-tile.reveal {
   opacity: 1;
   transform: scale(1);
 }
 
-/* 图片加载失败时，用渐变伪装 */
 .puzzle-tile.no-image {
   opacity: 1;
   transform: scale(1);

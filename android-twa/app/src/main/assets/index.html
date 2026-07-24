@@ -39,19 +39,22 @@
         loader=document.getElementById('splashLoader'),
         skipBtn=document.getElementById('splashSkipBtn');
     if(!splash||!grid) return;
-    var skipped=false, timer=null, tiles=[], frame=0;
+    var skipped=false, hideTimer=null;
 
-    function hide(){
+    function hideSplash(){
+      if(skipped) return;
+      skipped=true;
+      if(hideTimer) clearTimeout(hideTimer);
       splash.classList.add('fade-out');
       setTimeout(function(){ splash.style.display='none'; },500);
     }
 
-    skipBtn.onclick=function(){ skipped=true; clearTimeout(timer); hide(); };
+    skipBtn.onclick=hideSplash;
     splash.addEventListener('click',function(e){
-      if(e.target===splash||e.target===grid){ skipped=true; clearTimeout(timer); hide(); }
+      if(e.target===splash||e.target===grid) hideSplash();
     });
 
-    // 生成24格
+    // 生成24格，用CSS transition-delay实现逐个浮现
     for(var r=0; r<ROWS; r++){
       for(var c=0; c<COLS; c++){
         var t=document.createElement('div');
@@ -60,29 +63,19 @@
         t.style.gridRow=r+1;
         t.style.backgroundImage='url(splash.png)';
         t.style.backgroundPosition=(c/(COLS-1)*100)+'% '+(r/(ROWS-1)*100)+'%';
+        // CSS transition-delay决定每格何时开始动画
+        t.style.transitionDelay = ((r*COLS+c)*DELAY)+'ms';
         grid.appendChild(t);
-        tiles.push(t);
       }
     }
     if(loader) loader.classList.add('hidden');
 
-    // 用rAF逐个reveal，比setTimeout更可靠
-    var idx=0, lastTime=0;
-    function revealStep(ts){
-      if(skipped) return;
-      if(!lastTime) lastTime=ts;
-      if(ts-lastTime >= DELAY && idx<TOTAL){
-        tiles[idx].classList.add('reveal');
-        idx++; lastTime=ts;
-      }
-      if(idx<TOTAL){
-        requestAnimationFrame(revealStep);
-      }
-    }
-    requestAnimationFrame(revealStep);
+    // 一次性给所有tile加reveal，CSS transition-delay自行错开
+    var tiles=grid.querySelectorAll('.puzzle-tile');
+    for(var i=0;i<tiles.length;i++) tiles[i].classList.add('reveal');
 
-    // 4秒后自动隐藏
-    timer=setTimeout(function(){ if(!skipped) hide(); }, DURATION+800);
+    // 一条定时器：4秒后隐藏
+    hideTimer=setTimeout(hideSplash, DURATION);
   })();
   </script>
 
