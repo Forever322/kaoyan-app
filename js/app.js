@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initUI();
   bindEvents();
   restoreLastSearch();
+  // 隐藏启动画面
+  const splash = document.getElementById('splashScreen');
+  if (splash) {
+    splash.style.opacity = '0';
+    setTimeout(() => { splash.style.display = 'none'; }, 500);
+  }
 });
 
 let currentDegree = 'xueshuo';
