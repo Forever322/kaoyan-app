@@ -3,7 +3,7 @@
  * 提供离线缓存和PWA能力
  */
 
-const CACHE_NAME = 'kaoyan-app-v1';
+const CACHE_NAME = 'kaoyan-app-v2';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
