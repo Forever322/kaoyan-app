@@ -19,8 +19,8 @@ import android.net.http.SslError;
 
 public class MainActivity extends Activity {
     private WebView webView;
-    // GitHub Pages URL - accessible from China
-    private static final String APP_URL = "https://forever322.github.io/kaoyan-app/";
+    // 加载本地打包的页面（不依赖网络）
+    private static final String APP_URL = "file:///android_asset/index.html";
     private static final String TAG = "KaoyanApp";
 
     @Override
@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
             settings.setJavaScriptEnabled(true);
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
-            settings.setAllowFileAccess(false);
+            settings.setAllowFileAccess(true);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setUseWideViewPort(true);
             settings.setLoadWithOverviewMode(true);
@@ -68,13 +68,18 @@ public class MainActivity extends Activity {
                 public void onReceivedError(WebView view, WebResourceRequest request,
                                             WebResourceError error) {
                     Log.e(TAG, "Error: " + error.getDescription() + " for " + request.getUrl());
-                    // Show error page
-                    String errorHtml = "<html><body style='padding:40px;font-family:sans-serif;text-align:center;'>"
-                        + "<h2>加载失败</h2>"
-                        + "<p>" + error.getDescription() + "</p>"
-                        + "<p>请检查网络连接后下拉刷新</p>"
-                        + "</body></html>";
-                    view.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null);
+                    // 本地加载失败，回退到远程GitHub Pages
+                    if (request.getUrl().toString().startsWith("file://")) {
+                        Log.w(TAG, "Local load failed, fallback to GitHub Pages");
+                        view.loadUrl("https://forever322.github.io/kaoyan-app/");
+                    } else {
+                        String errorHtml = "<html><body style='padding:40px;font-family:sans-serif;text-align:center;'>"
+                            + "<h2>加载失败</h2>"
+                            + "<p>" + error.getDescription() + "</p>"
+                            + "<p>请检查网络连接后下拉刷新</p>"
+                            + "</body></html>";
+                        view.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null);
+                    }
                 }
 
                 @Override
@@ -90,7 +95,9 @@ public class MainActivity extends Activity {
                     String url = request.getUrl().toString();
                     Uri uri = request.getUrl();
                     String host = uri.getHost();
-                    if (host != null && (host.contains("vercel.app") || host.contains("kaoyan"))) {
+                    String scheme = uri.getScheme();
+                    // 本地文件和相对路径在 WebView 中加载
+                    if (host == null || "file".equals(scheme) || host.contains("kaoyan") || host.contains("github")) {
                         return false;
                     }
                     try {
