@@ -532,13 +532,13 @@ function openDetailPage(result) {
     ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g,'')}</span>` : ''}
   `;
 
-  // Info row with address (fix undefined fallback)
-  const cityName = uni.city || uni.province;
+  // Info row - use full address from detail data
+  const addr = detail.address || `${uni.province}${uni.city !== uni.province ? uni.city : ''}`;
   document.getElementById('detailInfo').innerHTML = `
-    <div class="detail-info-item"><div class="info-value">${uni.province}</div><div class="info-label">省份</div></div>
-    <div class="detail-info-item"><div class="info-value">${cityName}</div><div class="info-label">城市</div></div>
+    <div class="detail-info-item" style="flex:2;min-width:180px"><div class="info-value" style="font-size:.85rem">${addr}</div><div class="info-label">📍 地址</div></div>
     <div class="detail-info-item"><div class="info-value">${uni.level}</div><div class="info-label">层次</div></div>
     <div class="detail-info-item"><div class="info-value">${uni.zone}区</div><div class="info-label">考研分区</div></div>
+    <div class="detail-info-item"><div class="info-value">${uni.province}</div><div class="info-label">省份</div></div>
   `;
 
   // Photos grid - 显示真实照片
