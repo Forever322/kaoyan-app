@@ -1264,11 +1264,6 @@ body {
   color: var(--color-text-secondary);
 }
 
-/* Make result cards clickable */
-.result-card {
-  cursor: pointer;
-}
-
 /* ----- Estimated Data Tag ----- */
 .estimated-tag {
   display: inline-block;

@@ -1,8 +1,5 @@
 // DOM 工具函数
 
-/** 获取元素 */
-export const $ = (id) => document.getElementById(id);
-
 /** HTML 转义，防止 XSS */
 export function escapeHtml(str) {
   if (typeof str !== 'string') return String(str ?? '');
@@ -21,26 +18,6 @@ export function debounce(fn, delay = 200) {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delay);
   };
-}
-
-/** 切换 active 类 */
-export function toggleActive(container, activeEl) {
-  container.querySelectorAll('.toggle-btn').forEach((b) => b.classList.remove('active'));
-  activeEl.classList.add('active');
-}
-
-/** 显示/隐藏元素 */
-export function show(el) {
-  el.style.display = '';
-}
-export function hide(el) {
-  el.style.display = 'none';
-}
-export function showBlock(el) {
-  el.style.display = 'block';
-}
-export function showFlex(el) {
-  el.style.display = 'flex';
 }
 
 /** 抖动动画（首次调用时注入 keyframes） */
