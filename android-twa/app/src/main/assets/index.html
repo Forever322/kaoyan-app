@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="考研择校助手">
@@ -71,7 +71,7 @@
     <span class="subtitle">输入分数，匹配最适合的院校</span>
     <div class="header-search">
       <input type="text" id="globalUniSearch" class="header-search-input" placeholder="🔍 直接搜院校..." autocomplete="off">
-      <div id="globalUniDropdown" class="header-search-dropdown" style="display:none;"></div>
+      <div id="globalUniDropdown" class="header-search-dropdown hidden"></div>
     </div>
   </header>
 
@@ -101,14 +101,14 @@
       <!-- 学科门类 -->
       <div class="form-group">
         <label class="form-label">📚 学科门类</label>
-        <select id="categorySelect" class="form-select"></select>
+        <select id="categorySelect" class="form-select" aria-label="学科门类"></select>
       </div>
 
       <!-- 专业方向子类 -->
-      <div class="form-group" id="majorGroup" style="display:none;">
+      <div class="form-group hidden" id="majorGroup">
         <label class="form-label" id="majorLabel">🔧 专业方向</label>
-        <input type="text" id="majorSearch" class="form-input" placeholder="🔍 输入关键词筛选专业..." autocomplete="off" style="margin-bottom:8px;font-size:0.85rem;">
-        <select id="majorSelect" class="form-select" size="8"></select>
+        <input type="text" id="majorSearch" class="form-input" placeholder="🔍 输入关键词筛选专业..." autocomplete="off">
+        <select id="majorSelect" class="form-select" size="8" aria-label="专业方向"></select>
         <span class="form-hint">选择具体专业可更精确匹配院校录取数据</span>
       </div>
 
@@ -140,17 +140,17 @@
     </section>
 
     <!-- 国家线参考 -->
-    <section class="national-line-section card" id="nationalLineCard" style="display:none;">
+    <section class="national-line-section card hidden" id="nationalLineCard">
       <h3>📊 国家线参考</h3>
       <div id="nationalLineInfo"></div>
     </section>
 
     <!-- 结果区 -->
-    <section class="results-section" id="resultsSection" style="display:none;">
+    <section class="results-section hidden" id="resultsSection">
       <div class="results-header">
         <h3>📊 匹配结果 <span id="resultCount" class="badge"></span></h3>
         <div class="result-sort">
-          <select id="sortSelect" class="form-select compact">
+          <select id="sortSelect" class="form-select compact" aria-label="排序方式">
             <option value="default">综合排序</option>
             <option value="level">按院校层次</option>
             <option value="match">按匹配度</option>
@@ -168,7 +168,7 @@
     </section>
 
     <!-- 未过线提示 -->
-    <section class="fail-state card" id="failState" style="display:none;">
+    <section class="fail-state card hidden" id="failState">
       <div class="fail-icon">⚠️</div>
       <h3>未过该区国家线</h3>
       <p id="failMsg"></p>
@@ -184,7 +184,7 @@
   </footer>
 
   <!-- ===== 数据编辑弹窗 ===== -->
-  <div class="modal-overlay" id="editModal" style="display:none;">
+  <div class="modal-overlay hidden" id="editModal">
     <div class="modal-content">
       <div class="modal-header">
         <h3>🔧 管理院校数据</h3>
@@ -200,16 +200,16 @@
           <input type="text" id="uniSearchInput" class="form-input" placeholder="搜索院校名称...">
           <div id="uniList" class="uni-edit-list"></div>
         </div>
-        <div class="modal-tab-content" id="tabAdd" style="display:none;">
+        <div class="modal-tab-content hidden" id="tabAdd">
           <form id="addUniForm" class="add-uni-form">
             <input type="text" id="addName" class="form-input" placeholder="院校名称 *" required>
             <input type="text" id="addProvince" class="form-input" placeholder="所在省份 *" required>
             <input type="text" id="addCity" class="form-input" placeholder="所在城市">
-            <select id="addZone" class="form-select">
+            <select id="addZone" class="form-select" aria-label="招生分区">
               <option value="A">A区</option>
               <option value="B">B区</option>
             </select>
-            <select id="addLevel" class="form-select">
+            <select id="addLevel" class="form-select" aria-label="院校层次">
               <option value="双非">双非院校</option>
               <option value="211">211</option>
               <option value="985">985</option>
@@ -219,7 +219,7 @@
             <button type="submit" class="btn-primary">✅ 添加/更新院校</button>
           </form>
         </div>
-        <div class="modal-tab-content" id="tabImport" style="display:none;">
+        <div class="modal-tab-content hidden" id="tabImport">
           <p class="import-hint">粘贴JSON数据批量导入院校和分数线</p>
           <textarea id="importDataText" class="form-textarea large" placeholder='粘贴JSON数据...'></textarea>
           <button id="importBtn" class="btn-primary">📥 批量导入</button>
@@ -230,7 +230,7 @@
   </div>
 
   <!-- ===== 院校详情页 ===== -->
-  <div class="detail-overlay" id="detailPage" style="display:none;">
+  <div class="detail-overlay hidden" id="detailPage">
     <div class="detail-content">
       <!-- 顶部照片区 -->
       <div class="detail-hero" id="detailHero">

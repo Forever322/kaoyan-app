@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initUI();
   bindEvents();
   restoreLastSearch();
+  initHistoryNav();
 });
 
 let currentDegree = 'xueshuo';
@@ -464,15 +465,40 @@ function restoreLastSearch() {
   }
 }
 
+// ==================== 导航历史管理（返回键支持） ====================
+let _navState = 'home'; // 'home' | 'detail' | 'modal'
+
+function initHistoryNav() {
+  // 初始状态
+  history.replaceState({ view: 'home' }, '');
+
+  window.addEventListener('popstate', (e) => {
+    const view = (e.state && e.state.view) || 'home';
+    if (view === 'home') {
+      // 关闭详情页或弹窗
+      if (_navState === 'detail') {
+        document.getElementById('detailPage').style.display = 'none';
+      } else if (_navState === 'modal') {
+        document.getElementById('editModal').style.display = 'none';
+      }
+      _navState = 'home';
+    }
+  });
+}
+
 // ==================== 弹窗管理 ====================
 function openEditModal() {
   document.getElementById('editModal').style.display = 'flex';
+  _navState = 'modal';
+  history.pushState({ view: 'modal' }, '');
   switchModalTab('universities');
   renderUniEditList('');
 }
 
 function closeEditModal() {
   document.getElementById('editModal').style.display = 'none';
+  _navState = 'home';
+  // 不 pushState，让 popstate 自然处理
 }
 
 function switchModalTab(tab) {
@@ -672,10 +698,14 @@ function openDetailPage(result) {
   // Show detail page
   document.getElementById('detailPage').style.display = 'block';
   document.getElementById('detailPage').scrollTop = 0;
+  _navState = 'detail';
+  history.pushState({ view: 'detail' }, '');
 }
 
 function closeDetailPage() {
   document.getElementById('detailPage').style.display = 'none';
+  _navState = 'home';
+  // 不 pushState，让 popstate 自然处理
 }
 
 window.deleteUniversity = deleteUniversity;

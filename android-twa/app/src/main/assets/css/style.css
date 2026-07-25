@@ -36,6 +36,7 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -788,7 +789,6 @@ body {
 
 .nl-table-wrap {
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   margin: 0 -4px;
 }
 
@@ -834,7 +834,6 @@ body {
 /* ----- Score Comparison Table ----- */
 .score-table-wrap {
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   margin: 10px -8px 6px;
 }
 
@@ -888,7 +887,6 @@ body {
   background: var(--color-bg);
   z-index: 50;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   animation: slideInRight 0.3s ease-out;
 }
 
@@ -950,6 +948,7 @@ body {
   padding: 3px 10px;
   border-radius: 12px;
   background: rgba(255,255,255,.25);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
@@ -965,6 +964,7 @@ body {
   padding: 8px 16px;
   font-size: 0.9rem;
   cursor: pointer;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -984,6 +984,7 @@ body {
   border-radius: 20px;
   padding: 8px 14px;
   font-size: 0.8rem;
+  -webkit-backdrop-filter: blur(8px);
   cursor: pointer;
   backdrop-filter: blur(8px);
   font-weight: 500;
@@ -1128,6 +1129,14 @@ body {
   border: 1px dashed var(--color-warning);
   vertical-align: middle;
   margin-left: 4px;
+}
+
+/* ----- Utility ----- */
+.hidden { display: none; }
+
+#majorSearch {
+  margin-bottom: 8px;
+  font-size: 0.85rem;
 }
 
 /* ----- Scrollbar ----- */
