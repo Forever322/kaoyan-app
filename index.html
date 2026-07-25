@@ -25,10 +25,13 @@
   </div>
   <script>
   (function(){
-    // 如果已展示过开屏（返回导航），不再弹
-    if(window.sessionStorage&&sessionStorage.getItem('_splash_shown')) return;
     var splash=document.getElementById('splashScreen');
     if(!splash){ return; }
+    // 如果已展示过开屏（返回导航），直接隐藏不弹
+    if(window.sessionStorage&&sessionStorage.getItem('_splash_shown')){
+      splash.style.display='none';
+      return;
+    }
     if(window.sessionStorage) sessionStorage.setItem('_splash_shown','1');
 
     var DURATION=4000, hidden=false, hideTimer=null;
