@@ -32,51 +32,73 @@
 ## 📐 技术架构
 
 ```
-前端 (纯静态)
-├── index.html          # 单页应用
-├── css/style.css       # Mobile-first 响应式样式
-├── js/
-│   ├── app.js          # 应用逻辑（UI/事件/渲染）
-│   ├── matcher.js      # 匹配引擎（分数评估+排序）
-│   ├── storage.js      # localStorage 存储管理
+前端 (Vite 8 + ES Modules)
+├── index.html              # Vite 入口 HTML
+├── src/
+│   ├── main.js             # Vite 入口 JS
+│   ├── style.css           # Mobile-first 响应式样式
+│   ├── app.js              # 应用逻辑（UI/事件/渲染）
+│   ├── matcher.js          # 匹配引擎（分数评估+排序）
+│   ├── storage.js          # localStorage 存储管理
 │   └── data/
 │       ├── universities.js       # 院校数据库（700+ 所）
 │       ├── national-lines.js     # 国家线（2022-2025）
 │       ├── admission-scores.js   # 录取分数线
 │       ├── uni-details.js        # 院校详情（优缺点/特色）
 │       └── uni-photos.js         # 院校照片 CDN
-├── sw.js              # Service Worker（离线缓存）
-├── manifest.json      # PWA 清单
-└── icons/             # PWA 图标
+├── public/
+│   ├── sw.js              # Service Worker（离线缓存）
+│   ├── manifest.json      # PWA 清单
+│   ├── icons/             # PWA 图标
+│   └── splash.png         # 开屏图片
+├── dist/                  # 构建输出
+├── vite.config.js         # Vite 配置
+├── eslint.config.js       # ESLint 配置
+├── .prettierrc            # Prettier 配置
+└── android-twa/           # Android TWA 壳工程
 ```
 
-### Android TWA 打包
-```
-android-twa/
-├── build.gradle              # 根 Gradle 配置
-├── app/
-│   ├── build.gradle          # 应用配置（compileSdk 34）
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       └── assets/           # 嵌入的 Web 资源
-```
-
-**技术栈**：原生 HTML/CSS/JavaScript，零框架依赖，无需构建工具。
+**技术栈**：Vite 8 + ES Modules + ESLint + Prettier，模块化架构，支持 Tree-shaking。
 
 ## 🚀 快速开始
 
-### 方式一：本地预览（推荐）
+### 环境要求
 
-直接用浏览器打开 `index.html` 即可使用，无需服务器。
+- Node.js 22.13+ 
+- pnpm 11+
 
-### 方式二：PWA 安装
+### 方式一：开发模式（推荐）
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
+pnpm dev
+
+# 访问 http://localhost:5173
+```
+
+### 方式二：构建生产版本
+
+```bash
+# 构建优化后的生产版本
+pnpm build
+
+# 预览构建结果
+pnpm preview
+
+# 构建产物在 dist/ 目录
+```
+
+### 方式三：PWA 安装
 
 1. 使用浏览器（Chrome/Edge/Safari）访问已部署的页面
 2. 浏览器会提示「安装应用」，点击安装
 3. 或在菜单中选择「添加到主屏幕」
 4. 安装后可离线使用
 
-### 方式三：Android APK
+### 方式四：Android APK
 
 ```bash
 # 前置条件：Android SDK + JDK 17+
@@ -85,6 +107,16 @@ cd android-twa
 
 # APK 输出路径
 # android-twa/app/build/outputs/apk/debug/
+```
+
+### 代码检查与格式化
+
+```bash
+# ESLint 检查
+npx eslint src/
+
+# Prettier 格式化
+npx prettier --write src/
 ```
 
 ## 📋 匹配算法
@@ -103,18 +135,22 @@ cd android-twa
 
 | 文件/目录 | 说明 | 行数 |
 |---|---|---|
-| `index.html` | 主页面（开屏 + 表单 + 结果 + 详情） | ~250 |
-| `css/style.css` | Mobile-first 响应式样式 | ~600 |
-| `js/app.js` | UI 初始化 / 事件绑定 / 渲染逻辑 | ~500 |
-| `js/matcher.js` | 匹配引擎（分数评估 + 排序） | ~120 |
-| `js/storage.js` | 本地存储管理 | ~100 |
-| `js/data/universities.js` | 全国院校数据库（702 所） | ~1500 |
-| `js/data/national-lines.js` | 国家线数据（14 门类 × 4 年） | ~300 |
-| `js/data/admission-scores.js` | 录取分数线（52 所高校） | ~800 |
-| `js/data/uni-details.js` | 院校详情（优缺点/特色） | ~1000 |
-| `js/data/uni-photos.js` | 院校照片（百度百科 CDN） | ~200 |
-| `sw.js` | Service Worker 离线缓存 | ~60 |
-| `manifest.json` | PWA 清单配置 | ~20 |
+| `index.html` | Vite 入口 HTML | ~300 |
+| `src/main.js` | Vite 入口 JS | ~10 |
+| `src/style.css` | Mobile-first 响应式样式 | ~1200 |
+| `src/app.js` | UI 初始化 / 事件绑定 / 渲染逻辑 | ~800 |
+| `src/matcher.js` | 匹配引擎（分数评估 + 排序） | ~130 |
+| `src/storage.js` | 本地存储管理 | ~200 |
+| `src/data/universities.js` | 全国院校数据库（700+ 所） | ~800 |
+| `src/data/national-lines.js` | 国家线数据（14 门类 × 4 年） | ~500 |
+| `src/data/admission-scores.js` | 录取分数线（50+ 所高校） | ~800 |
+| `src/data/uni-details.js` | 院校详情（优缺点/特色） | ~400 |
+| `src/data/uni-photos.js` | 院校照片（百度百科 CDN） | ~200 |
+| `public/sw.js` | Service Worker 离线缓存 | ~80 |
+| `public/manifest.json` | PWA 清单配置 | ~20 |
+| `vite.config.js` | Vite 构建配置 | ~30 |
+| `eslint.config.js` | ESLint 代码检查规则 | ~20 |
+| `.prettierrc` | Prettier 代码格式化配置 | ~10 |
 | `android-twa/` | Android TWA 壳工程 | — |
 
 ## 🌐 分区说明
@@ -134,6 +170,69 @@ cd android-twa
 - **录取分数线**：各校研究生院官网历年公示数据
 - **院校照片**：百度百科 CDN
 
-## 📄 License
+## �️ 开发指南
+
+### 常用命令
+
+```bash
+pnpm dev             # 启动开发服务器（热更新）
+pnpm build           # 构建生产版本
+pnpm preview         # 预览生产构建
+pnpm lint            # 代码检查
+pnpm format          # 代码格式化
+```
+
+### 模块依赖关系
+
+```
+main.js
+  └── style.css
+  └── app.js
+        ├── matcher.js
+        │     └── data/national-lines.js
+        │     └── data/universities.js
+        │     └── data/admission-scores.js
+        ├── storage.js
+        │     └── data/universities.js
+        │     └── data/admission-scores.js
+        └── data/
+              ├── national-lines.js
+              ├── universities.js
+              ├── admission-scores.js
+              │     ├── universities.js
+              │     └── national-lines.js
+              ├── uni-details.js
+              │     └── universities.js
+              └── uni-photos.js
+```
+
+### 添加新院校
+
+1. 在 `src/data/universities.js` 的 `UNIVERSITIES` 数组中添加院校对象
+2. 在 `src/data/admission-scores.js` 的 `ADMISSION_SCORES` 中添加录取分数线（可选）
+3. 在 `src/data/uni-details.js` 的 `UNI_DETAILS` 中添加院校详情（可选）
+4. 在 `src/data/uni-photos.js` 的 `UNI_PHOTOS` 中添加照片链接（可选）
+
+### 添加新年份国家线
+
+在 `src/data/national-lines.js` 的 `NATIONAL_LINES` 对象中，为每个门类添加新年份的分数。
+
+### 构建产物
+
+```
+dist/
+├── index.html                    # 入口 HTML
+├── assets/
+│   ├── index-[hash].css         # CSS（自动注入）
+│   ├── index-[hash].js          # 主 JS（24KB gzip 8KB）
+│   └── data-[hash].js           # 数据模块（149KB gzip 33KB）
+├── icons/                        # PWA 图标
+├── manifest.json                 # PWA 清单
+└── sw.js                         # Service Worker
+```
+
+> 💡 数据模块自动分包，支持长期缓存。更新数据后哈希值会自动变化。
+
+## �📄 License
 
 MIT

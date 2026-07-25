@@ -1,43 +1,41 @@
-name: Build APK
+name: Build Debug APK
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    paths:
+      - 'android-twa/**'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
-      - name: Setup Gradle 8.5
-        uses: gradle/actions/setup-gradle@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '8.5'
+          gradle-version: '8.11.1'
 
-      - name: Generate keystore
-        run: |
-          keytool -genkey -v -keystore android-twa/release.keystore \
-            -alias kaoyan -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass kaoyan123 -keypass kaoyan123 \
-            -dname "CN=Kaoyan, OU=App, O=Kaoyan, L=Beijing, ST=Beijing, C=CN"
-
-      - name: Build release APK
+      - name: Build debug APK
         working-directory: android-twa
-        run: gradle assembleRelease
+        run: gradle assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
         with:
-          name: kaoyan-app-release
-          path: android-twa/app/build/outputs/apk/release/app-release.apk
+          name: kaoyan-app-debug
+          path: android-twa/app/build/outputs/apk/debug/app-debug.apk
