@@ -18,7 +18,7 @@
 </head>
 <body>
 
-  <!-- ===== 开屏画面：纯CSS动画淡入淡出 ===== -->
+  <!-- ===== 开屏画面 ===== -->
   <div id="splashScreen">
     <img src="splash.png" alt="" id="splashImg">
     <button id="splashSkipBtn">跳过 ›</button>
@@ -27,6 +27,7 @@
     #splashScreen {
       position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;
       background:#0d1b2a;display:flex;align-items:center;justify-content:center;
+      pointer-events:none;  /* 关键：整层不拦截点击 */
       animation: splashFade 5s ease-in-out forwards;
     }
     #splashImg {
@@ -38,32 +39,26 @@
       background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);
       border:1px solid rgba(255,255,255,0.2);border-radius:20px;
       padding:8px 20px;font-size:0.85rem;cursor:pointer;letter-spacing:0.5px;
+      pointer-events:auto;  /* 只有跳过按钮可点 */
     }
     @keyframes splashFade {
       0%   { opacity:0; }
       12%  { opacity:1; }
       80%  { opacity:1; }
-      100% { opacity:0; visibility:hidden; }
+      100% { opacity:0; }
     }
   </style>
   <script>
   (function(){
     var splash=document.getElementById('splashScreen');
     if(!splash) return;
-
-    // 返回导航不重弹
     if(window.sessionStorage&&sessionStorage.getItem('_splash_shown')){
-      splash.style.display='none';
-      return;
+      splash.style.display='none'; return;
     }
-    sessionStorage.setItem('_splash_shown','1');
-
-    // 跳过按钮
+    if(window.sessionStorage) sessionStorage.setItem('_splash_shown','1');
     document.getElementById('splashSkipBtn').onclick=function(){
       splash.style.display='none';
     };
-
-    // CSS动画结束后清理
     splash.addEventListener('animationend',function(){
       splash.style.display='none';
     });
