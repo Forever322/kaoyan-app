@@ -29,6 +29,10 @@ jobs:
           pnpm build
           rm -rf android-twa/app/src/main/assets/*
           cp -r dist/* android-twa/app/src/main/assets/
+          # 修复：去除 crossorigin 属性（file:// 协议下不支持 CORS）
+          sed -i 's/ crossorigin//g' android-twa/app/src/main/assets/index.html
+          echo "=== Fixed index.html ==="
+          grep -E '(src=|href=)' android-twa/app/src/main/assets/index.html || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
