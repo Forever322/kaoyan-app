@@ -1130,11 +1130,6 @@ body {
   margin-left: 4px;
 }
 
-/* ----- Splash: 淡入淡出开屏 ----- */
-#splashScreen {
-  transition: opacity 0.6s ease-in-out;
-}
-
 /* ----- Scrollbar ----- */
 ::-webkit-scrollbar {
   width: 4px;

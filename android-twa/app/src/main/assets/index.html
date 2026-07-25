@@ -18,41 +18,55 @@
 </head>
 <body>
 
-  <!-- ===== 开屏画面：淡入淡出，sessionStorage防重复 ===== -->
-  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.6s ease-in-out;">
-    <img src="splash.png" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;">
-    <button id="splashSkipBtn" style="position:absolute;bottom:40px;right:24px;z-index:3;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:8px 20px;font-size:0.85rem;cursor:pointer;letter-spacing:0.5px;">跳过 ›</button>
+  <!-- ===== 开屏画面：纯CSS动画淡入淡出 ===== -->
+  <div id="splashScreen">
+    <img src="splash.png" alt="" id="splashImg">
+    <button id="splashSkipBtn">跳过 ›</button>
   </div>
+  <style>
+    #splashScreen {
+      position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;
+      background:#0d1b2a;display:flex;align-items:center;justify-content:center;
+      animation: splashFade 5s ease-in-out forwards;
+    }
+    #splashImg {
+      width:100%;height:100%;object-fit:cover;
+      position:absolute;top:0;left:0;
+    }
+    #splashSkipBtn {
+      position:absolute;bottom:40px;right:24px;z-index:3;
+      background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);
+      border:1px solid rgba(255,255,255,0.2);border-radius:20px;
+      padding:8px 20px;font-size:0.85rem;cursor:pointer;letter-spacing:0.5px;
+    }
+    @keyframes splashFade {
+      0%   { opacity:0; }
+      12%  { opacity:1; }
+      80%  { opacity:1; }
+      100% { opacity:0; visibility:hidden; }
+    }
+  </style>
   <script>
   (function(){
     var splash=document.getElementById('splashScreen');
-    if(!splash){ return; }
-    // 如果已展示过开屏（返回导航），直接隐藏不弹
+    if(!splash) return;
+
+    // 返回导航不重弹
     if(window.sessionStorage&&sessionStorage.getItem('_splash_shown')){
       splash.style.display='none';
       return;
     }
-    if(window.sessionStorage) sessionStorage.setItem('_splash_shown','1');
+    sessionStorage.setItem('_splash_shown','1');
 
-    var DURATION=4000, hidden=false, hideTimer=null;
-    function hideSplash(){
-      if(hidden) return; hidden=true;
-      if(hideTimer) clearTimeout(hideTimer);
-      splash.style.opacity='0';
-      splash.style.pointerEvents='none';  // 立即禁用点击穿透
-      setTimeout(function(){ splash.style.display='none'; },700);
-    }
+    // 跳过按钮
+    document.getElementById('splashSkipBtn').onclick=function(){
+      splash.style.display='none';
+    };
 
-    document.getElementById('splashSkipBtn').onclick=hideSplash;
-    splash.addEventListener('click',function(e){ if(e.target===splash) hideSplash(); });
-
-    // 淡入
-    requestAnimationFrame(function(){
-      splash.style.opacity='1';
+    // CSS动画结束后清理
+    splash.addEventListener('animationend',function(){
+      splash.style.display='none';
     });
-
-    // 4秒后淡出
-    hideTimer=setTimeout(hideSplash, DURATION);
   })();
   </script>
 
