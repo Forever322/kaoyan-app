@@ -347,11 +347,6 @@ export function hasSubMajors(category) {
   return false;
 }
 
-/** 判断某个门类是否为工学（学硕） */
-export function isEngineering(category) {
-  return category === '工学';
-}
-
 /** 获取专业细分列表（学硕工学 / 专硕组合类通用），名称后带标准专业代码 */
 export function getMajorsForCategory(category) {
   // 专硕：返回该类别下的独立专业，格式: 专业名(6位代码)
