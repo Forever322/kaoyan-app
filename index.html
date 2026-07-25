@@ -18,63 +18,36 @@
 </head>
 <body>
 
-  <!-- ===== 拼图启动画面：inline保证最先执行 ===== -->
-  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;">
-    <div id="puzzleGrid" class="puzzle-grid"></div>
-    <div id="splashLoader" class="splash-loader">
-      <div class="splash-spinner"></div>
-      <p class="splash-loading-text">v4 · 拼图加载中...</p>
-    </div>
-    <div id="splashError" class="splash-error">
-      <span class="error-icon">🎓</span>
-      <p>考研择校助手</p>
-    </div>
-    <button id="splashSkipBtn" class="splash-skip-btn">跳过 ›</button>
+  <!-- ===== 开屏画面：淡入淡出，sessionStorage防重复 ===== -->
+  <div id="splashScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#0d1b2a;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.6s ease-in-out;">
+    <img src="splash.png" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;">
+    <button id="splashSkipBtn" style="position:absolute;bottom:40px;right:24px;z-index:3;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:8px 20px;font-size:0.85rem;cursor:pointer;letter-spacing:0.5px;">跳过 ›</button>
   </div>
   <script>
   (function(){
-    var COLS=6, ROWS=4, TOTAL=24, DURATION=4000, DELAY=50;
-    var splash=document.getElementById('splashScreen'),
-        grid=document.getElementById('puzzleGrid'),
-        loader=document.getElementById('splashLoader'),
-        skipBtn=document.getElementById('splashSkipBtn');
-    if(!splash||!grid) return;
-    var skipped=false, hideTimer=null;
+    // 如果已展示过开屏（返回导航），不再弹
+    if(window.sessionStorage&&sessionStorage.getItem('_splash_shown')) return;
+    var splash=document.getElementById('splashScreen');
+    if(!splash){ return; }
+    if(window.sessionStorage) sessionStorage.setItem('_splash_shown','1');
 
+    var DURATION=4000, hidden=false, hideTimer=null;
     function hideSplash(){
-      if(skipped) return;
-      skipped=true;
+      if(hidden) return; hidden=true;
       if(hideTimer) clearTimeout(hideTimer);
-      splash.classList.add('fade-out');
-      setTimeout(function(){ splash.style.display='none'; },500);
+      splash.style.opacity='0';
+      setTimeout(function(){ splash.style.display='none'; },700);
     }
 
-    skipBtn.onclick=hideSplash;
-    splash.addEventListener('click',function(e){
-      if(e.target===splash||e.target===grid) hideSplash();
+    document.getElementById('splashSkipBtn').onclick=hideSplash;
+    splash.addEventListener('click',function(e){ if(e.target===splash) hideSplash(); });
+
+    // 淡入
+    requestAnimationFrame(function(){
+      splash.style.opacity='1';
     });
 
-    // 生成24格，用CSS transition-delay实现逐个浮现
-    for(var r=0; r<ROWS; r++){
-      for(var c=0; c<COLS; c++){
-        var t=document.createElement('div');
-        t.className='puzzle-tile';
-        t.style.gridColumn=c+1;
-        t.style.gridRow=r+1;
-        t.style.backgroundImage='url(splash.png)';
-        t.style.backgroundPosition=(c/(COLS-1)*100)+'% '+(r/(ROWS-1)*100)+'%';
-        // CSS transition-delay决定每格何时开始动画
-        t.style.transitionDelay = ((r*COLS+c)*DELAY)+'ms';
-        grid.appendChild(t);
-      }
-    }
-    if(loader) loader.classList.add('hidden');
-
-    // 一次性给所有tile加reveal，CSS transition-delay自行错开
-    var tiles=grid.querySelectorAll('.puzzle-tile');
-    for(var i=0;i<tiles.length;i++) tiles[i].classList.add('reveal');
-
-    // 一条定时器：4秒后隐藏
+    // 4秒后淡出
     hideTimer=setTimeout(hideSplash, DURATION);
   })();
   </script>

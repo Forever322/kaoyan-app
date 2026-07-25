@@ -37,24 +37,18 @@ public class MainActivity extends Activity {
             settings.setDatabaseEnabled(true);
             settings.setAllowFileAccess(true);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-            // 清除旧缓存，确保加载最新本地文件
-            webView.clearCache(true);
-            webView.clearHistory();
             settings.setUseWideViewPort(true);
             settings.setLoadWithOverviewMode(true);
             settings.setSupportZoom(false);
             settings.setBuiltInZoomControls(false);
             settings.setDisplayZoomControls(false);
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-            // Fix garbled Chinese characters
             settings.setDefaultTextEncodingName("utf-8");
-            settings.setBlockNetworkImage(false);
             settings.setAllowContentAccess(false);
             settings.setSaveFormData(true);
             settings.setLoadsImagesAutomatically(true);
-            settings.setBlockNetworkImage(false);
             String ua = settings.getUserAgentString();
-            settings.setUserAgentString(ua + " KaoyanApp/1.0");
+            settings.setUserAgentString(ua + " KaoyanApp/2.0");
 
             webView.setWebViewClient(new WebViewClient() {
                 @Override
@@ -70,27 +64,27 @@ public class MainActivity extends Activity {
                 @Override
                 public void onReceivedError(WebView view, WebResourceRequest request,
                                             WebResourceError error) {
-                    Log.e(TAG, "Error: " + error.getDescription() + " for " + request.getUrl());
-                    // 本地加载失败，回退到远程GitHub Pages
-                    if (request.getUrl().toString().startsWith("file://")) {
-                        Log.w(TAG, "Local load failed, fallback to GitHub Pages");
-                        view.loadUrl("https://forever322.github.io/kaoyan-app/");
-                    } else {
+                    // 只处理主框架错误，忽略图片/JS等子资源错误
+                    if (request.isForMainFrame()) {
+                        Log.e(TAG, "Main frame error: " + error.getDescription());
                         String errorHtml = "<html><body style='padding:40px;font-family:sans-serif;text-align:center;'>"
-                            + "<h2>加载失败</h2>"
-                            + "<p>" + error.getDescription() + "</p>"
-                            + "<p>请检查网络连接后下拉刷新</p>"
-                            + "</body></html>";
+                            + "<h2>加载失败</h2><p>请检查网络后重试</p></body></html>";
                         view.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null);
+                    } else {
+                        Log.w(TAG, "Sub-resource error (ignored): " + request.getUrl());
                     }
                 }
 
                 @Override
                 public void onReceivedSslError(WebView view, SslErrorHandler handler,
                                                SslError error) {
-                    Log.e(TAG, "SSL Error: " + error.toString());
-                    // Vercel uses valid SSL, but if there's an issue, still proceed
-                    handler.proceed();
+                    // 仅对已知域名忽略SSL错误
+                    String host = Uri.parse(error.getUrl()).getHost();
+                    if (host != null && (host.contains("github") || host.contains("kaoyan"))) {
+                        handler.proceed();
+                    } else {
+                        handler.cancel();
+                    }
                 }
 
                 @Override
@@ -99,26 +93,23 @@ public class MainActivity extends Activity {
                     Uri uri = request.getUrl();
                     String host = uri.getHost();
                     String scheme = uri.getScheme();
-                    // 本地文件和相对路径在 WebView 中加载
-                    if (host == null || "file".equals(scheme) || host.contains("kaoyan") || host.contains("github")) {
+                    // 本地文件、GitHub Pages等在WebView内打开
+                    if (host == null || "file".equals(scheme)
+                            || host.contains("kaoyan") || host.contains("github")) {
                         return false;
                     }
+                    // 外部链接用系统浏览器打开
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         startActivity(intent);
                     } catch (Exception e) {
-                        Log.w(TAG, "No browser found for: " + url);
+                        Log.w(TAG, "No browser for: " + url);
                     }
                     return true;
                 }
             });
 
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onProgressChanged(WebView view, int newProgress) {
-                    Log.d(TAG, "Progress: " + newProgress);
-                }
-            });
+            webView.setWebChromeClient(new WebChromeClient());
 
             if (savedInstanceState != null) {
                 webView.restoreState(savedInstanceState);
@@ -127,14 +118,14 @@ public class MainActivity extends Activity {
             }
 
         } catch (Exception e) {
-            Log.e(TAG, "Fatal error in onCreate", e);
-            // Fallback: if WebView fails entirely, try opening in browser
+            Log.e(TAG, "Fatal onCreate error", e);
             try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(APP_URL));
+                Intent intent = new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://forever322.github.io/kaoyan-app/"));
                 startActivity(intent);
                 finish();
             } catch (Exception ex) {
-                Log.e(TAG, "Cannot even open browser", ex);
+                Log.e(TAG, "Fallback also failed", ex);
             }
         }
     }
