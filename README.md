@@ -37,9 +37,15 @@
 ├── src/
 │   ├── main.js             # Vite 入口 JS
 │   ├── style.css           # Mobile-first 响应式样式
-│   ├── app.js              # 应用逻辑（UI/事件/渲染）
-│   ├── matcher.js          # 匹配引擎（分数评估+排序）
+│   ├── app.js              # 主逻辑（UI 初始化 / 事件绑定 / 导航管理）
+│   ├── render.js           # 渲染模块（国家线 / 搜索结果 / 分数表格）
+│   ├── detail.js           # 详情页模块
+│   ├── modal.js            # 弹窗编辑模块（自定义院校管理）
+│   ├── photos.js           # 校园实景照片模块
+│   ├── matcher.js          # 匹配引擎（分数评估 + 排序）
+│   ├── utils.js            # 工具函数（DOM 操作 / XSS 防护）
 │   ├── storage.js          # localStorage 存储管理
+│   ├── matcher.test.js     # Vitest 单元测试
 │   └── data/
 │       ├── universities.js       # 院校数据库（700+ 所）
 │       ├── national-lines.js     # 国家线（2022-2025）
@@ -47,24 +53,25 @@
 │       ├── uni-details.js        # 院校详情（优缺点/特色）
 │       └── uni-photos.js         # 院校照片 CDN
 ├── public/
-│   ├── sw.js              # Service Worker（离线缓存）
-│   ├── manifest.json      # PWA 清单
-│   ├── icons/             # PWA 图标
-│   └── splash.png         # 开屏图片
-├── dist/                  # 构建输出
-├── vite.config.js         # Vite 配置
-├── eslint.config.js       # ESLint 配置
-├── .prettierrc            # Prettier 配置
-└── android-twa/           # Android TWA 壳工程
+│   ├── sw.js               # Service Worker（离线缓存）
+│   ├── manifest.json       # PWA 清单
+│   ├── icons/              # PWA 图标
+│   └── splash.png          # 开屏图片
+├── dist/                   # 构建输出
+├── vite.config.js          # Vite 配置
+├── vitest.config.js        # Vitest 测试配置
+├── eslint.config.js        # ESLint 配置
+├── .prettierrc             # Prettier 配置
+└── android-twa/            # Android TWA 壳工程
 ```
 
-**技术栈**：Vite 8 + ES Modules + ESLint + Prettier，模块化架构，支持 Tree-shaking。
+**技术栈**：Vite 8 + ES Modules + ESLint + Prettier + Vitest，模块化架构，支持 Tree-shaking。
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- Node.js 22.13+ 
+- Node.js 24+
 - pnpm 11+
 
 ### 方式一：开发模式（推荐）
@@ -109,14 +116,23 @@ cd android-twa
 # android-twa/app/build/outputs/apk/debug/
 ```
 
-### 代码检查与格式化
+### 代码检查与测试
 
 ```bash
 # ESLint 检查
-npx eslint src/
+pnpm lint
+
+# ESLint 自动修复
+pnpm lint:fix
 
 # Prettier 格式化
-npx prettier --write src/
+pnpm format
+
+# 运行单元测试
+pnpm test
+
+# 监听模式测试
+pnpm test:watch
 ```
 
 ## 📋 匹配算法
@@ -133,25 +149,32 @@ npx prettier --write src/
 
 ## 📂 项目结构
 
-| 文件/目录 | 说明 | 行数 |
-|---|---|---|
-| `index.html` | Vite 入口 HTML | ~300 |
-| `src/main.js` | Vite 入口 JS | ~10 |
-| `src/style.css` | Mobile-first 响应式样式 | ~1200 |
-| `src/app.js` | UI 初始化 / 事件绑定 / 渲染逻辑 | ~800 |
-| `src/matcher.js` | 匹配引擎（分数评估 + 排序） | ~130 |
-| `src/storage.js` | 本地存储管理 | ~200 |
-| `src/data/universities.js` | 全国院校数据库（700+ 所） | ~800 |
-| `src/data/national-lines.js` | 国家线数据（14 门类 × 4 年） | ~500 |
-| `src/data/admission-scores.js` | 录取分数线（50+ 所高校） | ~800 |
-| `src/data/uni-details.js` | 院校详情（优缺点/特色） | ~400 |
-| `src/data/uni-photos.js` | 院校照片（百度百科 CDN） | ~200 |
-| `public/sw.js` | Service Worker 离线缓存 | ~80 |
-| `public/manifest.json` | PWA 清单配置 | ~20 |
-| `vite.config.js` | Vite 构建配置 | ~30 |
-| `eslint.config.js` | ESLint 代码检查规则 | ~20 |
-| `.prettierrc` | Prettier 代码格式化配置 | ~10 |
-| `android-twa/` | Android TWA 壳工程 | — |
+| 文件/目录 | 说明 |
+|---|---|
+| `index.html` | Vite 入口 HTML |
+| `src/main.js` | Vite 入口 JS |
+| `src/style.css` | Mobile-first 响应式样式 |
+| `src/app.js` | 主逻辑（UI 初始化 / 事件绑定 / 导航管理） |
+| `src/render.js` | 渲染模块（国家线 / 搜索结果 / 分数表格） |
+| `src/detail.js` | 详情页模块 |
+| `src/modal.js` | 弹窗编辑模块（自定义院校管理） |
+| `src/photos.js` | 校园实景照片模块 |
+| `src/matcher.js` | 匹配引擎（分数评估 + 排序） |
+| `src/utils.js` | 工具函数（DOM 操作 / XSS 防护） |
+| `src/storage.js` | 本地存储管理 |
+| `src/matcher.test.js` | Vitest 单元测试（18 个用例） |
+| `src/data/universities.js` | 全国院校数据库（700+ 所） |
+| `src/data/national-lines.js` | 国家线数据（14 门类 × 4 年） |
+| `src/data/admission-scores.js` | 录取分数线（50+ 所高校） |
+| `src/data/uni-details.js` | 院校详情（优缺点/特色） |
+| `src/data/uni-photos.js` | 院校照片（百度百科 CDN） |
+| `public/sw.js` | Service Worker 离线缓存 |
+| `public/manifest.json` | PWA 清单配置 |
+| `vite.config.js` | Vite 构建配置 |
+| `vitest.config.js` | Vitest 测试配置 |
+| `eslint.config.js` | ESLint 代码检查规则 |
+| `.prettierrc` | Prettier 代码格式化配置 |
+| `android-twa/` | Android TWA 壳工程 |
 
 ## 🌐 分区说明
 
@@ -180,6 +203,7 @@ pnpm build           # 构建生产版本
 pnpm preview         # 预览生产构建
 pnpm lint            # 代码检查
 pnpm format          # 代码格式化
+pnpm test            # 运行单元测试
 ```
 
 ### 模块依赖关系
@@ -188,21 +212,32 @@ pnpm format          # 代码格式化
 main.js
   └── style.css
   └── app.js
+        ├── render.js
+        │     └── data/admission-scores.js
+        │     └── data/national-lines.js
+        │     └── utils.js
+        ├── modal.js
+        │     └── storage.js
+        │     └── utils.js
+        ├── detail.js
+        │     └── render.js
+        │     └── photos.js
+        │     └── data/uni-details.js
+        │     └── data/admission-scores.js
+        │     └── utils.js
         ├── matcher.js
         │     └── data/national-lines.js
         │     └── data/universities.js
         │     └── data/admission-scores.js
         ├── storage.js
-        │     └── data/universities.js
-        │     └── data/admission-scores.js
+        ├── photos.js
+        │     └── utils.js
+        ├── utils.js
         └── data/
               ├── national-lines.js
               ├── universities.js
               ├── admission-scores.js
-              │     ├── universities.js
-              │     └── national-lines.js
               ├── uni-details.js
-              │     └── universities.js
               └── uni-photos.js
 ```
 

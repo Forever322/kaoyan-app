@@ -1,21 +1,22 @@
 // 考研择校助手 - 主应用逻辑
 
 import { matchUniversities, sortResults, evaluateMatch } from './matcher.js';
-import {
-  initStorage, addCustomUniversity, removeCustomUniversity,
-  getAllUniversitiesForEdit, saveLastSearch, getLastSearch,
-  exportAllData, importData,
-} from './storage.js';
+import { initStorage, saveLastSearch, getLastSearch, exportAllData } from './storage.js';
 import { UNIVERSITIES, findUniversity } from './data/universities.js';
+import { getAdmissionScores } from './data/admission-scores.js';
+import { getCategories, hasSubMajors, getMajorsForCategory } from './data/national-lines.js';
+import { shakeElement, escapeHtml, debounce } from './utils.js';
+import { renderResults, renderNationalLine } from './render.js';
 import {
-  ADMISSION_SCORES, mapCategoryToScoreKey, getAdmissionScores,
-} from './data/admission-scores.js';
-import { getUniversityDetail } from './data/uni-details.js';
-import {
-  getCategories, hasSubMajors, getMajorsForCategory, getAllYearLines,
-} from './data/national-lines.js';
-import { shakeElement } from './utils.js';
-import { renderPhotos } from './photos.js';
+  openEditModal as _showModal,
+  closeEditModal as _hideModal,
+  switchModalTab,
+  renderUniEditList,
+  handleAddUniversity,
+  handleImport,
+  handleDeleteUniversity,
+} from './modal.js';
+import { openDetailPage as _showDetail, closeDetailPage as _hideDetail } from './detail.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initStorage();
@@ -28,42 +29,372 @@ document.addEventListener('DOMContentLoaded', () => {
 let currentDegree = 'xueshuo';
 let currentZone = 'A';
 let currentResults = [];
-let currentModalTab = 'universities';
+let _navState = 'home';
+
+// ==================== 导航封装 ====================
+function openDetailPage(result) {
+  _showDetail(result, { degree: currentDegree, zone: currentZone });
+  _navState = 'detail';
+  history.pushState({ view: 'detail' }, '');
+}
+
+function closeDetailPage() {
+  _hideDetail();
+  _navState = 'home';
+}
+
+function openEditModal() {
+  _showModal();
+  _navState = 'modal';
+  history.pushState({ view: 'modal' }, '');
+}
+
+function closeEditModal() {
+  _hideModal();
+  _navState = 'home';
+}
 
 // ==================== UI 初始化 ====================
 function initUI() {
+  setupCategoryListbox();
   updateCategorySelect();
+  setupMajorListbox();
   updateMajorSelect();
 }
 
+// ---------- 学科门类 combobox ----------
+function setupCategoryListbox() {
+  const dropdown = document.getElementById('categorySelect');
+  const trigger = dropdown.querySelector('.major-trigger');
+  const panel = dropdown.querySelector('.major-panel');
+  const triggerInput = trigger.querySelector('.major-trigger-input');
+  dropdown._selectedValue = '';
+
+  Object.defineProperty(dropdown, 'value', {
+    get() {
+      return this._selectedValue;
+    },
+    set(v) {
+      this._selectedValue = v;
+      panel.querySelectorAll('.listbox-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.value === v ? 'true' : 'false');
+      });
+      if (!dropdown.classList.contains('open')) {
+        triggerInput.value = v || '';
+        triggerInput.placeholder = v ? '' : '🔍 选择学科门类...';
+      }
+    },
+    configurable: true,
+  });
+
+  function openDropdown() {
+    dropdown.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    triggerInput.removeAttribute('readonly');
+    triggerInput.value = '';
+    triggerInput.placeholder = '🔍 搜索学科门类...';
+    triggerInput.focus();
+    const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    triggerInput.setAttribute('readonly', '');
+    triggerInput.value = dropdown._selectedValue || '';
+    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 选择学科门类...';
+  }
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.contains('open') ? closeDropdown() : openDropdown();
+  });
+
+  triggerInput.addEventListener('input', () => {
+    const q = triggerInput.value.toLowerCase().trim();
+    panel.querySelectorAll('.listbox-item').forEach((item) => {
+      const text = item.dataset.value.toLowerCase();
+      item.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+
+  triggerInput.addEventListener('focus', () => {
+    if (!dropdown.classList.contains('open')) openDropdown();
+  });
+
+  triggerInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (!dropdown.contains(document.activeElement)) closeDropdown();
+    }, 150);
+  });
+
+  triggerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeDropdown();
+      triggerInput.blur();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
+      if (items.length) items[0].focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
+      if (selected) {
+        dropdown.value = selected.dataset.value;
+        closeDropdown();
+        dropdown.dispatchEvent(new Event('change'));
+      }
+    }
+  });
+
+  panel.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const item = e.target.closest('.listbox-item');
+    if (!item) return;
+    dropdown.value = item.dataset.value;
+    closeDropdown();
+    dropdown.dispatchEvent(new Event('change'));
+  });
+
+  panel.addEventListener('keydown', (e) => {
+    const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
+    const current = document.activeElement;
+    const idx = items.indexOf(current);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = items[idx + 1] || items[0];
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (idx <= 0) triggerInput.focus();
+      else items[idx - 1].focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (idx >= 0) {
+        dropdown.value = items[idx].dataset.value;
+        closeDropdown();
+        dropdown.dispatchEvent(new Event('change'));
+      }
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+      triggerInput.focus();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target)) closeDropdown();
+  });
+}
+
 function updateCategorySelect() {
-  const select = document.getElementById('categorySelect');
+  const dropdown = document.getElementById('categorySelect');
+  const panel = dropdown.querySelector('.major-panel');
   const categories = getCategories(currentDegree);
-  select.innerHTML = '';
+  const prevValue = dropdown._selectedValue;
+  panel.innerHTML = '';
+  let restored = false;
   for (const cat of categories) {
-    const option = document.createElement('option');
-    option.value = cat;
-    option.textContent = cat;
-    select.appendChild(option);
+    const item = document.createElement('div');
+    item.className = 'listbox-item';
+    item.setAttribute('role', 'option');
+    item.textContent = cat;
+    item.dataset.value = cat;
+    if (cat === prevValue) {
+      item.setAttribute('aria-selected', 'true');
+      restored = true;
+    }
+    panel.appendChild(item);
+  }
+  if (!restored) dropdown._selectedValue = '';
+  const triggerInput = dropdown.querySelector('.major-trigger-input');
+  if (!dropdown.classList.contains('open')) {
+    triggerInput.value = dropdown._selectedValue || '';
+    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 选择学科门类...';
   }
   checkMajorVisibility();
 }
 
+function setupMajorListbox() {
+  const dropdown = document.getElementById('majorSelect');
+  const trigger = dropdown.querySelector('.major-trigger');
+  const panel = dropdown.querySelector('.major-panel');
+  const triggerInput = trigger.querySelector('.major-trigger-input');
+  dropdown._selectedValue = '';
+
+  // Provide .value getter/setter to match old <select> API
+  Object.defineProperty(dropdown, 'value', {
+    get() {
+      return this._selectedValue;
+    },
+    set(v) {
+      this._selectedValue = v;
+      panel.querySelectorAll('.listbox-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.value === v ? 'true' : 'false');
+      });
+      // Only update input text when dropdown is closed (showing selected value)
+      if (!dropdown.classList.contains('open')) {
+        triggerInput.value = v || '';
+        triggerInput.placeholder = v ? '' : '🔍 输入关键词筛选专业...';
+      }
+    },
+    configurable: true,
+  });
+
+  function openDropdown() {
+    dropdown.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    triggerInput.removeAttribute('readonly');
+    triggerInput.value = '';
+    triggerInput.placeholder = '🔍 搜索专业...';
+    triggerInput.focus();
+    // Scroll to selected item
+    const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    triggerInput.setAttribute('readonly', '');
+    triggerInput.value = dropdown._selectedValue || '';
+    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 输入关键词筛选专业...';
+  }
+
+  function toggleDropdown() {
+    if (dropdown.classList.contains('open')) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  }
+
+  // Toggle dropdown on trigger click
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  });
+
+  // Input filtering while typing
+  triggerInput.addEventListener('input', () => {
+    const q = triggerInput.value.toLowerCase().trim();
+    panel.querySelectorAll('.listbox-item').forEach((item) => {
+      const text = item.dataset.value.toLowerCase();
+      const match = !q || text.includes(q) || item.dataset.value === '不限专业';
+      item.style.display = match ? '' : 'none';
+    });
+  });
+
+  // Prevent readonly from blocking input events (open on focus)
+  triggerInput.addEventListener('focus', () => {
+    if (!dropdown.classList.contains('open')) {
+      openDropdown();
+    }
+  });
+
+  // Close on blur (with delay for panel clicks)
+  triggerInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (!dropdown.contains(document.activeElement)) {
+        closeDropdown();
+      }
+    }, 150);
+  });
+
+  // Keyboard on input
+  triggerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeDropdown();
+      triggerInput.blur();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
+      if (items.length) items[0].focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
+      if (selected) {
+        dropdown.value = selected.dataset.value;
+        closeDropdown();
+      }
+    }
+  });
+
+  // Item selection — select and close
+  panel.addEventListener('mousedown', (e) => {
+    e.preventDefault(); // Prevent blur on input
+    const item = e.target.closest('.listbox-item');
+    if (!item) return;
+    dropdown.value = item.dataset.value;
+    closeDropdown();
+  });
+
+  // Keyboard navigation inside panel
+  panel.addEventListener('keydown', (e) => {
+    const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
+    const current = document.activeElement;
+    const idx = items.indexOf(current);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = items[idx + 1] || items[0];
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (idx <= 0) {
+        triggerInput.focus();
+      } else {
+        items[idx - 1].focus();
+      }
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (idx >= 0) {
+        dropdown.value = items[idx].dataset.value;
+        closeDropdown();
+      }
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+      triggerInput.focus();
+    }
+  });
+
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+}
+
 function updateMajorSelect() {
-  const select = document.getElementById('majorSelect');
+  const dropdown = document.getElementById('majorSelect');
+  const panel = dropdown.querySelector('.major-panel');
   const category = document.getElementById('categorySelect').value;
-  const searchQuery = (document.getElementById('majorSearch').value || '').toLowerCase().trim();
+  const searchQuery = (dropdown.querySelector('.major-trigger-input').value || '').toLowerCase().trim();
   const allMajors = getMajorsForCategory(category);
-  // 根据搜索词过滤
   const filtered = searchQuery
     ? allMajors.filter((m) => m === '不限专业' || m.toLowerCase().includes(searchQuery))
     : allMajors;
-  select.innerHTML = '';
+  const prevValue = dropdown._selectedValue;
+  panel.innerHTML = '';
+  let restored = false;
   for (const m of filtered) {
-    const option = document.createElement('option');
-    option.value = m;
-    option.textContent = m;
-    select.appendChild(option);
+    const item = document.createElement('div');
+    item.className = 'listbox-item';
+    item.setAttribute('role', 'option');
+    item.textContent = m;
+    item.dataset.value = m;
+    if (m === prevValue) {
+      item.setAttribute('aria-selected', 'true');
+      restored = true;
+    }
+    panel.appendChild(item);
+  }
+  if (!restored) dropdown._selectedValue = '';
+  // Update trigger input
+  const triggerInput = dropdown.querySelector('.major-trigger-input');
+  if (!dropdown.classList.contains('open')) {
+    triggerInput.value = dropdown._selectedValue || '';
+    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 输入关键词筛选专业...';
   }
 }
 
@@ -73,11 +404,10 @@ function checkMajorVisibility() {
   const majorLabel = document.getElementById('majorLabel');
   const show = hasSubMajors(category);
   majorGroup.style.display = show ? 'block' : 'none';
-  // 动态更新标签
   if (show) {
     const isEng = category === '工学';
     majorLabel.textContent = isEng ? '🔧 工学专业方向' : '💼 专硕专业方向';
-    document.getElementById('majorSearch').value = '';
+    document.getElementById('majorSelect').querySelector('.major-trigger-input').value = '';
     updateMajorSelect();
   }
 }
@@ -96,6 +426,11 @@ function bindEvents() {
     btn.classList.add('active');
     currentDegree = value;
     updateCategorySelect();
+    // 切换学位后，选中新门类列表的第一个
+    const catDropdown = document.getElementById('categorySelect');
+    const firstItem = catDropdown.querySelector('.major-panel .listbox-item');
+    catDropdown.value = firstItem ? firstItem.dataset.value : '';
+    checkMajorVisibility();
     clearResults();
   });
 
@@ -113,21 +448,18 @@ function bindEvents() {
     clearResults();
   });
 
-  // 门类切换 → 检查是否需要显示专业选择
+  // 门类切换
   document.getElementById('categorySelect').addEventListener('change', () => {
     checkMajorVisibility();
     clearResults();
   });
 
-  // 专业搜索 → 实时过滤列表
-  document.getElementById('majorSearch').addEventListener('input', () => {
-    updateMajorSelect();
-  });
 
-  // 全局院校搜索
+
+  // 全局院校搜索（防抖）
   const globalSearch = document.getElementById('globalUniSearch');
   const globalDropdown = document.getElementById('globalUniDropdown');
-  globalSearch.addEventListener('input', () => {
+  const debouncedGlobalSearch = debounce(() => {
     const q = globalSearch.value.trim().toLowerCase();
     if (!q) {
       globalDropdown.style.display = 'none';
@@ -143,17 +475,18 @@ function bindEvents() {
       globalDropdown.innerHTML = matches
         .map(
           (u) => `
-        <div class="header-search-item" data-uni-name="${u.name}">
-          <span class="s-name">${u.name}</span>
-          <span class="s-level">${u.level}</span>
-          <span class="s-loc">📍 ${u.province}${u.city && u.city !== u.province ? ' ' + u.city : ''}</span>
+        <div class="header-search-item" data-uni-name="${escapeHtml(u.name)}">
+          <span class="s-name">${escapeHtml(u.name)}</span>
+          <span class="s-level">${escapeHtml(u.level)}</span>
+          <span class="s-loc">📍 ${escapeHtml(u.province)}${u.city && u.city !== u.province ? ' ' + escapeHtml(u.city) : ''}</span>
         </div>
       `,
         )
         .join('');
     }
     globalDropdown.style.display = 'block';
-  });
+  }, 150);
+  globalSearch.addEventListener('input', debouncedGlobalSearch);
   globalSearch.addEventListener('blur', () => {
     setTimeout(() => {
       globalDropdown.style.display = 'none';
@@ -196,10 +529,10 @@ function bindEvents() {
   // 排序
   document.getElementById('sortSelect').addEventListener('change', (e) => {
     currentResults = sortResults(currentResults, e.target.value);
-    renderResults(currentResults);
+    renderResults(currentResults, { degree: currentDegree, zone: currentZone });
   });
 
-  // 院校卡片点击 → 打开详情页
+  // 院校卡片点击
   document.getElementById('resultsList').addEventListener('click', (e) => {
     const card = e.target.closest('.result-card');
     if (!card) return;
@@ -209,18 +542,24 @@ function bindEvents() {
     }
   });
 
-  // 详情页返回按钮
+  // 详情页返回
   document.getElementById('detailBackBtn').addEventListener('click', closeDetailPage);
 
-  // 校园实景按钮 - 打开百度图片搜索
+  // 校园实景按钮
   document.getElementById('detailPhotoBtn').addEventListener('click', () => {
     const name = document.getElementById('detailName').textContent;
     const url = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(name + ' 校园')}`;
     window.open(url, '_blank');
   });
 
-  // 管理院校列表点击也打开详情
+  // 管理院校列表（事件委托：删除 + 打开详情）
   document.getElementById('uniList').addEventListener('click', (e) => {
+    const delBtn = e.target.closest('.uni-edit-del');
+    if (delBtn) {
+      const row = delBtn.closest('.uni-edit-item');
+      if (row) handleDeleteUniversity(row.dataset.uniName);
+      return;
+    }
     const row = e.target.closest('.uni-edit-item');
     if (!row) return;
     const name = row.dataset.uniName;
@@ -228,11 +567,10 @@ function bindEvents() {
       const uni = findUniversity(name);
       if (uni) {
         const category = document.getElementById('categorySelect').value;
-        const degree = currentDegree;
         const major = document.getElementById('majorSelect').value;
         const result = matchUniversities(
           parseInt(document.getElementById('scoreInput').value) || 0,
-          degree,
+          currentDegree,
           category,
           currentZone,
           hasSubMajors(category) ? major : null,
@@ -266,7 +604,9 @@ function bindEvents() {
     if (e.target === e.currentTarget) closeEditModal();
   });
   document.querySelectorAll('.modal-tab').forEach((tab) => {
-    tab.addEventListener('click', () => switchModalTab(tab.dataset.tab));
+    tab.addEventListener('click', () => {
+      switchModalTab(tab.dataset.tab);
+    });
   });
   document.getElementById('uniSearchInput').addEventListener('input', (e) => {
     renderUniEditList(e.target.value);
@@ -300,8 +640,13 @@ function doSearch() {
   const result = matchUniversities(score, currentDegree, category, currentZone, major);
   currentResults = result.results;
 
-  renderNationalLine(result);
-  renderResults(result.results);
+  renderNationalLine(result, {
+    userScore: score,
+    category,
+    degree: currentDegree,
+    zone: currentZone,
+  });
+  renderResults(result.results, { degree: currentDegree, zone: currentZone });
 
   const emptyState = document.getElementById('emptyState');
   const failState = document.getElementById('failState');
@@ -313,7 +658,7 @@ function doSearch() {
     failState.style.display = 'block';
     const latestYear = result.nationalLine ? result.nationalLine.year : '';
     document.getElementById('failMsg').innerHTML =
-      `<strong>你的 ${score} 分</strong> 未达到 ${currentZone}区「${category}」${currentDegree === 'xueshuo' ? '学硕' : '专硕'} 的${latestYear}年国家线 <strong>(${result.nationalLine.score}分)</strong><br><br>建议尝试<strong>B区</strong>院校（国家线通常低10分左右）`;
+      `<strong>你的 ${score} 分</strong> 未达到 ${currentZone}区「${escapeHtml(category)}」${currentDegree === 'xueshuo' ? '学硕' : '专硕'} 的${latestYear}年国家线 <strong>(${result.nationalLine.score}分)</strong><br><br>建议尝试<strong>B区</strong>院校（国家线通常低10分左右）`;
   } else if (result.results.length === 0) {
     emptyState.style.display = 'block';
     resultsSection.style.display = 'none';
@@ -329,138 +674,6 @@ function doSearch() {
       document.getElementById('nationalLineCard').scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }
-}
-
-// ==================== 渲染 ====================
-function renderNationalLine(result) {
-  const card = document.getElementById('nationalLineCard');
-  const info = document.getElementById('nationalLineInfo');
-
-  if (result.nationalLine && result.nationalLinesAll.length > 0) {
-    card.style.display = 'block';
-    const userScore = parseInt(document.getElementById('scoreInput').value, 10);
-    const category = document.getElementById('categorySelect').value;
-    const allLines = result.nationalLinesAll;
-
-    info.innerHTML = `
-      <p class="nl-title"> ${currentDegree === 'xueshuo' ? '学硕' : '专硕'} · ${category} · ${currentZone}区</p>
-      <div class="nl-table-wrap">
-        <table class="nl-table">
-          <thead><tr>
-            <th>年份</th>${allLines.map((l) => `<th>${l.year}年</th>`).join('')}
-          </tr></thead>
-          <tbody><tr>
-            <td><strong>国家线</strong></td>
-            ${allLines
-              .map(
-                (l) => `
-              <td><span class="nl-val ${userScore >= l.score ? 'nl-above' : 'nl-below'}">${l.score}</span>
-              <div class="nl-diff">${userScore >= l.score ? '✅' : '❌'}</div></td>
-            `,
-              )
-              .join('')}
-          </tr></tbody>
-        </table>
-      </div>
-      <p class="nl-note">💡 你的分数: <strong>${userScore}</strong> | 差值: ${allLines.map((l) => `${l.year}年 ${userScore >= l.score ? '+' : ''}${userScore - l.score}`).join(' / ')}</p>
-    `;
-  } else {
-    card.style.display = 'none';
-  }
-}
-
-function renderResults(results) {
-  const list = document.getElementById('resultsList');
-  const count = document.getElementById('resultCount');
-  const section = document.getElementById('resultsSection');
-
-  if (!results || results.length === 0) {
-    section.style.display = 'none';
-    return;
-  }
-
-  section.style.display = 'block';
-  count.textContent = `共${results.length}所`;
-
-  const userScore = parseInt(document.getElementById('scoreInput').value, 10);
-  const category = document.getElementById('categorySelect').value;
-  const allNL = getAllYearLines(currentDegree, category, currentZone === 'all' ? 'A' : currentZone);
-
-  list.innerHTML = results.map((r, i) => renderResultCard(r, userScore, allNL, i)).join('');
-}
-
-function renderResultCard(result, userScore, nationalLines, index) {
-  const { university: uni, verdict, verdictLabel, verdictClass, admissionScores } = result;
-
-  const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
-  const cardClass = `result-card ${verdict}`;
-
-  const uniData = ADMISSION_SCORES[uni.name];
-  const category = document.getElementById('categorySelect').value;
-  const majorEl = document.getElementById('majorSelect');
-  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
-  const key = mapCategoryToScoreKey(category, currentDegree, major);
-  const isRealData = uniData && uniData[key];
-
-  let tableRows = '';
-  const years = ['2025', '2024', '2023', '2022'];
-
-  if (admissionScores && admissionScores.length > 0) {
-    const scoreMap = {};
-    admissionScores.forEach((s) => {
-      scoreMap[s.year] = s.score;
-    });
-
-    const nlMap = {};
-    if (nationalLines) {
-      nationalLines.forEach((n) => {
-        nlMap[n.year] = n.score;
-      });
-    }
-
-    for (const y of years) {
-      const nl = nlMap[y];
-      const ul = scoreMap[y];
-      if (nl || ul) {
-        const ok = userScore >= (ul || nl);
-        tableRows += `<tr>
-          <td>${y}年</td>
-          <td class="td-nl">${nl || '-'}</td>
-          <td class="td-ul">${ul || '-'}</td>
-          <td class="td-you">${userScore}</td>
-          <td class="${ok ? 'td-ok' : 'td-fail'}">${ok ? '✅' : '❌'}</td>
-        </tr>`;
-      }
-    }
-  }
-
-  const majorText = major && major !== '不限专业' ? ` · ${major.replace(/\([^)]*\)/g, '')}` : '';
-  const dataTag = isRealData ? '' : '<span class="estimated-tag">预估值</span>';
-
-  return `
-    <div class="${cardClass}" data-index="${index}">
-      <div class="uni-name">
-        <span class="name-text">🏫 ${uni.name}</span>
-        <span class="level-badge ${levelBadgeClass}">${uni.level}</span>
-        ${dataTag}
-      </div>
-      <div class="uni-meta">
-        <span>📍 ${uni.province}${uni.city && uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
-        <span>🏷️ ${uni.zone}区</span>${majorText ? `<span>🔧 ${majorText}</span>` : ''}
-      </div>
-      <div class="score-table-wrap">
-        <table class="score-table">
-          <thead><tr>
-            <th>年份</th><th>国家线</th><th>院校线</th><th>你的分</th><th>结果</th>
-          </tr></thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-      </div>
-      <div class="uni-verdict">
-        <span class="${verdictClass}">${verdict === 'safe' ? '✅' : verdict === 'likely' ? '👍' : verdict === 'reach' ? '🎯' : verdict === 'nodata' ? '📋' : '⚠️'} ${verdictLabel}${result.avgScore ? ` · 近4年均分 ${result.avgScore}` : ''}</span>
-      </div>
-    </div>
-  `;
 }
 
 // ==================== 状态管理 ====================
@@ -486,8 +699,9 @@ function restoreLastSearch() {
     updateCategorySelect();
   }
   if (last.category) {
-    document.getElementById('categorySelect').value = last.category;
-    checkMajorVisibility();
+    const catDropdown = document.getElementById('categorySelect');
+    catDropdown.value = last.category;
+    catDropdown.dispatchEvent(new Event('change'));
   }
   if (last.major && document.getElementById('majorGroup').style.display !== 'none') {
     document.getElementById('majorSelect').value = last.major;
@@ -501,246 +715,19 @@ function restoreLastSearch() {
   }
 }
 
-// ==================== 导航历史管理（返回键支持） ====================
-let _navState = 'home'; // 'home' | 'detail' | 'modal'
-
+// ==================== 导航历史管理 ====================
 function initHistoryNav() {
-  // 初始状态
   history.replaceState({ view: 'home' }, '');
 
   window.addEventListener('popstate', (e) => {
     const view = (e.state && e.state.view) || 'home';
     if (view === 'home') {
-      // 关闭详情页或弹窗
       if (_navState === 'detail') {
-        document.getElementById('detailPage').style.display = 'none';
+        _hideDetail();
       } else if (_navState === 'modal') {
-        document.getElementById('editModal').style.display = 'none';
+        _hideModal();
       }
       _navState = 'home';
     }
   });
 }
-
-// ==================== 弹窗管理 ====================
-function openEditModal() {
-  document.getElementById('editModal').style.display = 'flex';
-  _navState = 'modal';
-  history.pushState({ view: 'modal' }, '');
-  switchModalTab('universities');
-  renderUniEditList('');
-}
-
-function closeEditModal() {
-  document.getElementById('editModal').style.display = 'none';
-  _navState = 'home';
-  // 不 pushState，让 popstate 自然处理
-}
-
-function switchModalTab(tab) {
-  currentModalTab = tab;
-  document.querySelectorAll('.modal-tab').forEach((t) => {
-    t.classList.toggle('active', t.dataset.tab === tab);
-  });
-  document.getElementById('tabUniversities').style.display =
-    tab === 'universities' ? 'block' : 'none';
-  document.getElementById('tabAdd').style.display = tab === 'add' ? 'block' : 'none';
-  document.getElementById('tabImport').style.display = tab === 'import' ? 'block' : 'none';
-  if (tab === 'universities') {
-    renderUniEditList(document.getElementById('uniSearchInput').value);
-  }
-}
-
-function renderUniEditList(query) {
-  const container = document.getElementById('uniList');
-  const all = getAllUniversitiesForEdit();
-  const filtered = query
-    ? all.filter(
-        (u) =>
-          u.name.toLowerCase().includes(query.toLowerCase()) ||
-          u.province.toLowerCase().includes(query.toLowerCase()),
-      )
-    : all;
-
-  if (filtered.length === 0) {
-    container.innerHTML =
-      '<p style="text-align:center;color:var(--color-text-secondary);padding:20px;">未找到匹配院校</p>';
-    return;
-  }
-
-  container.innerHTML = filtered
-    .map(
-      (u) => `
-    <div class="uni-edit-item" data-uni-name="${u.name}">
-      <div class="uni-edit-info">
-        <div class="uni-edit-name">${u.name} ${u.isCustom ? '✏️' : ''}</div>
-        <div class="uni-edit-meta">${u.province} · ${u.zone}区 · ${u.level} ${u.scores ? '· 有录取数据' : '· 无录取数据'}</div>
-      </div>
-      <button class="uni-edit-del" onclick="deleteUniversity('${u.name}')">删除</button>
-    </div>
-  `,
-    )
-    .join('');
-}
-
-export function deleteUniversity(name) {
-  if (!confirm(`确定要删除「${name}」吗？此操作不可恢复。`)) return;
-  removeCustomUniversity(name);
-  renderUniEditList(document.getElementById('uniSearchInput').value);
-}
-window.deleteUniversity = deleteUniversity;
-
-function handleAddUniversity() {
-  const name = document.getElementById('addName').value.trim();
-  const province = document.getElementById('addProvince').value.trim();
-  const city = document.getElementById('addCity').value.trim() || province;
-  const zone = document.getElementById('addZone').value;
-  const level = document.getElementById('addLevel').value;
-  const scoresRaw = document.getElementById('addScores').value.trim();
-
-  if (!name || !province) {
-    alert('院校名称和所在省份为必填项');
-    return;
-  }
-
-  let scores = null;
-  if (scoresRaw) {
-    try {
-      scores = JSON.parse(scoresRaw);
-    } catch {
-      alert('录取分数JSON格式不正确');
-      return;
-    }
-  }
-
-  addCustomUniversity({ name, province, city, zone, level, scores });
-  alert(`✅ 「${name}」已添加/更新`);
-  document.getElementById('addName').value = '';
-  document.getElementById('addProvince').value = '';
-  document.getElementById('addCity').value = '';
-  document.getElementById('addScores').value = '';
-  switchModalTab('universities');
-}
-
-function handleImport() {
-  const text = document.getElementById('importDataText').value.trim();
-  const resultEl = document.getElementById('importResult');
-  if (!text) {
-    resultEl.textContent = '请粘贴要导入的JSON数据';
-    resultEl.className = 'import-result error';
-    return;
-  }
-  const result = importData(text);
-  if (result.success) {
-    resultEl.textContent = `✅ 导入成功！共导入 ${result.count} 所院校的数据`;
-    resultEl.className = 'import-result success';
-    document.getElementById('importDataText').value = '';
-    if (currentModalTab === 'universities')
-      renderUniEditList(document.getElementById('uniSearchInput').value);
-  } else {
-    resultEl.textContent = `❌ 导入失败: ${result.error}`;
-    resultEl.className = 'import-result error';
-  }
-}
-
-// ==================== 院校详情页 ====================
-function openDetailPage(result) {
-  const { university: uni, admissionScores, verdict, verdictClass } = result;
-  const detail = getUniversityDetail(uni.name);
-  const userScore = parseInt(document.getElementById('scoreInput').value) || 0;
-  const category = document.getElementById('categorySelect').value;
-  const allNL = getAllYearLines(currentDegree, category, currentZone === 'all' ? 'A' : currentZone);
-  const majorEl = document.getElementById('majorSelect');
-  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
-
-  const hero = document.getElementById('detailHero');
-  hero.style.background = `linear-gradient(135deg, ${detail.color} 0%, ${detail.color}dd 60%, ${detail.color}99 100%)`;
-
-  document.getElementById('detailName').textContent = uni.name;
-
-  const badges = document.getElementById('detailBadges');
-  badges.innerHTML = `
-    <span class="hero-badge">${uni.level}</span>
-    <span class="hero-badge">${uni.zone}区</span>
-    <span class="hero-badge">${uni.province}${uni.city && uni.city !== uni.province ? ' · ' + uni.city : ''}</span>
-    ${major && major !== '不限专业' ? `<span class="hero-badge">${major.replace(/\([^)]*\)/g, '')}</span>` : ''}
-  `;
-
-  // 详细地址
-  const addr =
-    detail.address || `${uni.province}${uni.city && uni.city !== uni.province ? uni.city : ''}`;
-  document.getElementById('detailInfo').innerHTML = `
-    <div class="detail-info-item" style="flex:2;min-width:180px"><div class="info-value" style="font-size:.85rem">${addr}</div><div class="info-label">📍 地址</div></div>
-    <div class="detail-info-item"><div class="info-value">${uni.level}</div><div class="info-label">层次</div></div>
-    <div class="detail-info-item"><div class="info-value">${uni.zone}区</div><div class="info-label">考研分区</div></div>
-    <div class="detail-info-item"><div class="info-value">${uni.province}</div><div class="info-label">省份</div></div>
-  `;
-
-  renderPhotos(uni.name, detail.color);
-
-  document.getElementById('detailFilter').textContent =
-    `${currentDegree === 'xueshuo' ? '学硕' : '专硕'} · ${category}${major && major !== '不限专业' ? ' · ' + major.replace(/\([^)]*\)/g, '') : ''}`;
-
-  let tableRows = '';
-  const years = ['2025', '2024', '2023', '2022'];
-  const nlMap = {};
-  allNL.forEach((n) => {
-    nlMap[n.year] = n.score;
-  });
-  const scoreMap = {};
-  if (admissionScores)
-    admissionScores.forEach((s) => {
-      scoreMap[s.year] = s.score;
-    });
-
-  for (const y of years) {
-    const nl = nlMap[y];
-    const ul = scoreMap[y];
-    if (nl || ul) {
-      const refScore = ul || nl;
-      const diff = userScore > 0 ? userScore - refScore : 0;
-      const ok = diff >= 0;
-      tableRows += `<tr>
-        <td>${y}年</td>
-        <td class="td-nl">${nl || '-'}</td>
-        <td class="td-ul">${ul || '-'}</td>
-        <td class="td-you">${userScore || '-'}</td>
-        <td class="${ok ? 'td-ok' : 'td-fail'}">${userScore > 0 ? (ok ? '✅ +' + diff : '❌ ' + diff) : '-'}</td>
-      </tr>`;
-    }
-  }
-  document.getElementById('detailScoreTable').innerHTML = tableRows;
-
-  // 判定结果
-  const uniData = ADMISSION_SCORES[uni.name];
-  const key = mapCategoryToScoreKey(category, currentDegree, major);
-  const isReal = uniData && uniData[key];
-  document.getElementById('detailVerdict').innerHTML = `
-    <span class="${verdictClass}">${verdict === 'safe' ? '✅ 稳过' : verdict === 'likely' ? '👍 大概率录取' : verdict === 'reach' ? '🎯 可冲刺' : verdict === 'nodata' ? '📋 参考数据' : '⚠️ 差距较大'}</span>
-    ${!isReal ? '<span class="estimated-tag">预估值</span>' : ''}
-  `;
-
-  // 优缺点
-  document.getElementById('detailPros').innerHTML = (detail.pros || [])
-    .map((p) => `<li>${p}</li>`)
-    .join('');
-  document.getElementById('detailCons').innerHTML = (detail.cons || [])
-    .map((c) => `<li>${c}</li>`)
-    .join('');
-
-  // 院校特色
-  document.getElementById('detailFeatures').textContent = detail.features || '';
-
-  document.getElementById('detailPage').style.display = 'block';
-  document.getElementById('detailPage').scrollTop = 0;
-  _navState = 'detail';
-  history.pushState({ view: 'detail' }, '');
-}
-
-function closeDetailPage() {
-  document.getElementById('detailPage').style.display = 'none';
-  _navState = 'home';
-  // 不 pushState，让 popstate 自然处理
-}
-
-window.deleteUniversity = deleteUniversity;

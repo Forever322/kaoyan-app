@@ -3,7 +3,7 @@
  * 提供离线缓存和PWA能力
  */
 
-const CACHE_NAME = 'kaoyan-app-v5';
+const CACHE_NAME = 'kaoyan-app-v6';
 
 // 预缓存的静态资源（Vite 会将 CSS 注入到 JS 中，所以不需要单独缓存 CSS）
 const STATIC_ASSETS = [

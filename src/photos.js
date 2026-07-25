@@ -1,6 +1,7 @@
 // 院校照片渲染与获取
 
 import { UNI_PHOTOS } from './data/uni-photos.js';
+import { escapeHtml } from './utils.js';
 
 /** 渲染院校照片（4张），优先用预存CDN，不足时实时搜索补充 */
 export async function renderPhotos(name, color) {
@@ -22,7 +23,7 @@ export async function renderPhotos(name, color) {
   container.innerHTML = urls
     .map(
       (url) =>
-        `<div class="photo-item"><img src="${url}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML=this.parentElement.innerHTML"></div>`,
+        `<div class="photo-item"><img src="${escapeHtml(url)}" alt="${escapeHtml(name)}" loading="lazy" onerror="this.style.display='none'"></div>`,
     )
     .join('');
 
@@ -33,7 +34,9 @@ export async function renderPhotos(name, color) {
     d.style.cssText = `background:${color}22;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2rem`;
     d.textContent = '🔍';
     const searchUrl = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(name + ' 校园')}`;
-    d.onclick = () => { window.open(searchUrl, '_blank'); };
+    d.onclick = () => {
+      window.open(searchUrl, '_blank');
+    };
     container.appendChild(d);
   }
 }

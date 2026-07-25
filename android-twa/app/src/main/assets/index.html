@@ -11,11 +11,12 @@
 
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
 
   <title>🎓 考研择校助手</title>
-  <script type="module" crossorigin src="/assets/index-DZrMflQf.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/data-BRiU2cSg.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-5A0AKer7.css">
+  <script type="module" crossorigin src="/assets/index-CDllEW80.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/data-Dwczajqr.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-C5E45Ueg.css">
 </head>
 <body>
 
@@ -97,14 +98,25 @@
       <!-- 学科门类 -->
       <div class="form-group">
         <label class="form-label">📚 学科门类</label>
-        <select id="categorySelect" class="form-select" aria-label="学科门类"></select>
+        <div id="categorySelect" class="major-dropdown" aria-label="学科门类">
+          <div class="major-trigger" role="combobox" aria-expanded="false" aria-haspopup="listbox">
+            <input type="text" class="major-trigger-input" placeholder="🔍 选择学科门类..." autocomplete="off" readonly>
+            <svg class="major-trigger-icon" width="12" height="12" viewBox="0 0 12 12"><path fill="#5f6368" d="M6 8L1 3h10z"/></svg>
+          </div>
+          <div class="major-panel" role="listbox" aria-label="学科门类"></div>
+        </div>
       </div>
 
       <!-- 专业方向子类 -->
       <div class="form-group hidden" id="majorGroup">
         <label class="form-label" id="majorLabel">🔧 专业方向</label>
-        <input type="text" id="majorSearch" class="form-input" placeholder="🔍 输入关键词筛选专业..." autocomplete="off">
-        <select id="majorSelect" class="form-select" size="8" aria-label="专业方向"></select>
+        <div id="majorSelect" class="major-dropdown">
+          <div class="major-trigger" role="combobox" aria-expanded="false" aria-haspopup="listbox">
+            <input type="text" class="major-trigger-input" placeholder="🔍 输入关键词筛选专业..." autocomplete="off" readonly>
+            <svg class="major-trigger-icon" width="12" height="12" viewBox="0 0 12 12"><path fill="#5f6368" d="M6 8L1 3h10z"/></svg>
+          </div>
+          <div class="major-panel" role="listbox" aria-label="专业方向"></div>
+        </div>
         <span class="form-hint">选择具体专业可更精确匹配院校录取数据</span>
       </div>
 
@@ -174,9 +186,9 @@
 
   <!-- ===== 底部工具栏 ===== -->
   <footer class="app-footer">
-    <button id="editDataBtn" class="footer-btn">🔧 管理院校数据</button>
-    <button id="exportDataBtn" class="footer-btn">📤 导出数据</button>
-    <span class="footer-info">数据来源: 研招网公开信息</span>
+    <button id="editDataBtn" class="footer-btn">🔧 管理数据</button>
+    <button id="exportDataBtn" class="footer-btn">📤 导出</button>
+    <span class="footer-info">研招网公开数据</span>
   </footer>
 
   <!-- ===== 数据编辑弹窗 ===== -->
