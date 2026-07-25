@@ -36,6 +36,7 @@
       if(hidden) return; hidden=true;
       if(hideTimer) clearTimeout(hideTimer);
       splash.style.opacity='0';
+      splash.style.pointerEvents='none';  // 立即禁用点击穿透
       setTimeout(function(){ splash.style.display='none'; },700);
     }
 
