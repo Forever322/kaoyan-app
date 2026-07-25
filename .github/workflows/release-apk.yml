@@ -1,18 +1,16 @@
-name: Build Debug APK
+name: Release APK
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'android-twa/**'
-      - 'src/**'
-      - 'public/**'
-      - 'index.html'
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -53,12 +51,12 @@ jobs:
             -storepass kaoyan123 -keypass kaoyan123 \
             -dname "CN=Kaoyan, OU=App, O=Kaoyan, L=Beijing, ST=Beijing, C=CN"
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android-twa
-        run: gradle assembleDebug
+        run: gradle assembleRelease
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v7
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: kaoyan-app-debug
-          path: android-twa/app/build/outputs/apk/debug/app-debug.apk
+          files: android-twa/app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true

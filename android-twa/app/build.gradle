@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.kaoyan.app'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.kaoyan.app"
         minSdk 24
-        targetSdk 34
+        targetSdk 35
         versionCode 3
         versionName "3.0"
     }
@@ -24,6 +24,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
         release {
             minifyEnabled false
             signingConfig signingConfigs.release
@@ -31,7 +35,7 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 }
