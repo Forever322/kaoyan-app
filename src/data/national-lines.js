@@ -340,6 +340,55 @@ export const ZHUANSHUO_MAJOR_MAP = {
   艺术: [{ name: '艺术', code: '135100' }],
 };
 
+/** 2025年考研国家线单科要求（100分科/150分科），来源: yz.chsi.com.cn */
+export const SUBJECT_LINES = {
+  xueshuo: {
+    哲学:     { A: { politics: 39, major: 59 }, B: { politics: 36, major: 54 } },
+    经济学:   { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    法学:     { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    教育学:   { A: { politics: 45, major: 68 }, B: { politics: 42, major: 63 } },
+    文学:     { A: { politics: 47, major: 71 }, B: { politics: 44, major: 66 } },
+    历史学:   { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    理学:     { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+    工学:     { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+    农学:     { A: { politics: 31, major: 47 }, B: { politics: 28, major: 42 } },
+    医学:     { A: { politics: 36, major: 108 },B: { politics: 33, major: 99 } },
+    军事学:   { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+    管理学:   { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    艺术学:   { A: { politics: 37, major: 56 }, B: { politics: 34, major: 51 } },
+    交叉学科: { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+  },
+  zhuanshuo: {
+    '金融/应用统计/税务/国际商务/保险/资产评估': { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    '审计':                             { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    '法律(非法学)/法律(法学)/社会工作/警务':  { A: { politics: 40, major: 60 }, B: { politics: 37, major: 56 } },
+    '教育/汉语国际教育':                  { A: { politics: 45, major: 68 }, B: { politics: 42, major: 63 } },
+    '应用心理':                          { A: { politics: 45, major: 68 }, B: { politics: 42, major: 63 } },
+    '体育':                              { A: { politics: 33, major: 99 }, B: { politics: 30, major: 90 } },
+    '翻译/新闻与传播/出版':               { A: { politics: 47, major: 71 }, B: { politics: 44, major: 66 } },
+    '建筑学/城市规划/电子信息/机械/材料与化工/资源与环境/能源动力/土木水利/生物与医药/交通运输': { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+    '农业/兽医/风景园林/林业':             { A: { politics: 31, major: 47 }, B: { politics: 28, major: 42 } },
+    '临床医学/口腔医学/公共卫生/护理/药学/中药学': { A: { politics: 36, major: 108 }, B: { politics: 33, major: 99 } },
+    '中医':                              { A: { politics: 36, major: 108 }, B: { politics: 33, major: 99 } },
+    '军事':                              { A: { politics: 34, major: 51 }, B: { politics: 31, major: 47 } },
+    '工商管理/旅游管理':                  { A: { politics: 35, major: 70 }, B: { politics: 30, major: 60 } },
+    '公共管理':                          { A: { politics: 35, major: 70 }, B: { politics: 30, major: 60 } },
+    '会计':                              { A: { politics: 35, major: 70 }, B: { politics: 30, major: 60 } },
+    '图书情报':                          { A: { politics: 35, major: 70 }, B: { politics: 30, major: 60 } },
+    '工程管理':                          { A: { politics: 35, major: 70 }, B: { politics: 30, major: 60 } },
+    '艺术':                              { A: { politics: 37, major: 56 }, B: { politics: 34, major: 51 } },
+  },
+};
+
+/** 获取某门类某区的单科线 */
+export function getSubjectLines(degree, category, zone) {
+  const degData = SUBJECT_LINES[degree];
+  if (!degData) return null;
+  const catData = degData[category];
+  if (!catData) return null;
+  return catData[zone] || null;
+}
+
 /** 判断某门类是否有专业细分（工学或专硕组合类） */
 export function hasSubMajors(category) {
   if (category === '工学') return true;

@@ -3,7 +3,7 @@
 import { getUniversityDetail } from './data/uni-details.js';
 import { renderPhotos } from './photos.js';
 import { ADMISSION_SCORES, mapCategoryToScoreKey } from './data/admission-scores.js';
-import { getAllYearLines, hasSubMajors } from './data/national-lines.js';
+import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
 
@@ -63,7 +63,9 @@ export function openDetailPage(result, { degree, zone }) {
   `;
 
   // 复试基础线
-  renderRetestLine(allNL, userScore, admissionScores);
+  const retestZone = zone === 'all' ? 'A' : zone;
+  const subjectLines = getSubjectLines(degree, category, retestZone);
+  renderRetestLine(allNL, userScore, admissionScores, subjectLines);
 
   // 优缺点
   document.getElementById('detailPros').innerHTML = (detail.pros || [])
@@ -81,20 +83,20 @@ export function openDetailPage(result, { degree, zone }) {
   document.getElementById('detailPage').scrollTop = 0;
 }
 
-/** 渲染复试基础线模块 */
-function renderRetestLine(nationalLines, userScore, admissionScores) {
+/** 渲染复试基础线模块（含单科硬性要求） */
+function renderRetestLine(nationalLines, userScore, admissionScores, subjectLines) {
   const section = document.getElementById('detailRetestSection');
   const grid = document.getElementById('detailRetestGrid');
   if (!section || !grid) return;
 
-  // 取最新年份的国家线作为复试基本线
+  // 取最新年份的国家线
   const latestNL = nationalLines && nationalLines.length > 0 ? nationalLines[0] : null;
   if (!latestNL) { section.style.display = 'none'; return; }
 
   const nlScore = latestNL.score;
   const nlYear = latestNL.year;
 
-  // 院校复试线：取最近一年真实录取分，如无则用国家线+层次附加
+  // 院校复试线：取最近一年真实录取分
   let uniRetest = null;
   if (admissionScores && admissionScores.length > 0) {
     const sorted = [...admissionScores].sort((a, b) => parseInt(b.year) - parseInt(a.year));
@@ -106,17 +108,37 @@ function renderRetestLine(nationalLines, userScore, admissionScores) {
   const nlPass = userScore >= nlScore;
   const uniPass = uniRetest ? userScore >= uniRetest : nlPass;
 
+  // 单科线
+  let subjectHtml = '';
+  if (subjectLines) {
+    const p = subjectLines.politics;
+    const m = subjectLines.major;
+    subjectHtml = `
+      <div class="retest-card" style="grid-column:1/-1;text-align:left;padding:14px 16px;">
+        <div class="retest-label" style="margin-bottom:8px;">📝 单科硬性要求（${nlYear}年，必须同时满足）</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:0.85rem;">
+          <span>🟡 政治 ≥ <strong>${p}</strong> 分</span>
+          <span>🟡 英语 ≥ <strong>${p}</strong> 分</span>
+          <span>🔵 数学/专业课（150分科） ≥ <strong>${m}</strong> 分</span>
+        </div>
+        <div style="margin-top:6px;font-size:0.72rem;color:var(--color-text-secondary);">
+          ⚠️ 任一门未达单科线，即使总分过线也无法进入复试
+        </div>
+      </div>`;
+  }
+
   grid.innerHTML = `
     <div class="retest-card">
       <div class="retest-label">🏫 国家复试基本线（${nlYear}年）</div>
-      <div class="retest-score ${nlPass ? 'pass' : 'fail'}">${nlScore}</div>
-      <div class="retest-sub">你的分数：${userScore} ${nlPass ? '✅ 过线' : '❌ 未过线'}</div>
+      <div class="retest-score ${nlPass ? 'pass' : 'fail'}">总分 ${nlScore}</div>
+      <div class="retest-sub">你的总分：${userScore} ${nlPass ? '✅ 过线' : '❌ 未过线'}</div>
     </div>
     <div class="retest-card">
       <div class="retest-label">🎯 院校预估复试线（${nlYear}年）</div>
       <div class="retest-score ${uniPass ? 'pass' : 'fail'}">${uniRetest || nlScore}</div>
       <div class="retest-sub">${uniRetest ? `参考录取分 ${uniPass ? '✅' : '❌'} 差${userScore - uniRetest}分` : '暂无院校数据，参考国家线'}</div>
     </div>
+    ${subjectHtml}
   `;
 }
 
