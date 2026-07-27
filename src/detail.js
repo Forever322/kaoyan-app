@@ -62,6 +62,9 @@ export function openDetailPage(result, { degree, zone }) {
     ${!isReal ? '<span class="estimated-tag">预估值</span>' : ''}
   `;
 
+  // 复试基础线
+  renderRetestLine(allNL, userScore, admissionScores);
+
   // 优缺点
   document.getElementById('detailPros').innerHTML = (detail.pros || [])
     .map((p) => `<li>${escapeHtml(p)}</li>`)
@@ -76,6 +79,45 @@ export function openDetailPage(result, { degree, zone }) {
   // 显示页面
   document.getElementById('detailPage').style.display = 'block';
   document.getElementById('detailPage').scrollTop = 0;
+}
+
+/** 渲染复试基础线模块 */
+function renderRetestLine(nationalLines, userScore, admissionScores) {
+  const section = document.getElementById('detailRetestSection');
+  const grid = document.getElementById('detailRetestGrid');
+  if (!section || !grid) return;
+
+  // 取最新年份的国家线作为复试基本线
+  const latestNL = nationalLines && nationalLines.length > 0 ? nationalLines[0] : null;
+  if (!latestNL) { section.style.display = 'none'; return; }
+
+  const nlScore = latestNL.score;
+  const nlYear = latestNL.year;
+
+  // 院校复试线：取最近一年真实录取分，如无则用国家线+层次附加
+  let uniRetest = null;
+  if (admissionScores && admissionScores.length > 0) {
+    const sorted = [...admissionScores].sort((a, b) => parseInt(b.year) - parseInt(a.year));
+    uniRetest = sorted[0].score;
+  }
+
+  section.style.display = 'block';
+
+  const nlPass = userScore >= nlScore;
+  const uniPass = uniRetest ? userScore >= uniRetest : nlPass;
+
+  grid.innerHTML = `
+    <div class="retest-card">
+      <div class="retest-label">🏫 国家复试基本线（${nlYear}年）</div>
+      <div class="retest-score ${nlPass ? 'pass' : 'fail'}">${nlScore}</div>
+      <div class="retest-sub">你的分数：${userScore} ${nlPass ? '✅ 过线' : '❌ 未过线'}</div>
+    </div>
+    <div class="retest-card">
+      <div class="retest-label">🎯 院校预估复试线（${nlYear}年）</div>
+      <div class="retest-score ${uniPass ? 'pass' : 'fail'}">${uniRetest || nlScore}</div>
+      <div class="retest-sub">${uniRetest ? `参考录取分 ${uniPass ? '✅' : '❌'} 差${userScore - uniRetest}分` : '暂无院校数据，参考国家线'}</div>
+    </div>
+  `;
 }
 
 /** 关闭详情页 */

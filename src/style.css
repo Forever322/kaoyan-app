@@ -1216,6 +1216,35 @@ body {
   font-weight: 600;
 }
 
+/* 复试基础线 */
+.retest-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.retest-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.retest-card .retest-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+.retest-card .retest-score {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.retest-card .retest-score.pass { color: var(--color-success); }
+.retest-card .retest-score.fail { color: var(--color-danger); }
+.retest-card .retest-sub {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
 /* Pros/Cons grid */
 .pros-cons-grid {
   display: grid;
