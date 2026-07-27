@@ -1,4 +1,4 @@
-name: Build Debug APK
+name: Build Release APK
 
 on:
   pull_request:
@@ -57,12 +57,12 @@ jobs:
             -storepass kaoyan123 -keypass kaoyan123 \
             -dname "CN=Kaoyan, OU=App, O=Kaoyan, L=Beijing, ST=Beijing, C=CN"
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android-twa
-        run: gradle assembleDebug
+        run: gradle assembleRelease
 
-      - name: Upload debug APK
+      - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
-          name: kaoyan-app-debug
-          path: android-twa/app/build/outputs/apk/debug/app-debug.apk
+          name: kaoyan-app-release
+          path: android-twa/app/build/outputs/apk/release/app-release.apk
