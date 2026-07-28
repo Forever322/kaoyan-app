@@ -134,6 +134,9 @@ public class MainActivity extends Activity {
                 }
             });
 
+            // 清除旧缓存，确保加载最新本地文件
+            webView.clearCache(true);
+
             // 加载本地页面
             if (savedInstanceState != null) {
                 webView.restoreState(savedInstanceState);
