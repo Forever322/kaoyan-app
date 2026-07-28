@@ -619,21 +619,20 @@ export function generateEstimatedScores(universityName, category, degree) {
 }
 
 /**
- * 院校类型 → 兼容学科门类矩阵
- * 综合/师范/民族 → 全门类兼容
- * 理工/电子/邮电/交通/航空/建筑/化工/地质/矿业/石油/水利/电力/纺织/轻工/海洋 → 工学 理学 管理学 经济学 交叉学科
- * 农业/林业 → 农学 理学 工学 管理学
- * 医药 → 医学 理学
- * 财经 → 经济学 管理学 法学
- * 政法 → 法学 管理学
- * 语言 → 文学 教育学 法学
- * 艺术 → 艺术学 文学
- * 体育 → 教育学
+ * 院校类型 → 默认兼容学科门类矩阵
+ *
+ * 规则：只在院校"确定有"该门类硕博点时才纳入兼容范围。
+ * 综合/师范/民族 默认不含工/农/医/军事/交叉学科（除非有真实数据证明开设了）
  */
+const ALL_CATEGORIES = ['哲学','经济学','法学','教育学','文学','历史学','理学','工学','农学','医学','军事学','管理学','艺术学','交叉学科'];
+const COMMON_CATEGORIES = ['哲学','经济学','法学','教育学','文学','历史学','理学','管理学','艺术学'];
+
 const TYPE_COMPATIBILITY = {
-  '综合': true,  // true = all
-  '师范': true,
-  '民族': true,
+  // 综合/师范/民族：默认只含基础文理学科，工/农/医/军事/交叉需有真实数据
+  '综合': COMMON_CATEGORIES,
+  '师范': COMMON_CATEGORIES,
+  '民族': COMMON_CATEGORIES,
+  // 理工类：主打工科+理学
   '理工': ['工学', '理学', '管理学', '经济学', '交叉学科'],
   '电子': ['工学', '理学', '管理学'],
   '邮电': ['工学', '理学', '管理学'],
@@ -649,24 +648,43 @@ const TYPE_COMPATIBILITY = {
   '纺织': ['工学', '管理学'],
   '轻工': ['工学', '理学'],
   '海洋': ['理学', '工学', '农学'],
+  // 农林类
   '农业': ['农学', '理学', '工学', '管理学'],
   '林业': ['农学', '理学', '工学'],
+  // 医药类
   '医药': ['医学', '理学'],
-  '财经': ['经济学', '管理学', '法学'],
-  '政法': ['法学', '管理学'],
+  // 文史法经类
+  '财经': ['经济学', '管理学', '法学', '文学'],
+  '政法': ['法学', '管理学', '文学'],
   '语言': ['文学', '教育学', '法学'],
   '艺术': ['艺术学', '文学'],
   '体育': ['教育学'],
 };
 
+/** 判断院校对该门类是否有真实数据（人工录入的非预估值） */
+function hasRealCategoryData(universityName, category) {
+  const uniData = ADMISSION_SCORES[universityName];
+  if (!uniData) return false;
+  const short = category.includes('学硕') || category.includes('专硕') ? '' : '-学硕';
+  const prefix = category + short;
+  // 检查是否存在以该门类开头的真实数据key
+  return Object.keys(uniData).some(k => k.startsWith(prefix) || k.startsWith(category));
+}
+
 function isCategoryCompatible(universityName, category) {
   const uni = findUniversity(universityName);
-  if (!uni) return true; // 未知院校默认兼容
+  if (!uni) return false; // 未知院校不兼容
   const type = uni.type || '综合';
-  const allowed = TYPE_COMPATIBILITY[type];
-  if (allowed === true) return true;       // 全兼容
-  if (Array.isArray(allowed)) return allowed.includes(category);
-  return true; // 未知类型默认兼容
+  const baseAllowed = TYPE_COMPATIBILITY[type];
+
+  // 1. 类型默认兼容 → 放行
+  if (Array.isArray(baseAllowed) && baseAllowed.includes(category)) return true;
+
+  // 2. 不在默认兼容列表，但该院校有真实数据 → 放行（证明其确实开设了此专业）
+  if (hasRealCategoryData(universityName, category)) return true;
+
+  // 3. 否则不兼容
+  return false;
 }
 
 /**
