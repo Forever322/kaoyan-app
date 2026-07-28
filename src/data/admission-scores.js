@@ -567,25 +567,21 @@ export function mapCategoryToScoreKey(category, degree, major) {
   return exactKey;
 }
 
-/** 获取某院校某门类的历年录取分数。无真实数据时自动生成预估值 */
+/** 获取某院校某门类的历年录取分数。仅返回真实数据，无数据返回null */
 export function getAdmissionScores(universityName, category, degree, major) {
   const uni = ADMISSION_SCORES[universityName];
+  if (!uni) return null;
+
   const key = mapCategoryToScoreKey(category, degree, major);
+  const scores = uni[key];
+  if (!scores) return null;
 
-  // 1. 优先使用真实数据
-  if (uni) {
-    const scores = uni[key];
-    if (scores) {
-      const years = ['2025', '2024', '2023', '2022'];
-      const result = years
-        .map((y) => ({ year: y, score: scores[y] || null }))
-        .filter((item) => item.score !== null && item.score > 0);
-      if (result.length > 0) return result;
-    }
-  }
+  const years = ['2025', '2024', '2023', '2022'];
+  const result = years
+    .map((y) => ({ year: y, score: scores[y] || null }))
+    .filter((item) => item.score !== null && item.score > 0);
 
-  // 2. 无真实数据，自动生成预估值
-  return generateEstimatedScores(universityName, category, degree);
+  return result.length > 0 ? result : null;
 }
 
 // 根据院校层次和学科门类自动生成预估录取分数线

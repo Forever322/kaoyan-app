@@ -2,7 +2,7 @@
 
 import { getUniversityDetail } from './data/uni-details.js';
 import { renderPhotos } from './photos.js';
-import { ADMISSION_SCORES, mapCategoryToScoreKey } from './data/admission-scores.js';
+import { ADMISSION_SCORES } from './data/admission-scores.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
@@ -54,12 +54,8 @@ export function openDetailPage(result, { degree, zone }) {
     buildScoreTableRows(admissionScores, allNL, userScore, { showDiff: true });
 
   // 判定结果
-  const uniData = ADMISSION_SCORES[uni.name];
-  const key = mapCategoryToScoreKey(category, degree, major);
-  const isReal = uniData && uniData[key];
   document.getElementById('detailVerdict').innerHTML = `
     <span class="${verdictClass}">${verdict === 'safe' ? '✅ 稳过' : verdict === 'likely' ? '👍 大概率录取' : verdict === 'reach' ? '🎯 可冲刺' : verdict === 'nodata' ? '📋 参考数据' : '⚠️ 差距较大'}</span>
-    ${!isReal ? '<span class="estimated-tag">预估值</span>' : ''}
   `;
 
   // 复试基础线

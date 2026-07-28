@@ -1,6 +1,5 @@
 //渲染模块：结果列表、国家线卡片、院校卡片
 
-import { ADMISSION_SCORES, mapCategoryToScoreKey } from './data/admission-scores.js';
 import { getAllYearLines, hasSubMajors } from './data/national-lines.js';
 import { escapeHtml } from './utils.js';
 
@@ -113,23 +112,17 @@ function renderResultCard(result, userScore, nationalLines, index, { degree, cat
 
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
 
-  const uniData = ADMISSION_SCORES[uni.name];
-  const majorEl = document.getElementById('majorSelect');
-  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
-  const key = mapCategoryToScoreKey(category, degree, major);
-  const isRealData = uniData && uniData[key];
-
   const tableRows = buildScoreTableRows(admissionScores, nationalLines, userScore);
 
+  const majorEl = document.getElementById('majorSelect');
+  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
   const majorText = major && major !== '不限专业' ? ` · ${major.replace(/\([^)]*\)/g, '')}` : '';
-  const dataTag = isRealData ? '' : '<span class="estimated-tag">预估值</span>';
 
   return `
     <div class="result-card ${verdict}" data-index="${index}">
       <div class="uni-name">
         <span class="name-text">🏫 ${escapeHtml(uni.name)}</span>
         <span class="level-badge ${levelBadgeClass}">${escapeHtml(uni.level)}</span>
-        ${dataTag}
       </div>
       <div class="uni-meta">
         <span>📍 ${escapeHtml(uni.province)}${uni.city && uni.city !== uni.province ? ' · ' + escapeHtml(uni.city) : ''}</span>
