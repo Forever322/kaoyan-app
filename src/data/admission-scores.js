@@ -597,9 +597,13 @@ export function generateEstimatedScores(universityName, category, degree) {
   // 检查大学类型是否与该专业门类兼容
   if (!isCategoryCompatible(universityName, category)) return null;
 
-  // 双非且数据库里一条真实数据都没有 → 不生成预估（无法确认该校是否有此专业）
+  // 综合/师范/民族类双非零数据 → 不预估（无法确认专业方向）
+  // 理工/农业/医药等专业型院校 → 即使零数据也生成预估（类型已表明专业方向）
   const hasRealData = !!ADMISSION_SCORES[universityName];
-  if (!hasRealData && uni.level === '双非') return null;
+  if (!hasRealData && uni.level === '双非') {
+    const uncertainTypes = ['综合', '师范', '民族'];
+    if (uncertainTypes.includes(uni.type || '综合')) return null;
+  }
 
   // 获取该门类A区国家线(作为基准)
   const nl = getAllYearLines(degree, category, 'A');
