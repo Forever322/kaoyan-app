@@ -54,6 +54,7 @@ export function addCustomUniversity(uni) {
       city: uni.city || uni.province,
       zone: uni.zone,
       level: uni.level,
+      type: uni.type || '综合',
     });
   }
 
@@ -174,6 +175,7 @@ export function importData(jsonStr) {
             city: uni.city || uni.province,
             zone: uni.zone,
             level: uni.level,
+            type: uni.type || '综合',
           };
         } else {
           UNIVERSITIES.push({
@@ -182,6 +184,7 @@ export function importData(jsonStr) {
             city: uni.city || uni.province,
             zone: uni.zone,
             level: uni.level,
+            type: uni.type || '综合',
           });
         }
         importCount++;
@@ -221,6 +224,7 @@ export function initStorage() {
         city: uni.city || uni.province,
         zone: uni.zone,
         level: uni.level,
+        type: uni.type || '综合',
       });
     }
   }

@@ -619,55 +619,54 @@ export function generateEstimatedScores(universityName, category, degree) {
 }
 
 /**
- * 判断院校类型是否与学科门类兼容
- * 防止艺术院校匹配水利工程、体育院校匹配计算机等不合理组合
+ * 院校类型 → 兼容学科门类矩阵
+ * 综合/师范/民族 → 全门类兼容
+ * 理工/电子/邮电/交通/航空/建筑/化工/地质/矿业/石油/水利/电力/纺织/轻工/海洋 → 工学 理学 管理学 经济学 交叉学科
+ * 农业/林业 → 农学 理学 工学 管理学
+ * 医药 → 医学 理学
+ * 财经 → 经济学 管理学 法学
+ * 政法 → 法学 管理学
+ * 语言 → 文学 教育学 法学
+ * 艺术 → 艺术学 文学
+ * 体育 → 教育学
  */
+const TYPE_COMPATIBILITY = {
+  '综合': true,  // true = all
+  '师范': true,
+  '民族': true,
+  '理工': ['工学', '理学', '管理学', '经济学', '交叉学科'],
+  '电子': ['工学', '理学', '管理学'],
+  '邮电': ['工学', '理学', '管理学'],
+  '交通': ['工学', '理学', '管理学'],
+  '航空': ['工学', '理学', '管理学'],
+  '建筑': ['工学', '管理学'],
+  '化工': ['工学', '理学', '管理学'],
+  '地质': ['理学', '工学'],
+  '矿业': ['工学', '理学'],
+  '石油': ['工学', '理学'],
+  '水利': ['工学', '理学'],
+  '电力': ['工学', '管理学'],
+  '纺织': ['工学', '管理学'],
+  '轻工': ['工学', '理学'],
+  '海洋': ['理学', '工学', '农学'],
+  '农业': ['农学', '理学', '工学', '管理学'],
+  '林业': ['农学', '理学', '工学'],
+  '医药': ['医学', '理学'],
+  '财经': ['经济学', '管理学', '法学'],
+  '政法': ['法学', '管理学'],
+  '语言': ['文学', '教育学', '法学'],
+  '艺术': ['艺术学', '文学'],
+  '体育': ['教育学'],
+};
+
 function isCategoryCompatible(universityName, category) {
-  const name = universityName;
-
-  // 理工类学科：工学、理学、部分管理学
-  const isEngineering = ['工学', '理学', '管理学', '交叉学科'].includes(category);
-  // 医学类
-  const isMedical = ['医学'].includes(category);
-  // 艺术类
-  const isArt = ['艺术学'].includes(category);
-  // 体育类
-  const isSport = category === '教育学' || category === '体育';
-  // 农林类
-  const isAgri = ['农学'].includes(category);
-  // 文法哲史
-  const isLiberal = ['哲学', '文学', '历史学', '法学', '经济学'].includes(category);
-
-  // 专门艺术院校 → 只兼容艺术学、文学
-  if (/艺术|美术|音乐|舞蹈|戏剧|戏曲|电影|影视|美院|音院|鲁艺/.test(name)) {
-    return isArt || category === '文学';
-  }
-  // 体育院校 → 只兼容教育学/体育
-  if (/体育/.test(name)) {
-    return isSport;
-  }
-  // 医学院校 → 只兼容医学、部分理学
-  if (/医科|医学|中医药|药科|医大/.test(name)) {
-    return isMedical || category === '理学';
-  }
-  // 农林院校 → 兼容农学、理学、工学(部分)
-  if (/农业|林业|农林|农大|林大/.test(name)) {
-    return isAgri || category === '理学' || category === '工学';
-  }
-  // 外国语/语言院校 → 只兼容文学
-  if (/外国语|语言/.test(name)) {
-    return isLiberal || category === '教育学';
-  }
-  // 政法院校 → 只兼容法学
-  if (/政法/.test(name)) {
-    return category === '法学' || category === '管理学';
-  }
-  // 财经院校 → 兼容经济学、管理学
-  if (/财经|工商|商业|经贸/.test(name)) {
-    return category === '经济学' || category === '管理学' || category === '法学';
-  }
-  // 师范院校、综合大学 → 全兼容
-  return true;
+  const uni = findUniversity(universityName);
+  if (!uni) return true; // 未知院校默认兼容
+  const type = uni.type || '综合';
+  const allowed = TYPE_COMPATIBILITY[type];
+  if (allowed === true) return true;       // 全兼容
+  if (Array.isArray(allowed)) return allowed.includes(category);
+  return true; // 未知类型默认兼容
 }
 
 /**
