@@ -16,7 +16,7 @@ export function buildScoreTableRows(
   const nlMap = {};
   if (nationalLines) nationalLines.forEach((n) => (nlMap[n.year] = n.score));
 
-  const years = ['2025', '2024', '2023', '2022'];
+  const years = ['2026', '2025', '2024', '2023', '2022'];
   let rows = '';
 
   for (const y of years) {

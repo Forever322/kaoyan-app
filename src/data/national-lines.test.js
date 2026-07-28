@@ -105,8 +105,8 @@ describe('getLatestNationalLine', () => {
   it('返回最新年份', () => {
     const latest = getLatestNationalLine('xueshuo', '工学', 'A');
     expect(latest).not.toBeNull();
-    expect(latest.year).toBe('2025');
-    expect(latest.score).toBe(260);
+    expect(latest.year).toBe('2026');
+    expect(latest.score).toBe(254); // 2026年工科A区
   });
 
   it('无效门类返回 null', () => {
