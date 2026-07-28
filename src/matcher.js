@@ -11,24 +11,25 @@ export function matchUniversities(score, degree, category, zone, major) {
   // 2. 获取该分区院校
   const universities = getUniversitiesByZone(zone);
 
-  // 3. 对每个院校计算匹配度
+  // 3. 对每个院校计算匹配度（仅显示有真实录取数据的院校）
   const results = [];
   for (const uni of universities) {
     const admissionScores = getAdmissionScores(uni.name, category, degree, major);
-    const matchResult = evaluateMatch(score, admissionScores);
+    if (!admissionScores) continue; // 无真实数据 → 不显示
 
-    if (matchResult) {
-      results.push({
-        university: uni,
-        admissionScores: admissionScores,
-        verdict: matchResult.verdict,
-        verdictLabel: matchResult.label,
-        verdictClass: matchResult.cssClass,
-        avgScore: matchResult.avgScore,
-        maxScore: matchResult.maxScore,
-        minScore: matchResult.minScore,
-      });
-    }
+    const matchResult = evaluateMatch(score, admissionScores);
+    if (!matchResult) continue;
+
+    results.push({
+      university: uni,
+      admissionScores: admissionScores,
+      verdict: matchResult.verdict,
+      verdictLabel: matchResult.label,
+      verdictClass: matchResult.cssClass,
+      avgScore: matchResult.avgScore,
+      maxScore: matchResult.maxScore,
+      minScore: matchResult.minScore,
+    });
   }
 
   // 4. 排序: 先 match level, 再学校层次

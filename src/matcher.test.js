@@ -172,8 +172,8 @@ describe('matchUniversities', () => {
     expect(tsinghua.verdict).toBe('nodata');
   });
 
-  it('返回的院校数量正确', () => {
+  it('返回的院校数量正确（无数据院校被过滤）', () => {
     const result = matchUniversities(350, 'xueshuo', '工学', 'A', null);
-    expect(result.totalShown).toBe(3);
+    expect(result.totalShown).toBe(2); // 普通大学(null)被过滤，清华([])保留
   });
 });
