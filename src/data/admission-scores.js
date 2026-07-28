@@ -594,8 +594,12 @@ export function generateEstimatedScores(universityName, category, degree) {
   const uni = findUniversity(universityName);
   if (!uni) return null;
 
-  // 检查大学类型是否与该专业门类兼容，防止艺术院校匹配到工科等
+  // 检查大学类型是否与该专业门类兼容
   if (!isCategoryCompatible(universityName, category)) return null;
+
+  // 双非且数据库里一条真实数据都没有 → 不生成预估（无法确认该校是否有此专业）
+  const hasRealData = !!ADMISSION_SCORES[universityName];
+  if (!hasRealData && uni.level === '双非') return null;
 
   // 获取该门类A区国家线(作为基准)
   const nl = getAllYearLines(degree, category, 'A');
