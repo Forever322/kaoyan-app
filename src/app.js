@@ -17,8 +17,17 @@ import {
   handleDeleteUniversity,
 } from './modal.js';
 import { openDetailPage as _showDetail, closeDetailPage as _hideDetail } from './detail.js';
+import { checkAndSeed } from './seed.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // 初始化本地数据库
+  try {
+    const stats = await checkAndSeed();
+    console.log('[App] DB ready:', stats);
+  } catch (e) {
+    console.warn('[App] DB init failed, using in-memory data:', e);
+  }
+
   initStorage();
   initUI();
   bindEvents();
