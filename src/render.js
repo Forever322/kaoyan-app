@@ -107,7 +107,7 @@ export function renderResults(results, { degree, zone }) {
 }
 
 /** 渲染单张院校卡片 */
-function renderResultCard(result, userScore, nationalLines, index, { degree, category }) {
+function renderResultCard(result, userScore, nationalLines, index, { degree: _degree, category }) {
   const { university: uni, verdict, verdictLabel, verdictClass, admissionScores } = result;
 
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;

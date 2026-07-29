@@ -624,7 +624,7 @@ export function generateEstimatedScores(universityName, category, degree) {
  * 规则：只在院校"确定有"该门类硕博点时才纳入兼容范围。
  * 综合/师范/民族 默认不含工/农/医/军事/交叉学科（除非有真实数据证明开设了）
  */
-const ALL_CATEGORIES = ['哲学','经济学','法学','教育学','文学','历史学','理学','工学','农学','医学','军事学','管理学','艺术学','交叉学科'];
+const _ALL_CATEGORIES = ['哲学','经济学','法学','教育学','文学','历史学','理学','工学','农学','医学','军事学','管理学','艺术学','交叉学科'];
 const COMMON_CATEGORIES = ['哲学','经济学','法学','教育学','文学','历史学','理学','管理学','艺术学'];
 
 const TYPE_COMPATIBILITY = {

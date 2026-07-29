@@ -2,7 +2,6 @@
 
 import { getUniversityDetail } from './data/uni-details.js';
 import { renderPhotos } from './photos.js';
-import { ADMISSION_SCORES } from './data/admission-scores.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
