@@ -2,7 +2,7 @@
 // 结构: ADMISSION_SCORES[院校名][门类key] = { 年份: 分数 }
 
 import { findUniversity } from './universities.js';
-import { getAllYearLines } from './national-lines.js';
+import { getAllYearLines, ZHUANSHUO_MAJOR_MAP } from './national-lines.js';
 
 export const ADMISSION_SCORES = {
   // ==================== 北京 ====================
@@ -555,7 +555,7 @@ export function mapCategoryToScoreKey(category, degree, major) {
     if (allKeys.has(k)) return k;
   }
 
-  // Step 2: fuzzy match for the specific major
+  // Step 2: fuzzy match for the specific major (exact match within key)
   if (major && major !== '不限专业') {
     const majorName = major.replace(/\([^)]*\)/g, '').trim();
     for (const k of allKeys) {
@@ -563,7 +563,68 @@ export function mapCategoryToScoreKey(category, degree, major) {
     }
   }
 
-  // Step 3: fallback to exactKey (this will be used for estimation if not found)
+  // Step 2.5: 专硕大类拆解匹配（土木水利→建筑/土木-专硕, 水利工程→土木水利→建筑/土木）
+  if (major && major !== '不限专业' && degree === 'zhuanshuo') {
+    const majorName = major.replace(/\([^)]*\)/g, '').trim();
+    const catParts = category.split('/');
+    // 找到 major 对应的父类（如 水利工程 → 土木水利）
+    let parentPart = '';
+    for (const part of catParts) {
+      if (part.includes(majorName.charAt(0)) && majorName.length > 1 && part.includes(majorName.substring(0, 2))) {
+        parentPart = part;
+        break;
+      }
+    }
+    // 也检查 ZHUANSHUO_MAJOR_MAP 找父类
+    if (!parentPart) {
+      for (const [cat, majors] of Object.entries(ZHUANSHUO_MAJOR_MAP)) {
+        if (cat.includes(category.split('/')[0])) {
+          for (const m of majors) {
+            if (m.name === major) {
+              parentPart = cat; break;
+            }
+          }
+        }
+        if (parentPart) break;
+      }
+    }
+
+    // 在已有 key 中找包含父类关键字的
+    for (const k of allKeys) {
+      if (!k.endsWith(`-${short}`)) continue;
+      const keyCat = k.replace(`-${short}`, '');
+      const keyParts = keyCat.split('/');
+      for (const kp of keyParts) {
+        for (const cp of catParts) {
+          // 土木水利 ↔ 建筑/土木
+          if ((cp.includes('土木') && kp.includes('土木')) ||
+              (cp.includes('水利') && kp.includes('水利')) ||
+              (cp.includes('机械') && kp.includes('机械')) ||
+              (cp.includes('材料') && kp.includes('材料')) ||
+              (cp.includes('能源') && kp.includes('能源')) ||
+              cp === kp) {
+            return k;
+          }
+        }
+      }
+    }
+  }
+
+  // Step 3: 大类本身做模糊匹配（如 电子信息/机械/... → 电子信息/机械-专硕）
+  if (degree === 'zhuanshuo') {
+    const catParts = category.split('/');
+    for (const k of allKeys) {
+      if (!k.endsWith(`-${short}`)) continue;
+      const keyCat = k.replace(`-${short}`, '');
+      const keyParts = keyCat.split('/');
+      // 如果 key 的所有部分都在 category 中出现，则匹配
+      if (keyParts.every(kp => catParts.some(cp => cp.includes(kp) || kp.includes(cp)))) {
+        return k;
+      }
+    }
+  }
+
+  // Step 4: fallback to exactKey
   return exactKey;
 }
 
