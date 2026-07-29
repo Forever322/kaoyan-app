@@ -117,6 +117,7 @@ function renderResultCard(result, userScore, nationalLines, index, { degree: _de
   const majorEl = document.getElementById('majorSelect');
   const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
   const majorText = major && major !== '不限专业' ? ` · ${major.replace(/\([^)]*\)/g, '')}` : '';
+  const studyModeText = result.studyMode ? ` · ${escapeHtml(result.studyMode)}` : '';
 
   return `
     <div class="result-card ${verdict}" data-index="${index}">
@@ -126,7 +127,7 @@ function renderResultCard(result, userScore, nationalLines, index, { degree: _de
       </div>
       <div class="uni-meta">
         <span>📍 ${escapeHtml(uni.province)}${uni.city && uni.city !== uni.province ? ' · ' + escapeHtml(uni.city) : ''}</span>
-        <span>🏷️ ${escapeHtml(uni.zone)}区</span>${majorText ? `<span>🔧 ${escapeHtml(majorText)}</span>` : ''}
+        <span>🏷️ ${escapeHtml(uni.zone)}区</span>${majorText ? `<span>🔧 ${escapeHtml(majorText)}</span>` : ''}${studyModeText ? `<span>📋 ${escapeHtml(studyModeText)}</span>` : ''}
       </div>
       <div class="score-table-wrap">
         <table class="score-table">

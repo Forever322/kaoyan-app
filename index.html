@@ -140,6 +140,25 @@
         </details>
       </div>
 
+      <!-- 省份筛选 -->
+      <div class="form-group">
+        <label class="form-label">📍 省份筛选</label>
+        <select id="provinceSelect" class="form-select" aria-label="选择省份">
+          <option value="all">🌏 全部省份</option>
+        </select>
+      </div>
+
+      <!-- 学习形式 -->
+      <div class="form-group">
+        <label class="form-label">📋 学习形式</label>
+        <div class="toggle-group" id="studyModeToggle">
+          <button class="toggle-btn active" data-value="all">📚 全部</button>
+          <button class="toggle-btn" data-value="全日制">🎓 全日制</button>
+          <button class="toggle-btn" data-value="非全日制">💼 非全日制</button>
+        </div>
+        <span class="form-hint">全日制周一至周五上课，非全日制周末或集中授课</span>
+      </div>
+
       <!-- 查询按钮 -->
       <button id="searchBtn" class="btn-primary">🔍 查询匹配院校</button>
     </section>

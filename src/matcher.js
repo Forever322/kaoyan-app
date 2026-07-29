@@ -4,12 +4,15 @@ import { getAllYearLines } from './data/national-lines.js';
 import { getUniversitiesByZone } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 
-export function matchUniversities(score, degree, category, zone, major) {
+export function matchUniversities(score, degree, category, zone, major, province = 'all', studyMode = 'all') {
   // 1. 查国家线
   const allNL = getAllYearLines(degree, category, zone === 'all' ? 'A' : zone);
 
-  // 2. 获取该分区院校
-  const universities = getUniversitiesByZone(zone);
+  // 2. 获取该分区院校，并筛选省份
+  let universities = getUniversitiesByZone(zone);
+  if (province && province !== 'all') {
+    universities = universities.filter(u => u.province === province);
+  }
 
   // 3. 对每个院校计算匹配度（仅显示有真实录取数据的院校）
   const results = [];
@@ -29,6 +32,7 @@ export function matchUniversities(score, degree, category, zone, major) {
       avgScore: matchResult.avgScore,
       maxScore: matchResult.maxScore,
       minScore: matchResult.minScore,
+      studyMode: studyMode !== 'all' ? studyMode : null,
     });
   }
 

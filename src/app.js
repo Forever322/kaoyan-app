@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentDegree = 'xueshuo';
 let currentZone = 'A';
+let currentProvince = 'all';
+let currentStudyMode = 'all';
 let currentResults = [];
 let _navState = 'home';
 
@@ -60,6 +62,18 @@ function initUI() {
   updateCategorySelect();
   setupMajorListbox();
   updateMajorSelect();
+  initProvinceSelect();
+}
+
+function initProvinceSelect() {
+  const select = document.getElementById('provinceSelect');
+  const provinces = [...new Set(UNIVERSITIES.map(u => u.province))].sort();
+  provinces.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    select.appendChild(opt);
+  });
 }
 
 // ---------- 学科门类 combobox ----------
@@ -448,6 +462,26 @@ function bindEvents() {
     clearResults();
   });
 
+  // 省份筛选
+  document.getElementById('provinceSelect').addEventListener('change', (e) => {
+    currentProvince = e.target.value;
+    clearResults();
+  });
+
+  // 学习形式切换
+  document.getElementById('studyModeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.toggle-btn');
+    if (!btn) return;
+    const value = btn.dataset.value;
+    if (value === currentStudyMode) return;
+    document
+      .querySelectorAll('#studyModeToggle .toggle-btn')
+      .forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentStudyMode = value;
+    clearResults();
+  });
+
   // 门类切换
   document.getElementById('categorySelect').addEventListener('change', () => {
     checkMajorVisibility();
@@ -635,9 +669,9 @@ function doSearch() {
   const majorSelect = document.getElementById('majorSelect');
   const major = hasSubMajors(category) ? majorSelect.value : null;
 
-  saveLastSearch({ score, degree: currentDegree, category, zone: currentZone, major });
+  saveLastSearch({ score, degree: currentDegree, category, zone: currentZone, province: currentProvince, studyMode: currentStudyMode, major });
 
-  const result = matchUniversities(score, currentDegree, category, currentZone, major);
+  const result = matchUniversities(score, currentDegree, category, currentZone, major, currentProvince, currentStudyMode);
   currentResults = result.results;
 
   renderNationalLine(result, {
@@ -711,6 +745,17 @@ function restoreLastSearch() {
     document.querySelectorAll('#zoneToggle .toggle-btn').forEach((b) => {
       b.classList.remove('active');
       if (b.dataset.value === last.zone) b.classList.add('active');
+    });
+  }
+  if (last.province) {
+    currentProvince = last.province;
+    document.getElementById('provinceSelect').value = last.province;
+  }
+  if (last.studyMode) {
+    currentStudyMode = last.studyMode;
+    document.querySelectorAll('#studyModeToggle .toggle-btn').forEach((b) => {
+      b.classList.remove('active');
+      if (b.dataset.value === last.studyMode) b.classList.add('active');
     });
   }
 }
