@@ -4950,14 +4950,33 @@ export function mapCategoryToScoreKey(category, degree, major) {
   }
 
   // Step 3: 大类本身做模糊匹配（如 电子信息/机械/... → 电子信息/机械-专硕）
+  // 关键：如果用户选了细分专业，只匹配与该专业相关的key
   if (degree === 'zhuanshuo') {
     const catParts = category.split('/');
+
+    // 确定需要匹配的组件（如果选了细分专业，只匹配相关的）
+    let relevantParts = catParts;
+    if (major && major !== '不限专业') {
+      const majorName = major.replace(/\([^)]*\)/g, '').trim();
+      // 缩小范围：只保留与 major 相关的大类组件
+      relevantParts = catParts.filter(cp => {
+        // 直接包含
+        if (cp.includes(majorName) || majorName.includes(cp)) return true;
+        // 模糊关联（如 水利工程→土木水利, 土木水利→水利工程）
+        const cpChars = [...cp].filter(c => c !== '/' && c !== '与');
+        const majorChars = [...majorName].filter(c => c !== '/' && c !== '与');
+        const common = cpChars.filter(c => majorChars.includes(c));
+        return common.length >= 2; // 至少2个共同字
+      });
+      if (relevantParts.length === 0) relevantParts = catParts; // 没找到相关组件则回退全部
+    }
+
     for (const k of allKeys) {
       if (!k.endsWith(`-${short}`)) continue;
       const keyCat = k.replace(`-${short}`, '');
       const keyParts = keyCat.split('/');
-      // 如果 key 的所有部分都在 category 中出现，则匹配
-      if (keyParts.every(kp => catParts.some(cp => cp.includes(kp) || kp.includes(cp)))) {
+      // key 的所有部分必须在 relevantParts 中
+      if (keyParts.every(kp => relevantParts.some(cp => cp.includes(kp) || kp.includes(cp)))) {
         return k;
       }
     }

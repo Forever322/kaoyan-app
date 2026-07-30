@@ -823,4 +823,3 @@ function showUpdateBanner(remoteVersion) {
     banner.style.display = 'none';
   };
 }
-}
