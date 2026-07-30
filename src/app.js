@@ -790,7 +790,7 @@ function initHistoryNav() {
 }
 
 // ==================== 自动更新检测 ====================
-const LOCAL_VERSION = '4.1';
+const LOCAL_VERSION = '4.1.1';
 const UPDATE_CHECK_URL = 'https://forever322.github.io/kaoyan-app/version.json';
 
 async function checkForUpdate() {
