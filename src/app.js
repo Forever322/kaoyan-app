@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   restoreLastSearch();
   initHistoryNav();
+
+  // 后台检查更新（不阻塞启动）
+  checkForUpdate();
 });
 
 let currentDegree = 'xueshuo';
@@ -784,4 +787,40 @@ function initHistoryNav() {
       _navState = 'home';
     }
   });
+}
+
+// ==================== 自动更新检测 ====================
+const LOCAL_VERSION = '4.1';
+const UPDATE_CHECK_URL = 'https://forever322.github.io/kaoyan-app/version.json';
+
+async function checkForUpdate() {
+  try {
+    const resp = await fetch(UPDATE_CHECK_URL + '?t=' + Date.now());
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.version !== LOCAL_VERSION) {
+      showUpdateBanner(data.version);
+    }
+  } catch {
+    // 无网络或检查失败，静默跳过
+  }
+}
+
+function showUpdateBanner(remoteVersion) {
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:100;background:#1a73e8;color:#fff;padding:12px 16px;border-radius:12px;display:flex;align-items:center;gap:12px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out';
+  banner.innerHTML = `
+    <span style="flex:1">🔄 发现新版本 v${remoteVersion}，是否更新？</span>
+    <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">更新</button>
+    <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
+  `;
+  document.body.appendChild(banner);
+
+  document.getElementById('updateYes').onclick = () => {
+    location.href = 'https://forever322.github.io/kaoyan-app/';
+  };
+  document.getElementById('updateNo').onclick = () => {
+    banner.style.display = 'none';
+  };
+}
 }
