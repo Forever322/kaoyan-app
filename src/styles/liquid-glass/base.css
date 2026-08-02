@@ -1,0 +1,248 @@
+@font-face {
+  font-family: "Kaoyan Sans";
+  src: url("../../assets/fonts/KaoyanSansSC-VF.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --font-samsung: "Kaoyan Sans", "SamsungOne", "Samsung One", "SamsungOne UI", "Roboto", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --color-primary: #d9ff42;
+  --color-primary-dark: #a8ce20;
+  --color-primary-light: rgba(217, 255, 66, 0.16);
+  --color-primary-alpha: rgba(217, 255, 66, 0.14);
+  --color-success: #63ffc6;
+  --color-success-light: rgba(99, 255, 198, 0.14);
+  --color-warning: #ffc66d;
+  --color-warning-light: rgba(255, 198, 109, 0.15);
+  --color-danger: #ff8b9e;
+  --color-danger-light: rgba(255, 139, 158, 0.14);
+  --color-bg: #071525;
+  --app-night: linear-gradient(155deg, #10233a 0%, #091725 42%, #0b1230 100%);
+  --color-surface: rgba(232, 245, 255, 0.11);
+  --color-surface-50: rgba(255, 255, 255, 0.075);
+  --color-surface-100: rgba(255, 255, 255, 0.14);
+  --color-surface-hover: rgba(255, 255, 255, 0.18);
+  --color-text: #f4f8ff;
+  --color-text-secondary: #afbed4;
+  --color-text-placeholder: #7f91aa;
+  --color-text-inverse: #07101f;
+  --color-border: rgba(234, 245, 255, 0.18);
+  --color-border-light: rgba(234, 245, 255, 0.10);
+  --radius: 22px;
+  --radius-sm: 14px;
+  --shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 20px 52px rgba(0, 0, 0, 0.31);
+  --shadow-lg: 0 26px 68px rgba(0, 0, 0, 0.40);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-width: 320px;
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at -10% 82%, rgba(39, 85, 255, .58), transparent 18rem),
+    radial-gradient(circle at 109% 9%, rgba(42, 255, 201, .62), transparent 18rem),
+    var(--app-night);
+  font-family: var(--font-samsung);
+  font-synthesis: none;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at -11% 80%, rgba(117, 135, 255, .58), transparent 14rem),
+    radial-gradient(circle at 108% 8%, rgba(101, 255, 215, .45), transparent 15rem);
+  filter: blur(4px);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+
+.eyebrow {
+  color: #b9c7ff;
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+.app-screen {
+  display: none;
+  width: 100%;
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: calc(106px + var(--safe-bottom));
+}
+
+.app-screen.is-active {
+  display: block;
+  transform: translateZ(0);
+  animation: screenEnter .24s cubic-bezier(.22, .82, .3, 1) both;
+  will-change: transform, opacity;
+}
+
+.card,
+.form-section,
+.national-line-section,
+.result-card,
+.fail-state,
+.detail-section {
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .15), rgba(225, 242, 255, .065));
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+  backdrop-filter: blur(24px) saturate(130%);
+}
+
+.form-input,
+.form-select,
+.form-textarea,
+.major-trigger,
+.sheet-field input,
+.sheet-field select {
+  color: var(--color-text);
+  border: 1px solid rgba(231, 244, 255, .14);
+  background: rgba(4, 13, 29, .42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder,
+.sheet-field input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.form-select option,
+.sheet-field option {
+  color: #142033;
+  background: #eaf3ff;
+}
+
+.btn-primary,
+.btn-secondary {
+  min-height: 52px;
+  border-radius: 18px;
+  border: 0;
+  font-weight: 800;
+  letter-spacing: .02em;
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+
+.btn-primary {
+  color: #0c1922;
+  background: linear-gradient(135deg, #efff92 0%, #d9ff42 52%, #b5e932 100%);
+  box-shadow: 0 12px 27px rgba(188, 245, 56, .24), inset 0 1px 0 rgba(255, 255, 255, .72);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(1px) scale(.985);
+}
+
+@keyframes screenEnter {
+  from {
+    opacity: .01;
+    transform: translate3d(12px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+#splashScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #07101f;
+  pointer-events: none;
+  animation: splashFade 5s ease-in-out forwards;
+}
+
+#splashImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#splashSkipBtn {
+  position: absolute;
+  z-index: 1;
+  right: 24px;
+  bottom: 36px;
+  pointer-events: auto;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  background: rgba(8, 17, 36, .46);
+  padding: 8px 15px;
+}
+
+@keyframes splashFade {
+  0% {
+    opacity: 0;
+  }
+
+  12%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 760px) {
+
+  .app-screen,
+  .detail-content,
+  .filter-sheet-panel {
+    max-width: 560px;
+  }
+}

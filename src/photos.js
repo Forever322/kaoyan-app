@@ -1,5 +1,6 @@
-// 院校照片渲染 - 实时获取百度图片搜索结果
+// 院校照片渲染 - 优先使用项目内置图集，再按需在线搜索
 
+import { getUniversityPhotos } from './data/uni-photos.js';
 import { escapeHtml } from './utils.js';
 
 /** 渲染院校照片（4张），实时从百度图片获取 */
@@ -12,8 +13,9 @@ export async function renderPhotos(name, color) {
     `<div class="photo-item" style="background:${color}22;display:flex;align-items:center;justify-content:center;font-size:1.5rem;aspect-ratio:1.6">📷</div>`
   ).join('');
 
-  // 实时获取图片
-  const urls = await fetchBaiduPhotos(name);
+  // 内置图集覆盖了有预存照片的院校；没有时才使用在线搜索补齐。
+  const storedUrls = getUniversityPhotos(name);
+  const urls = storedUrls.length > 0 ? storedUrls : await fetchBaiduPhotos(name);
 
   if (urls.length > 0) {
     container.innerHTML = urls.map(url =>
@@ -23,6 +25,15 @@ export async function renderPhotos(name, color) {
              onerror="this.parentElement.style.cssText='background:${color}22;display:flex;align-items:center;justify-content:center;font-size:1.5rem;aspect-ratio:1.6';this.parentElement.innerHTML=\\'📷\\''">
       </div>`
     ).join('');
+
+    // 百度百科 CDN 偶尔会返回 200×200 的“参数错误”占位图；避免把它误当作校园照片。
+    container.querySelectorAll('img').forEach((image) => {
+      image.addEventListener('load', () => {
+        if (image.naturalWidth <= 240 && image.naturalHeight <= 240) {
+          showPhotoFallback(image.parentElement, color);
+        }
+      });
+    });
   }
 
   // 不够4张补搜索卡片
@@ -38,6 +49,12 @@ export async function renderPhotos(name, color) {
     card.onclick = () => window.open(searchUrl, '_blank');
     container.appendChild(card);
   }
+}
+
+function showPhotoFallback(item, color) {
+  item.replaceChildren();
+  item.style.cssText = `background:${color}22;display:flex;align-items:center;justify-content:center;font-size:1.5rem;aspect-ratio:1.6`;
+  item.textContent = '📷';
 }
 
 /** 从百度图片搜索实时获取照片 */

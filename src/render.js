@@ -1,6 +1,6 @@
 //渲染模块：结果列表、国家线卡片、院校卡片
 
-import { getAllYearLines, hasSubMajors } from './data/national-lines.js';
+import { hasSubMajors } from './data/national-lines.js';
 import { escapeHtml } from './utils.js';
 
 /** 构建分数对比表格行（结果卡片和详情页共用） */
@@ -50,9 +50,11 @@ export function buildScoreTableRows(
 export function renderNationalLine(result, { userScore, category, degree, zone }) {
   const card = document.getElementById('nationalLineCard');
   const info = document.getElementById('nationalLineInfo');
+  const resultSummary = document.getElementById('resultsNationalLine');
 
   if (!result.nationalLine || result.nationalLinesAll.length === 0) {
     card.style.display = 'none';
+    if (resultSummary) resultSummary.innerHTML = '';
     return;
   }
 
@@ -81,64 +83,72 @@ export function renderNationalLine(result, { userScore, category, degree, zone }
     </div>
     <p class="nl-note">💡 你的分数: <strong>${userScore}</strong> | 差值: ${allLines.map((l) => `${l.year}年 ${userScore >= l.score ? '+' : ''}${userScore - l.score}`).join(' / ')}</p>
   `;
+
+  // 首页保留完整原始表格节点；结果页展示同一份国家线数据的紧凑摘要，详情页可查看逐年对比。
+  if (resultSummary) {
+    const latest = allLines[0];
+    const latestDiff = userScore - latest.score;
+    resultSummary.innerHTML = `
+      <div class="results-line-title"><span>国家线参考</span><strong>${degree === 'xueshuo' ? '学硕' : '专硕'} · ${escapeHtml(category)} · ${escapeHtml(zone === 'all' ? 'A / B' : zone)} 区</strong></div>
+      <div class="results-line-values"><b>${latest.year} 年 ${latest.score} 分</b><span class="${latestDiff >= 0 ? 'is-above' : 'is-below'}">${latestDiff >= 0 ? `高出 ${latestDiff} 分` : `还差 ${Math.abs(latestDiff)} 分`}</span><em>历年：${allLines.map((line) => line.score).join(' / ')}</em></div>
+    `;
+  }
 }
 
 /** 渲染搜索结果列表 */
 export function renderResults(results, { degree, zone }) {
   const list = document.getElementById('resultsList');
-  const count = document.getElementById('resultCount');
+  const count = document.getElementById('resultCountNumber');
   const section = document.getElementById('resultsSection');
-
-  if (!results || results.length === 0) {
-    section.style.display = 'none';
-    return;
-  }
+  const context = document.getElementById('resultContext');
+  const insights = document.getElementById('resultInsights');
 
   section.style.display = 'block';
-  count.textContent = `共${results.length}所`;
+  count.textContent = results?.length || 0;
 
   const userScore = parseInt(document.getElementById('scoreInput').value, 10);
   const category = document.getElementById('categorySelect').value;
-  const allNL = getAllYearLines(degree, category, zone === 'all' ? 'A' : zone);
+  const degreeLabel = degree === 'xueshuo' ? '学硕' : '专硕';
+  const zoneLabel = zone === 'all' ? 'A / B 区' : `${zone} 区`;
+  const safeCount = (results || []).filter((result) => result.verdict === 'safe').length;
+  const likelyCount = (results || []).filter((result) => result.verdict === 'likely').length;
+  const reachCount = (results || []).filter((result) => result.verdict === 'reach').length;
+  context.innerHTML = `<strong>${userScore} 分 · ${degreeLabel} · ${escapeHtml(category)} · ${zoneLabel}</strong>`;
+  insights.innerHTML = `
+    <div><span>稳过 ${safeCount}</span></div>
+    <div><span>大概率 ${likelyCount}</span></div>
+    <div><span>冲刺 ${reachCount}</span></div>
+  `;
 
-  list.innerHTML = results
-    .map((r, i) => renderResultCard(r, userScore, allNL, i, { degree, category }))
-    .join('');
+  list.innerHTML = results?.length
+    ? results.map((r, i) => renderResultCard(r, i, { degree, category })).join('')
+    : '<div class="results-empty">当前条件下暂无可展示院校，试试调整筛选条件。</div>';
 }
 
 /** 渲染单张院校卡片 */
-function renderResultCard(result, userScore, nationalLines, index, { degree: _degree, category }) {
+function renderResultCard(result, index, { degree: _degree, category }) {
   const { university: uni, verdict, verdictLabel, verdictClass, admissionScores } = result;
 
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
 
-  const tableRows = buildScoreTableRows(admissionScores, nationalLines, userScore);
-
   const majorEl = document.getElementById('majorSelect');
-  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
-  const majorText = major && major !== '不限专业' ? ` · ${major.replace(/\([^)]*\)/g, '')}` : '';
-  const studyModeText = result.studyMode ? ` · ${escapeHtml(result.studyMode)}` : '';
+  const major = hasSubMajors(category) && document.getElementById('majorGroup').style.display !== 'none' ? majorEl.value : null;
+  const degreeLabel = _degree === 'xueshuo' ? '学硕' : '专硕';
+  const displayMajor = major && major !== '不限专业' ? major.replace(/\([^)]*\)/g, '') : category;
+  const scores = admissionScores?.map((item) => item.score).filter(Boolean) || [];
+  const min = scores.length ? Math.min(...scores) : '—';
+  const max = scores.length ? Math.max(...scores) : '—';
 
   return `
     <div class="result-card ${verdict}" data-index="${index}">
       <div class="uni-name">
-        <span class="name-text">🏫 ${escapeHtml(uni.name)}</span>
+        <span class="name-text">${escapeHtml(uni.name)}</span>
         <span class="level-badge ${levelBadgeClass}">${escapeHtml(uni.level)}</span>
       </div>
-      <div class="uni-meta">
-        <span>📍 ${escapeHtml(uni.province)}${uni.city && uni.city !== uni.province ? ' · ' + escapeHtml(uni.city) : ''}</span>
-        <span>🏷️ ${escapeHtml(uni.zone)}区</span>${majorText ? `<span>🔧 ${escapeHtml(majorText)}</span>` : ''}${studyModeText ? `<span>📋 ${escapeHtml(studyModeText)}</span>` : ''}
-      </div>
-      <div class="score-table-wrap">
-        <table class="score-table">
-          <thead><tr>
-            <th>年份</th><th>国家线</th><th>院校线</th><th>你的分</th><th>结果</th>
-          </tr></thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-      </div>
+      <div class="uni-meta"><span>${escapeHtml(displayMajor)} · ${degreeLabel} · ${escapeHtml(uni.zone)}区</span></div>
+      <p class="result-score-range">近 4 年院线 ${min} — ${max} 分</p>
       <div class="uni-verdict">
-        <span class="${verdictClass}">${verdict === 'safe' ? '✅' : verdict === 'likely' ? '👍' : verdict === 'reach' ? '🎯' : verdict === 'nodata' ? '📋' : '⚠️'} ${escapeHtml(verdictLabel)}${result.avgScore ? ` · 近4年均分 ${result.avgScore}` : ''}</span>
+        <span class="${verdictClass}">${escapeHtml(verdictLabel)} ›</span>
       </div>
     </div>
   `;

@@ -2,6 +2,34 @@ plugins {
     id 'com.android.application'
 }
 
+def webProjectDir = rootProject.projectDir.parentFile
+def webDistDir = new File(webProjectDir, 'dist')
+def bundledWebAssetsDir = file('src/main/assets')
+def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
+
+// Android 壳通过 file:///android_asset/index.html 启动网页。
+// 每次构建 APK 前先打包 Vite，再同步整个 dist，避免 APK 携带过期或不完整资源。
+tasks.register('buildWebAssets', Exec) {
+    workingDir webProjectDir
+    if (isWindows) {
+        commandLine 'cmd', '/c', 'pnpm', 'build'
+    } else {
+        commandLine 'pnpm', 'build'
+    }
+    inputs.files(fileTree(webProjectDir) {
+        include 'src/**', 'public/**', 'index.html', 'package.json', 'pnpm-lock.yaml', 'vite.config.js'
+    })
+    outputs.dir webDistDir
+}
+
+tasks.register('syncWebAssets', Sync) {
+    dependsOn tasks.named('buildWebAssets')
+    from(webDistDir) {
+        exclude '.idea/**'
+    }
+    into bundledWebAssetsDir
+}
+
 android {
     namespace 'com.kaoyan.app'
     compileSdk 36
@@ -38,4 +66,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('syncWebAssets')
 }
