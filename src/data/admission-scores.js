@@ -4928,20 +4928,28 @@ export function mapCategoryToScoreKey(category, degree, major) {
       }
     }
 
-    // 在已有 key 中找包含父类关键字的
+    // 在已有 key 中找包含父类关键字的（只匹配与 major 相关的 cp）
     for (const k of allKeys) {
       if (!k.endsWith(`-${short}`)) continue;
       const keyCat = k.replace(`-${short}`, '');
       const keyParts = keyCat.split('/');
       for (const kp of keyParts) {
         for (const cp of catParts) {
-          // 土木水利 ↔ 建筑/土木
-          if ((cp.includes('土木') && kp.includes('土木')) ||
-              (cp.includes('水利') && kp.includes('水利')) ||
-              (cp.includes('机械') && kp.includes('机械')) ||
-              (cp.includes('材料') && kp.includes('材料')) ||
-              (cp.includes('能源') && kp.includes('能源')) ||
-              cp === kp) {
+          // 关键修复：cp 必须与 parentPart 相关（如水利工程→土木水利→只匹配土木水利相关的key）
+          const isRelvant = parentPart ? (
+            cp === parentPart ||
+            parentPart.includes(cp) || cp.includes(parentPart) ||
+            (parentPart.includes('土木') && cp.includes('土木')) ||
+            (parentPart.includes('水利') && cp.includes('水利'))
+          ) : true;
+
+          if (isRelvant &&
+              ((cp.includes('土木') && kp.includes('土木')) ||
+               (cp.includes('水利') && kp.includes('水利')) ||
+               (cp.includes('机械') && kp.includes('机械')) ||
+               (cp.includes('材料') && kp.includes('材料')) ||
+               (cp.includes('能源') && kp.includes('能源')) ||
+               cp === kp)) {
             return k;
           }
         }
