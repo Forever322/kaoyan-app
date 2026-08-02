@@ -8,15 +8,15 @@ import { getCategories, hasSubMajors, getMajorsForCategory } from './data/nation
 import { shakeElement, escapeHtml, debounce } from './utils.js';
 import { renderResults, renderNationalLine } from './render.js';
 import {
-  openEditModal as _showModal,
-  closeEditModal as _hideModal,
+  openEditModal as showModal,
+  closeEditModal as hideModal,
   switchModalTab,
   renderUniEditList,
   handleAddUniversity,
   handleImport,
   handleDeleteUniversity,
 } from './modal.js';
-import { openDetailPage as _showDetail, closeDetailPage as _hideDetail } from './detail.js';
+import { openDetailPage as showDetail, closeDetailPage as hideDetail } from './detail.js';
 import { checkAndSeed } from './seed.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -47,32 +47,32 @@ let _navState = 'home';
 
 // ==================== 导航封装 ====================
 function openDetailPage(result) {
-  _showDetail(result, { degree: currentDegree, zone: currentZone });
+  showDetail(result, { degree: currentDegree, zone: currentZone });
   _navState = 'detail';
   history.pushState({ view: 'detail' }, '');
 }
 
 function closeDetailPage() {
-  _hideDetail();
+  hideDetail();
   _navState = 'home';
 }
 
 function openEditModal() {
-  _showModal();
+  showModal();
   _navState = 'modal';
   history.pushState({ view: 'modal' }, '');
 }
 
 function closeEditModal() {
-  _hideModal();
+  hideModal();
   _navState = 'home';
 }
 
 // ==================== UI 初始化 ====================
 function initUI() {
-  setupCategoryListbox();
+  initCombobox('categorySelect', { placeholder: '🔍 选择学科门类...', emitChange: true });
   updateCategorySelect();
-  setupMajorListbox();
+  initCombobox('majorSelect', { placeholder: '🔍 输入关键词筛选专业...', alwaysShowAll: true });
   updateMajorSelect();
   initProvinceSelect();
 }
@@ -88,18 +88,17 @@ function initProvinceSelect() {
   });
 }
 
-// ---------- 学科门类 combobox ----------
-function setupCategoryListbox() {
-  const dropdown = document.getElementById('categorySelect');
+// ---------- 通用 combobox 初始化 ----------
+function initCombobox(dropdownId, { placeholder, emitChange = false, alwaysShowAll = false } = {}) {
+  const dropdown = document.getElementById(dropdownId);
   const trigger = dropdown.querySelector('.major-trigger');
   const panel = dropdown.querySelector('.major-panel');
   const triggerInput = trigger.querySelector('.major-trigger-input');
   dropdown._selectedValue = '';
 
+  // 提供 .value getter/setter 以兼容旧 <select> API
   Object.defineProperty(dropdown, 'value', {
-    get() {
-      return this._selectedValue;
-    },
+    get() { return this._selectedValue; },
     set(v) {
       this._selectedValue = v;
       panel.querySelectorAll('.listbox-item').forEach((item) => {
@@ -107,7 +106,7 @@ function setupCategoryListbox() {
       });
       if (!dropdown.classList.contains('open')) {
         triggerInput.value = v || '';
-        triggerInput.placeholder = v ? '' : '🔍 选择学科门类...';
+        triggerInput.placeholder = v ? '' : placeholder;
       }
     },
     configurable: true,
@@ -118,7 +117,7 @@ function setupCategoryListbox() {
     trigger.setAttribute('aria-expanded', 'true');
     triggerInput.removeAttribute('readonly');
     triggerInput.value = '';
-    triggerInput.placeholder = '🔍 搜索学科门类...';
+    triggerInput.placeholder = placeholder;
     triggerInput.focus();
     const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
     if (selected) selected.scrollIntoView({ block: 'nearest' });
@@ -129,32 +128,44 @@ function setupCategoryListbox() {
     trigger.setAttribute('aria-expanded', 'false');
     triggerInput.setAttribute('readonly', '');
     triggerInput.value = dropdown._selectedValue || '';
-    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 选择学科门类...';
+    triggerInput.placeholder = dropdown._selectedValue ? '' : placeholder;
   }
 
+  function selectAndClose(value) {
+    dropdown.value = value;
+    closeDropdown();
+    if (emitChange) dropdown.dispatchEvent(new Event('change'));
+  }
+
+  // 触发器点击 → 切换下拉
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
     dropdown.classList.contains('open') ? closeDropdown() : openDropdown();
   });
 
+  // 输入框搜索过滤
   triggerInput.addEventListener('input', () => {
     const q = triggerInput.value.toLowerCase().trim();
     panel.querySelectorAll('.listbox-item').forEach((item) => {
       const text = item.dataset.value.toLowerCase();
-      item.style.display = !q || text.includes(q) ? '' : 'none';
+      const match = !q || text.includes(q) || (alwaysShowAll && item.dataset.value === '不限专业');
+      item.style.display = match ? '' : 'none';
     });
   });
 
+  // 聚焦时打开
   triggerInput.addEventListener('focus', () => {
     if (!dropdown.classList.contains('open')) openDropdown();
   });
 
+  // 失焦关闭（延迟以允许面板点击）
   triggerInput.addEventListener('blur', () => {
     setTimeout(() => {
       if (!dropdown.contains(document.activeElement)) closeDropdown();
     }, 150);
   });
 
+  // 输入框键盘操作
   triggerInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeDropdown();
@@ -166,48 +177,38 @@ function setupCategoryListbox() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
-      if (selected) {
-        dropdown.value = selected.dataset.value;
-        closeDropdown();
-        dropdown.dispatchEvent(new Event('change'));
-      }
+      if (selected) selectAndClose(selected.dataset.value);
     }
   });
 
+  // 面板鼠标选择
   panel.addEventListener('mousedown', (e) => {
     e.preventDefault();
     const item = e.target.closest('.listbox-item');
     if (!item) return;
-    dropdown.value = item.dataset.value;
-    closeDropdown();
-    dropdown.dispatchEvent(new Event('change'));
+    selectAndClose(item.dataset.value);
   });
 
+  // 面板键盘导航
   panel.addEventListener('keydown', (e) => {
     const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
-    const current = document.activeElement;
-    const idx = items.indexOf(current);
+    const idx = items.indexOf(document.activeElement);
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const next = items[idx + 1] || items[0];
-      if (next) next.focus();
+      (items[idx + 1] || items[0])?.focus();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (idx <= 0) triggerInput.focus();
-      else items[idx - 1].focus();
+      idx <= 0 ? triggerInput.focus() : items[idx - 1].focus();
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (idx >= 0) {
-        dropdown.value = items[idx].dataset.value;
-        closeDropdown();
-        dropdown.dispatchEvent(new Event('change'));
-      }
+      if (idx >= 0) selectAndClose(items[idx].dataset.value);
     } else if (e.key === 'Escape') {
       closeDropdown();
       triggerInput.focus();
     }
   });
 
+  // 点击外部关闭
   document.addEventListener('click', (e) => {
     if (!dropdown.contains(e.target)) closeDropdown();
   });
@@ -239,156 +240,6 @@ function updateCategorySelect() {
     triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 选择学科门类...';
   }
   checkMajorVisibility();
-}
-
-function setupMajorListbox() {
-  const dropdown = document.getElementById('majorSelect');
-  const trigger = dropdown.querySelector('.major-trigger');
-  const panel = dropdown.querySelector('.major-panel');
-  const triggerInput = trigger.querySelector('.major-trigger-input');
-  dropdown._selectedValue = '';
-
-  // Provide .value getter/setter to match old <select> API
-  Object.defineProperty(dropdown, 'value', {
-    get() {
-      return this._selectedValue;
-    },
-    set(v) {
-      this._selectedValue = v;
-      panel.querySelectorAll('.listbox-item').forEach((item) => {
-        item.setAttribute('aria-selected', item.dataset.value === v ? 'true' : 'false');
-      });
-      // Only update input text when dropdown is closed (showing selected value)
-      if (!dropdown.classList.contains('open')) {
-        triggerInput.value = v || '';
-        triggerInput.placeholder = v ? '' : '🔍 输入关键词筛选专业...';
-      }
-    },
-    configurable: true,
-  });
-
-  function openDropdown() {
-    dropdown.classList.add('open');
-    trigger.setAttribute('aria-expanded', 'true');
-    triggerInput.removeAttribute('readonly');
-    triggerInput.value = '';
-    triggerInput.placeholder = '🔍 搜索专业...';
-    triggerInput.focus();
-    // Scroll to selected item
-    const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
-    if (selected) selected.scrollIntoView({ block: 'nearest' });
-  }
-
-  function closeDropdown() {
-    dropdown.classList.remove('open');
-    trigger.setAttribute('aria-expanded', 'false');
-    triggerInput.setAttribute('readonly', '');
-    triggerInput.value = dropdown._selectedValue || '';
-    triggerInput.placeholder = dropdown._selectedValue ? '' : '🔍 输入关键词筛选专业...';
-  }
-
-  function toggleDropdown() {
-    if (dropdown.classList.contains('open')) {
-      closeDropdown();
-    } else {
-      openDropdown();
-    }
-  }
-
-  // Toggle dropdown on trigger click
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDropdown();
-  });
-
-  // Input filtering while typing
-  triggerInput.addEventListener('input', () => {
-    const q = triggerInput.value.toLowerCase().trim();
-    panel.querySelectorAll('.listbox-item').forEach((item) => {
-      const text = item.dataset.value.toLowerCase();
-      const match = !q || text.includes(q) || item.dataset.value === '不限专业';
-      item.style.display = match ? '' : 'none';
-    });
-  });
-
-  // Prevent readonly from blocking input events (open on focus)
-  triggerInput.addEventListener('focus', () => {
-    if (!dropdown.classList.contains('open')) {
-      openDropdown();
-    }
-  });
-
-  // Close on blur (with delay for panel clicks)
-  triggerInput.addEventListener('blur', () => {
-    setTimeout(() => {
-      if (!dropdown.contains(document.activeElement)) {
-        closeDropdown();
-      }
-    }, 150);
-  });
-
-  // Keyboard on input
-  triggerInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeDropdown();
-      triggerInput.blur();
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
-      if (items.length) items[0].focus();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const selected = panel.querySelector('.listbox-item[aria-selected="true"]');
-      if (selected) {
-        dropdown.value = selected.dataset.value;
-        closeDropdown();
-      }
-    }
-  });
-
-  // Item selection — select and close
-  panel.addEventListener('mousedown', (e) => {
-    e.preventDefault(); // Prevent blur on input
-    const item = e.target.closest('.listbox-item');
-    if (!item) return;
-    dropdown.value = item.dataset.value;
-    closeDropdown();
-  });
-
-  // Keyboard navigation inside panel
-  panel.addEventListener('keydown', (e) => {
-    const items = [...panel.querySelectorAll('.listbox-item:not([style*="display: none"])')];
-    const current = document.activeElement;
-    const idx = items.indexOf(current);
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const next = items[idx + 1] || items[0];
-      if (next) next.focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (idx <= 0) {
-        triggerInput.focus();
-      } else {
-        items[idx - 1].focus();
-      }
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (idx >= 0) {
-        dropdown.value = items[idx].dataset.value;
-        closeDropdown();
-      }
-    } else if (e.key === 'Escape') {
-      closeDropdown();
-      triggerInput.focus();
-    }
-  });
-
-  // Close on outside click
-  document.addEventListener('click', (e) => {
-    if (!dropdown.contains(e.target)) {
-      closeDropdown();
-    }
-  });
 }
 
 function updateMajorSelect() {
@@ -780,9 +631,9 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     if (view === 'home') {
       if (_navState === 'detail') {
-        _hideDetail();
+        hideDetail();
       } else if (_navState === 'modal') {
-        _hideModal();
+        hideModal();
       }
       _navState = 'home';
     }

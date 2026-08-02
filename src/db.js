@@ -46,7 +46,7 @@ export function openDB() {
 /** 获取数据库实例 */
 export function getDB() { return db; }
 
-// ==================== 院校操作 ====================
+// ==================== 院校 CRUD ====================
 
 /** 插入/更新院校 */
 export function upsertUniversity(uni) {
@@ -125,7 +125,7 @@ export function searchUniversities(query) {
   });
 }
 
-// ==================== 分数操作 ====================
+// ==================== 分数 CRUD ====================
 
 /** 获取某院校某门类的录取分数 */
 export function getAdmissionScores(universityName, category, degree, major = null) {
@@ -159,7 +159,7 @@ export function getAdmissionScores(universityName, category, degree, major = nul
 
 /** 批量查询：获取多个院校在同一门类下的分数 */
 export function batchGetAdmissionScores(universityNames, category, degree, major = null) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const tx = db.transaction('scores', 'readonly');
     const store = tx.objectStore('scores');
     const index = store.index('uniCat');

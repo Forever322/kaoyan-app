@@ -1,4 +1,6 @@
-//院校详情页模块
+/**
+ * 院校详情页模块：展示院校信息、分数对比、优缺点
+ */
 
 import { getUniversityDetail } from './data/uni-details.js';
 import { renderPhotos } from './photos.js';

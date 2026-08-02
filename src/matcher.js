@@ -1,9 +1,15 @@
-// 匹配引擎：根据分数、学位、门类、专业、分区匹配院校并排序
+/**
+ * 匹配引擎：根据分数、学位、门类、专业、分区匹配院校并排序
+ */
 
 import { getAllYearLines } from './data/national-lines.js';
 import { getUniversitiesByZone } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 
+/**
+ * 匹配所有符合条件的院校
+ * @returns {{ passed: boolean|null, nationalLine: object, results: Array, totalMatched: number, totalShown: number }}
+ */
 export function matchUniversities(score, degree, category, zone, major, province = 'all', studyMode = 'all') {
   // 1. 查国家线
   const allNL = getAllYearLines(degree, category, zone === 'all' ? 'A' : zone);
@@ -65,6 +71,9 @@ export function matchUniversities(score, degree, category, zone, major, province
   };
 }
 
+/**
+ * 评估单个院校的匹配度（safe / likely / reach / unmatched / nodata）
+ */
 export function evaluateMatch(userScore, admissionScores) {
   if (!admissionScores || admissionScores.length === 0) {
     return {
@@ -132,6 +141,9 @@ export function evaluateMatch(userScore, admissionScores) {
   }
 }
 
+/**
+ * 按指定维度排序结果列表
+ */
 export function sortResults(results, sortType) {
   switch (sortType) {
     case 'level': {

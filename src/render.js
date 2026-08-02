@@ -1,4 +1,6 @@
-//渲染模块：结果列表、国家线卡片、院校卡片
+/**
+ * 渲染模块：结果列表、国家线卡片、院校卡片
+ */
 
 import { getAllYearLines, hasSubMajors } from './data/national-lines.js';
 import { escapeHtml } from './utils.js';
