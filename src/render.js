@@ -3,6 +3,9 @@
 import { hasSubMajors } from './data/national-lines.js';
 import { escapeHtml } from './utils.js';
 
+const RESULT_BATCH_SIZE = 16;
+let resultRenderState = { results: [], options: null, shown: 0 };
+
 /** 构建分数对比表格行（结果卡片和详情页共用） */
 export function buildScoreTableRows(
   admissionScores,
@@ -120,9 +123,30 @@ export function renderResults(results, { degree, zone }) {
     <div><span>冲刺 ${reachCount}</span></div>
   `;
 
-  list.innerHTML = results?.length
-    ? results.map((r, i) => renderResultCard(r, i, { degree, category })).join('')
+  resultRenderState = { results: results || [], options: { degree, category }, shown: 0 };
+  list.innerHTML = resultRenderState.results.length
+    ? ''
     : '<div class="results-empty">当前条件下暂无可展示院校，试试调整筛选条件。</div>';
+  if (resultRenderState.results.length) renderMoreResults();
+}
+
+/** 以小批量追加匹配结果，避免真机首次渲染数百张毛玻璃卡片。 */
+export function renderMoreResults() {
+  const list = document.getElementById('resultsList');
+  const { results, options, shown } = resultRenderState;
+  if (!list || !options || shown >= results.length) return;
+
+  list.querySelector('.result-load-more')?.remove();
+  const next = results.slice(shown, shown + RESULT_BATCH_SIZE);
+  list.insertAdjacentHTML('beforeend', next
+    .map((result, offset) => renderResultCard(result, shown + offset, options))
+    .join(''));
+  resultRenderState.shown += next.length;
+
+  const remaining = results.length - resultRenderState.shown;
+  if (remaining > 0) {
+    list.insertAdjacentHTML('beforeend', `<button class="result-load-more" type="button" data-load-more-results>继续浏览其余 ${remaining} 所院校</button>`);
+  }
 }
 
 /** 渲染单张院校卡片 */

@@ -11,8 +11,7 @@
 }
 
 .detail-overlay:not(.hidden) .detail-content {
-    animation: detailContentIn .28s cubic-bezier(.22, .82, .3, 1) both;
-    will-change: transform, opacity;
+    animation: detailContentIn .16s ease-out both;
 }
 
 .detail-overlay.is-closing {
@@ -21,7 +20,7 @@
 }
 
 .detail-overlay.is-closing .detail-content {
-    animation: detailContentOut .18s ease-in both;
+    animation: detailContentOut .14s ease-in both;
 }
 
 .detail-content {
@@ -552,12 +551,10 @@
 @keyframes detailContentIn {
     from {
         opacity: .01;
-        transform: translate3d(14px, 0, 0);
     }
 
     to {
         opacity: 1;
-        transform: translate3d(0, 0, 0);
     }
 }
 
@@ -573,10 +570,10 @@
 
 @keyframes detailContentOut {
     from {
-        transform: translate3d(0, 0, 0);
+        opacity: 1;
     }
 
     to {
-        transform: translate3d(10px, 0, 0);
+        opacity: 0;
     }
 }

@@ -97,9 +97,11 @@ button {
 
 .app-screen.is-active {
   display: block;
-  transform: translateZ(0);
-  animation: screenEnter .24s cubic-bezier(.22, .82, .3, 1) both;
-  will-change: transform, opacity;
+}
+
+.app-screen.screen-entering {
+  animation: screenFadeIn .16s cubic-bezier(.22, .61, .36, 1) both;
+  will-change: opacity;
 }
 
 .card,
@@ -165,15 +167,17 @@ button {
   transform: translateY(1px) scale(.985);
 }
 
-@keyframes screenEnter {
-  from {
-    opacity: .01;
-    transform: translate3d(12px, 0, 0);
+@keyframes screenFadeIn {
+  0% {
+    opacity: 0;
   }
 
-  to {
+  35% {
+    opacity: .3;
+  }
+
+  100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 

@@ -64,10 +64,6 @@
     border-radius: 32px 32px 0 0;
     background: rgba(16, 34, 59, .97);
     box-shadow: 0 -18px 38px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .10);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    animation: sheetUp .22s cubic-bezier(.22, .82, .3, 1);
-    will-change: transform;
 }
 
 .sheet-handle {
@@ -375,15 +371,12 @@
 
 .sheet-province-options {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: max-height .22s ease, opacity .16s ease;
+    display: none;
 }
 
 .sheet-province-options.is-expanded {
-    max-height: 620px;
-    opacity: 1;
+    display: grid;
+    animation: optionsFadeIn .14s ease-out both;
 }
 
 .sheet-province-options button {
@@ -474,10 +467,6 @@
     animation: filterFadeOut .18s ease-in both;
 }
 
-.filter-sheet.is-closing .filter-sheet-panel {
-    animation: sheetDown .18s cubic-bezier(.55, 0, .78, .2) both;
-}
-
 @keyframes filterFadeIn {
     from {
         opacity: 0;
@@ -498,12 +487,12 @@
     }
 }
 
-@keyframes sheetDown {
+@keyframes optionsFadeIn {
     from {
-        transform: translateY(0);
+        opacity: 0;
     }
 
     to {
-        transform: translateY(104%);
+        opacity: 1;
     }
 }

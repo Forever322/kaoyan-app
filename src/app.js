@@ -6,7 +6,7 @@ import { UNIVERSITIES, findUniversity } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 import { getCategories, hasSubMajors, getMajorsForCategory } from './data/national-lines.js';
 import { shakeElement, escapeHtml, debounce } from './utils.js';
-import { renderResults, renderNationalLine } from './render.js';
+import { renderResults, renderMoreResults, renderNationalLine } from './render.js';
 import {
   openEditModal as _showModal,
   closeEditModal as _hideModal,
@@ -59,15 +59,119 @@ let _navState = 'home';
 let _activeScreen = 'home';
 let _detailReturnScreen = 'home';
 let _filterCloseTimer;
+let _footerOverlayIndex = null;
 
 // ==================== 导航封装 ====================
+function setFooterPillPosition(position) {
+  document.querySelector('.app-footer')?.style.setProperty('--nav-index', position);
+}
+
+function setFooterActiveIndex(index) {
+  const buttons = [...document.querySelectorAll('.footer-nav-btn')];
+  const safeIndex = Math.max(0, Math.min(buttons.length - 1, index));
+  buttons.forEach((button, buttonIndex) => button.classList.toggle('active', buttonIndex === safeIndex));
+  setFooterPillPosition(safeIndex);
+}
+
 function updateFooterNav(screen) {
   const activeNav = screen === 'home' ? 'homeNavBtn' : 'openFilterNavBtn';
+  const buttons = [...document.querySelectorAll('.footer-nav-btn')];
+  const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
+  setFooterActiveIndex(activeIndex);
+}
+
+function restoreFooterNavAfterOverlay() {
+  if (_footerOverlayIndex === null) return;
+  _footerOverlayIndex = null;
+  updateFooterNav(_activeScreen);
+}
+
+function initializeFooterSlider() {
   const footer = document.querySelector('.app-footer');
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
-  buttons.forEach((button) => button.classList.toggle('active', button.id === activeNav));
-  const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
-  footer?.style.setProperty('--nav-index', activeIndex);
+  if (!footer || buttons.length === 0) return;
+
+  let drag = null;
+  let suppressNativeClick = false;
+
+  const getPosition = (clientX, rect) => {
+    const inset = 6;
+    const slotWidth = (rect.width - inset * 2) / buttons.length;
+    const rawPosition = (clientX - rect.left - inset - slotWidth / 2) / slotWidth;
+    return Math.max(0, Math.min(buttons.length - 1, rawPosition));
+  };
+
+  const releasePointer = (event) => {
+    if (footer.hasPointerCapture?.(event.pointerId)) footer.releasePointerCapture(event.pointerId);
+  };
+
+  footer.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    const currentIndex = Number.parseFloat(footer.style.getPropertyValue('--nav-index')) || 0;
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      initialIndex: currentIndex,
+      position: currentIndex,
+      rect: footer.getBoundingClientRect(),
+      moved: false,
+    };
+    footer.setPointerCapture?.(event.pointerId);
+  });
+
+  footer.addEventListener('pointermove', (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const travelled = Math.abs(event.clientX - drag.startX);
+    if (travelled < 5 && !drag.moved) return;
+    drag.moved = true;
+    drag.position = getPosition(event.clientX, drag.rect);
+    footer.classList.add('is-dragging');
+    setFooterPillPosition(drag.position);
+    event.preventDefault();
+  });
+
+  footer.addEventListener('pointerup', (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const completedDrag = drag;
+    drag = null;
+    releasePointer(event);
+    footer.classList.remove('is-dragging');
+    if (!completedDrag.moved) return;
+
+    const targetIndex = Math.round(completedDrag.position);
+    setFooterActiveIndex(targetIndex);
+    const targetButton = buttons[targetIndex];
+    if (!targetButton) return;
+
+    // 保留原有按钮逻辑；阻止手势结束后浏览器补发的一次原生 click。
+    targetButton.click();
+    suppressNativeClick = true;
+    window.setTimeout(() => { suppressNativeClick = false; }, 350);
+  });
+
+  footer.addEventListener('pointercancel', (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const cancelledDrag = drag;
+    drag = null;
+    releasePointer(event);
+    footer.classList.remove('is-dragging');
+    setFooterActiveIndex(Math.round(cancelledDrag.initialIndex));
+  });
+
+  footer.addEventListener('click', (event) => {
+    if (!suppressNativeClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressNativeClick = false;
+  }, true);
+}
+
+function showScreen(target) {
+  target.classList.remove('screen-entering');
+  target.classList.add('is-active', 'screen-entering');
+  target.addEventListener('animationend', (event) => {
+    if (event.animationName === 'screenFadeIn') target.classList.remove('screen-entering');
+  }, { once: true });
 }
 
 function setActiveScreen(screen) {
@@ -76,8 +180,8 @@ function setActiveScreen(screen) {
   if (!target) return;
 
   if (current && current !== target) {
-    current.classList.remove('is-active');
-    target.classList.add('is-active');
+    current.classList.remove('is-active', 'screen-entering');
+    showScreen(target);
   } else {
     target.classList.add('is-active');
   }
@@ -111,8 +215,10 @@ function closeDetailPage() {
   navigateTo(_detailReturnScreen, { push: false });
 }
 
-function openEditModal() {
+function openEditModal({ footerIndex = null } = {}) {
   closeFilterSheet();
+  _footerOverlayIndex = Number.isInteger(footerIndex) ? footerIndex : null;
+  if (_footerOverlayIndex !== null) setFooterActiveIndex(_footerOverlayIndex);
   _showModal();
   _navState = 'modal';
   history.pushState({ view: 'modal', returnScreen: _activeScreen }, '');
@@ -125,6 +231,7 @@ function closeEditModal() {
   }
   _hideModal();
   _navState = _activeScreen;
+  restoreFooterNavAfterOverlay();
 }
 
 // ==================== UI 初始化 ====================
@@ -637,8 +744,9 @@ function bindEvents() {
   document.getElementById('homeNavBtn').addEventListener('click', () => {
     navigateTo('home');
   });
-  document.getElementById('prepNavBtn').addEventListener('click', openFilterSheet);
-  document.getElementById('profileNavBtn').addEventListener('click', openEditModal);
+  document.getElementById('prepNavBtn').addEventListener('click', () => openFilterSheet({ footerIndex: 2 }));
+  document.getElementById('profileNavBtn').addEventListener('click', () => openEditModal({ footerIndex: 3 }));
+  initializeFooterSlider();
   document.getElementById('resultsBackBtn').addEventListener('click', () => navigateTo('home'));
   document.getElementById('resultsFilterBtn').addEventListener('click', openFilterSheet);
   document.getElementById('resultContext').addEventListener('click', openFilterSheet);
@@ -738,6 +846,10 @@ function bindEvents() {
 
   // 院校卡片点击
   document.getElementById('resultsList').addEventListener('click', (e) => {
+    if (e.target.closest('[data-load-more-results]')) {
+      renderMoreResults();
+      return;
+    }
     const card = e.target.closest('.result-card');
     if (!card) return;
     const idx = parseInt(card.dataset.index);
@@ -954,6 +1066,7 @@ function initHistoryNav() {
     _hideDetail();
     _hideModal();
     if (['home', 'results', 'fail'].includes(view)) setActiveScreen(view);
+    restoreFooterNavAfterOverlay();
   });
 }
 
@@ -1125,9 +1238,12 @@ function closeFilterSheet() {
     sheet.classList.add('hidden');
     sheet.classList.remove('is-closing');
   }, 260);
+  restoreFooterNavAfterOverlay();
 }
 
-function openFilterSheet() {
+function openFilterSheet({ footerIndex = null } = {}) {
+  _footerOverlayIndex = Number.isInteger(footerIndex) ? footerIndex : null;
+  if (_footerOverlayIndex !== null) setFooterActiveIndex(_footerOverlayIndex);
   const category = document.getElementById('categorySelect').value;
   document.getElementById('sheetScoreInput').value = document.getElementById('scoreInput').value;
   document.getElementById('sheetDegreeSelect').value = currentDegree;
