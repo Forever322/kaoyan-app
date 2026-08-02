@@ -1,7 +1,0 @@
-[
-  {
-    "url": "https://yz.chsi.com.cn/zsml/rs/zys.do",
-    "method": "POST",
-    "postData": "zydm=&zymc=&xwlx=1&mldm=08&yjxkdm=&xxfs=&tydxs=&jsggjh=&start=0&curPage=1&pageSize=30&totalPage=0&totalCount=0&ssdm=21&ssmc=%E8%BE%BD%E5%AE%81%E7%9C%81&mlmc=%E5%B7%A5%E5%AD%A6&xwlxmc=%E5%AD%A6%E6%9C%AF%E5%AD%A6%E4%BD%8D&pageNo=1&dwdm=&dwmc="
-  }
-]
