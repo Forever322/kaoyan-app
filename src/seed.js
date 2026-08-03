@@ -43,7 +43,6 @@ export async function checkAndSeed() {
       // 解析门类key: "工学-学硕" → category=工学, degree=学硕
       // "工学-计算机科学与技术-学硕" → category=工学, major=计算机科学与技术, degree=学硕
       // "建筑/土木-专硕" → category=建筑/土木, degree=专硕
-      const parts = catKey.split('-');
       let category, degree, major = '';
 
       if (catKey.endsWith('-学硕')) {

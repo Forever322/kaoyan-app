@@ -52,6 +52,7 @@ jobs:
 
       - name: Generate keystore
         run: |
+          rm -f android-twa/release.keystore
           keytool -genkey -v -keystore android-twa/release.keystore \
             -alias kaoyan -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass kaoyan123 -keypass kaoyan123 \

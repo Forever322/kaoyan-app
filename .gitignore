@@ -2,9 +2,11 @@
 
 # Dependencies
 node_modules/
+package-lock.json
 
 # Build output
 dist/
+*.apk
 android-twa/build/
 android-twa/app/build/
 android-twa/app/src/main/assets/assets/
@@ -12,6 +14,7 @@ android-twa/app/src/main/assets/index.html
 
 # IDE
 .vscode/
+.idea/
 *.swp
 *.swo
 
@@ -22,3 +25,11 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Debug / scraping artifacts
+*.json
+!public/manifest.json
+!public/version.json
+!package.json
+!pnpm-workspace.yaml
+*.cjs

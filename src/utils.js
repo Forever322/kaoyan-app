@@ -1,4 +1,6 @@
-// DOM 工具函数
+/**
+ * DOM 工具函数：XSS 转义、防抖、抖动动画
+ */
 
 /** HTML 转义，防止 XSS */
 export function escapeHtml(str) {

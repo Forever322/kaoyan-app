@@ -1,4 +1,6 @@
-// 院校照片渲染 - 优先使用项目内置图集，再按需在线搜索
+/**
+ * 院校照片模块：实时从百度图片搜索获取校园照片
+ */
 
 import { getUniversityPhotos } from './data/uni-photos.js';
 import { escapeHtml } from './utils.js';

@@ -1,4 +1,6 @@
-//弹窗管理模块
+/**
+ * 弹窗管理模块：院校编辑、添加、导入
+ */
 
 import {
   addCustomUniversity,
