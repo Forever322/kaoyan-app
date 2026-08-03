@@ -928,6 +928,8 @@ function initHistoryNav() {
 // ==================== 自动更新检测 ====================
 const LOCAL_VERSION = '4.3';
 const UPDATE_CHECK_URL = 'https://forever322.github.io/kaoyan-app/version.json';
+const DISMISSED_KEY = 'update_dismissed_v';
+const isAndroid = /Android/i.test(navigator.userAgent);
 
 async function checkForUpdate() {
   // APK 内嵌资源在 file:// 协议下运行，不应被远程网页版本覆盖。
@@ -937,28 +939,43 @@ async function checkForUpdate() {
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.version !== LOCAL_VERSION) {
-      showUpdateBanner(data.version);
+      // 用户点击「暂不」后，同一版本不再弹出
+      if (localStorage.getItem(DISMISSED_KEY + data.version)) return;
+      showUpdateBanner(data.version, data.apkUrl);
     }
   } catch {
     // 无网络或检查失败，静默跳过
   }
 }
 
-function showUpdateBanner(remoteVersion) {
+function showUpdateBanner(remoteVersion, apkUrl) {
   const banner = document.createElement('div');
   banner.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:100;background:#1a73e8;color:#fff;padding:12px 16px;border-radius:12px;display:flex;align-items:center;gap:12px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out';
-  banner.innerHTML = `
-    <span style="flex:1">🔄 发现新版本 v${remoteVersion}，是否更新？</span>
-    <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">更新</button>
-    <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
-  `;
-  document.body.appendChild(banner);
 
-  document.getElementById('updateYes').onclick = () => {
-    location.href = 'https://forever322.github.io/kaoyan-app/';
-  };
+  if (isAndroid) {
+    // Android TWA: 引导用户下载新 APK（优先 CNB 国内镜像）
+    const downloadUrl = apkUrl ? `${apkUrl}/v${remoteVersion}/app-release.apk` : 'https://cnb.cool/lvcdy/kaoyan-app/-/releases';
+    banner.innerHTML = `
+      <span style="flex:1">🔄 发现新版本 v${remoteVersion}</span>
+      <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">下载更新</button>
+      <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById('updateYes').onclick = () => { window.open(downloadUrl, '_blank'); };
+  } else {
+    // PWA / Web: 刷新页面即可获取最新资源（SW 网络优先策略保证拉到新版）
+    banner.innerHTML = `
+      <span style="flex:1">🔄 发现新版本 v${remoteVersion}，刷新即可更新</span>
+      <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">刷新</button>
+      <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById('updateYes').onclick = () => { location.reload(); };
+  }
+
   document.getElementById('updateNo').onclick = () => {
     banner.style.display = 'none';
+    localStorage.setItem(DISMISSED_KEY + remoteVersion, '1');
   };
 }
 
