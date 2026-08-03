@@ -44,12 +44,7 @@ async function initializeLocalDatabase() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
-} else {
-  bootstrapApp();
-}
-
+// ==================== 全局状态 ====================
 let currentDegree = 'xueshuo';
 let currentZone = 'A';
 let currentProvince = 'all';
@@ -60,6 +55,12 @@ let _activeScreen = 'home';
 let _detailReturnScreen = 'home';
 let _filterCloseTimer;
 let _footerOverlayIndex = null;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
+} else {
+  bootstrapApp();
+}
 
 // ==================== 导航封装 ====================
 function setFooterPillPosition(position) {
@@ -136,7 +137,21 @@ function initializeFooterSlider() {
     drag = null;
     releasePointer(event);
     footer.classList.remove('is-dragging');
-    if (!completedDrag.moved) return;
+
+    if (!completedDrag.moved) {
+      // 简单点击（无拖拽）：setPointerCapture 使原生 click 落在 footer
+      // 而非按钮上，需要手动查找按钮并触发
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const btn = target?.closest('.footer-nav-btn');
+      if (btn) {
+        const idx = buttons.indexOf(btn);
+        if (idx >= 0) {
+          setFooterActiveIndex(idx);
+          btn.click();
+        }
+      }
+      return;
+    }
 
     const targetIndex = Math.round(completedDrag.position);
     setFooterActiveIndex(targetIndex);
