@@ -755,12 +755,7 @@ function bindEvents() {
 function doSearch() {
   const scoreInput = document.getElementById('scoreInput');
   const score = parseInt(scoreInput.value, 10);
-
-  if (isNaN(score) || score < 0 || score > 500) {
-    shakeElement(scoreInput);
-    scoreInput.focus();
-    return;
-  }
+  const hasScore = !isNaN(score) && score > 0 && score <= 500;
 
   const category = document.getElementById('categorySelect').value;
   if (!category) return;
@@ -768,20 +763,21 @@ function doSearch() {
   const majorSelect = document.getElementById('majorSelect');
   const major = hasSubMajors(category) ? majorSelect.value : null;
 
-  saveLastSearch({ score, degree: currentDegree, category, zone: currentZone, province: currentProvince, studyMode: currentStudyMode, major });
+  const searchScore = hasScore ? score : 0;
+  saveLastSearch({ score: hasScore ? score : null, degree: currentDegree, category, zone: currentZone, province: currentProvince, studyMode: currentStudyMode, major });
 
-  const result = matchUniversities(score, currentDegree, category, currentZone, major, currentProvince, currentStudyMode);
+  const result = matchUniversities(searchScore, currentDegree, category, currentZone, major, currentProvince, currentStudyMode);
   currentResults = result.results;
 
   renderNationalLine(result, {
-    userScore: score,
+    userScore: searchScore,
     category,
     degree: currentDegree,
     zone: currentZone,
   });
   renderResults(result.results, { degree: currentDegree, zone: currentZone });
 
-  if (result.passed === false) {
+  if (hasScore && result.passed === false) {
     const diff = score - result.nationalLine.score;
     document.getElementById('failLineLabel').textContent = `${currentZone} 区${category}国家线为 ${result.nationalLine.score} 分`;
     document.getElementById('failDiffBadge').textContent = `差 ${Math.abs(diff)} 分`;
