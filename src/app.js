@@ -538,60 +538,6 @@ function bindEvents() {
     clearResults();
   });
 
-
-
-  // 全局院校搜索（防抖）
-  const globalSearch = document.getElementById('globalUniSearch');
-  const globalDropdown = document.getElementById('globalUniDropdown');
-  if (globalSearch && globalDropdown) {
-    const debouncedGlobalSearch = debounce(() => {
-      const q = globalSearch.value.trim().toLowerCase();
-      if (!q) {
-        globalDropdown.style.display = 'none';
-        return;
-      }
-      const matches = UNIVERSITIES.filter(
-        (u) => u.name.toLowerCase().includes(q) || u.province.toLowerCase().includes(q),
-      ).slice(0, 15);
-      if (matches.length === 0) {
-        globalDropdown.innerHTML =
-          '<div style="padding:14px;color:#999;text-align:center;font-size:0.85rem;">未找到匹配院校</div>';
-      } else {
-        globalDropdown.innerHTML = matches
-          .map(
-            (u) => `
-        <div class="header-search-item" data-uni-name="${escapeHtml(u.name)}">
-          <span class="s-name">${escapeHtml(u.name)}</span>
-          <span class="s-level">${escapeHtml(u.level)}</span>
-          <span class="s-loc">📍 ${escapeHtml(u.province)}${u.city && u.city !== u.province ? ' ' + escapeHtml(u.city) : ''}</span>
-        </div>
-      `,
-          )
-          .join('');
-      }
-      globalDropdown.style.display = 'block';
-    }, 150);
-    globalSearch.addEventListener('input', debouncedGlobalSearch);
-    globalSearch.addEventListener('blur', () => {
-      setTimeout(() => {
-        globalDropdown.style.display = 'none';
-      }, 200);
-    });
-    globalSearch.addEventListener('focus', () => {
-      if (globalSearch.value.trim()) globalDropdown.style.display = 'block';
-    });
-    globalDropdown.addEventListener('click', (e) => {
-      const item = e.target.closest('.header-search-item');
-      if (!item) return;
-      const uni = findUniversity(item.dataset.uniName);
-      if (uni) {
-        openUniversityDetail(uni);
-        globalDropdown.style.display = 'none';
-        globalSearch.value = '';
-      }
-    });
-  }
-
   // 筛选抽屉：独立界面，但与首页共用同一份查询状态。
   document.querySelectorAll('[data-open-filter]').forEach((button) => button.addEventListener('click', openFilterSheet));
   document.getElementById('openFilterNavBtn').addEventListener('click', () => {
@@ -617,19 +563,19 @@ function bindEvents() {
   });
   document.getElementById('scoreInput').addEventListener('input', updateHomeDashboard);
   document.getElementById('sheetDegreeSelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetDegreeOptions', e.target.value);
+    setActiveToggle('sheetDegreeOptions', e.target.value);
     populateSheetCategories(e.target.value, document.getElementById('sheetCategorySelect').value);
     populateSheetMajors(document.getElementById('sheetCategorySelect').value);
     updateSheetEstimate();
   });
   document.getElementById('sheetCategorySelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetCategoryOptions', e.target.value);
+    setActiveToggle('sheetCategoryOptions', e.target.value);
     populateSheetMajors(e.target.value);
     updateSheetEstimate();
   });
   document.getElementById('sheetMajorSelect').addEventListener('change', updateSheetEstimate);
   document.getElementById('sheetProvinceSelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetProvinceOptions', e.target.value);
+    setActiveToggle('sheetProvinceOptions', e.target.value);
     updateSheetProvinceLabel();
     updateSheetEstimate();
   });
@@ -638,7 +584,7 @@ function bindEvents() {
     document.getElementById(containerId).addEventListener('click', (e) => {
       const button = e.target.closest('button[data-value]');
       if (button) {
-        setSheetChoice(containerId, button.dataset.value);
+        setActiveToggle(containerId, button.dataset.value);
         updateSheetEstimate();
       }
     });
@@ -1014,7 +960,7 @@ function populateSheetCategories(degree, selectedValue = '') {
   const fallback = categories.includes('工学') ? '工学' : categories[0];
   select.value = categories.includes(selectedValue) ? selectedValue : fallback;
   options.innerHTML = categories.map((category) => `<button type="button" data-value="${escapeHtml(category)}" role="radio">${escapeHtml(category)}</button>`).join('');
-  setSheetChoice('sheetCategoryOptions', select.value);
+  setActiveToggle('sheetCategoryOptions', select.value);
 }
 
 function populateSheetMajors(category, selectedValue = '') {
@@ -1043,7 +989,7 @@ function populateSheetProvinces() {
   options.innerHTML = [...select.options]
     .map((option) => `<button type="button" data-value="${escapeHtml(option.value)}" role="radio">${escapeHtml(option.textContent)}</button>`)
     .join('');
-  setSheetChoice('sheetProvinceOptions', select.value);
+  setActiveToggle('sheetProvinceOptions', select.value);
   updateSheetProvinceLabel();
 }
 
@@ -1051,12 +997,6 @@ function updateSheetProvinceLabel() {
   const select = document.getElementById('sheetProvinceSelect');
   const current = select.options[select.selectedIndex];
   document.getElementById('sheetProvinceCurrent').textContent = current?.textContent || '全部省份';
-}
-
-function setSheetChoice(containerId, value) {
-  document.querySelectorAll(`#${containerId} button`).forEach((button) => {
-    button.classList.toggle('active', button.dataset.value === value);
-  });
 }
 
 function currentSheetChoice(containerId) {
@@ -1119,12 +1059,12 @@ function openFilterSheet({ footerIndex = null } = {}) {
   const category = document.getElementById('categorySelect').value;
   document.getElementById('sheetScoreInput').value = document.getElementById('scoreInput').value;
   document.getElementById('sheetDegreeSelect').value = currentDegree;
-  setSheetChoice('sheetDegreeOptions', currentDegree);
+  setActiveToggle('sheetDegreeOptions', currentDegree);
   populateSheetCategories(currentDegree, category);
   populateSheetMajors(category, document.getElementById('majorSelect').value);
   populateSheetProvinces();
-  setSheetChoice('sheetZoneToggle', currentZone);
-  setSheetChoice('sheetStudyModeToggle', currentStudyMode);
+  setActiveToggle('sheetZoneToggle', currentZone);
+  setActiveToggle('sheetStudyModeToggle', currentStudyMode);
   updateSheetEstimate();
   document.getElementById('sheetUniSearch').value = '';
   document.getElementById('sheetSearchMatches').innerHTML = '';
