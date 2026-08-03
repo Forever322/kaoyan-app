@@ -3,10 +3,22 @@
  */
 
 import { getUniversityDetail } from './data/uni-details.js';
+import { getCampusHero } from './data/campus-hero-library.js';
 import { renderPhotos } from './photos.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
+
+let detailCloseTimer;
+
+function resolveHeroPhoto(uni) {
+  return getCampusHero(uni);
+}
+
+function applyHeroPhoto(hero, photo) {
+  // 头图只使用项目内置图集，避免第三方图库返回空白或失效图后覆盖本地背景。
+  hero.style.setProperty('--hero-image', `url("${photo}")`);
+}
 
 /** 打开院校详情页 */
 export function openDetailPage(result, { degree, zone }) {
@@ -16,11 +28,21 @@ export function openDetailPage(result, { degree, zone }) {
   const category = document.getElementById('categorySelect').value;
   const allNL = getAllYearLines(degree, category, zone === 'all' ? 'A' : zone);
   const majorEl = document.getElementById('majorSelect');
-  const major = hasSubMajors(category) && majorEl.style.display !== 'none' ? majorEl.value : null;
+  const major = hasSubMajors(category) && document.getElementById('majorGroup').style.display !== 'none' ? majorEl.value : null;
+  const degreeLabel = degree === 'xueshuo' ? '学硕' : '专硕';
+  const majorLabel = major && major !== '不限专业' ? major.replace(/\([^)]*\)/g, '') : category;
+  const studyModeLabel = result.studyMode || '全日制 / 非全日制';
 
-  // 顶部渐变
+  // 顶部照片与遮罩
   const hero = document.getElementById('detailHero');
-  hero.style.background = `linear-gradient(135deg, ${detail.color} 0%, ${detail.color}dd 60%, ${detail.color}99 100%)`;
+  const heroPhoto = resolveHeroPhoto(uni);
+  applyHeroPhoto(hero, heroPhoto);
+  // 部分院校详情没有颜色字段；写入字符串 "undefined" 会让整个多层背景规则失效。
+  if (detail.color) {
+    hero.style.setProperty('--hero-color', detail.color);
+  } else {
+    hero.style.removeProperty('--hero-color');
+  }
 
   // 基本信息
   document.getElementById('detailName').textContent = uni.name;
@@ -28,27 +50,24 @@ export function openDetailPage(result, { degree, zone }) {
   const badges = document.getElementById('detailBadges');
   badges.innerHTML = `
     <span class="hero-badge">${escapeHtml(uni.level)}</span>
-    <span class="hero-badge">${escapeHtml(uni.zone)}区</span>
+    <span class="hero-badge">${escapeHtml(degreeLabel)} · ${escapeHtml(category)} · ${escapeHtml(uni.zone)}区</span>
     <span class="hero-badge">${escapeHtml(uni.province)}${uni.city && uni.city !== uni.province ? ' · ' + escapeHtml(uni.city) : ''}</span>
-    ${major && major !== '不限专业' ? `<span class="hero-badge">${escapeHtml(major.replace(/\([^)]*\)/g, ''))}</span>` : ''}
   `;
 
   // 详细地址
   const addr =
     detail.address || `${uni.province}${uni.city && uni.city !== uni.province ? uni.city : ''}`;
   document.getElementById('detailInfo').innerHTML = `
-    <div class="detail-info-item" style="flex:2;min-width:180px"><div class="info-value" style="font-size:.85rem">${escapeHtml(addr)}</div><div class="info-label">📍 地址</div></div>
-    <div class="detail-info-item"><div class="info-value">${escapeHtml(uni.level)}</div><div class="info-label">层次</div></div>
-    <div class="detail-info-item"><div class="info-value">${escapeHtml(uni.zone)}区</div><div class="info-label">考研分区</div></div>
-    <div class="detail-info-item"><div class="info-value">${escapeHtml(uni.province)}</div><div class="info-label">省份</div></div>
+    <div class="detail-info-item detail-info-address"><div class="info-value">${escapeHtml(addr)}</div><div class="info-label">⌖ 地址</div></div>
+    <div class="detail-info-meta">
+      <div class="detail-info-item"><div class="info-label">培养方式</div><div class="info-value">${escapeHtml(studyModeLabel)}</div></div>
+      <div class="detail-info-item"><div class="info-label">学位类型</div><div class="info-value">${escapeHtml(degreeLabel)}</div></div>
+      <div class="detail-info-item"><div class="info-label">匹配专业</div><div class="info-value">${escapeHtml(majorLabel)}</div></div>
+    </div>
   `;
 
   // 照片
   renderPhotos(uni.name, detail.color);
-
-  // 筛选条件
-  document.getElementById('detailFilter').textContent =
-    `${degree === 'xueshuo' ? '学硕' : '专硕'} · ${category}${major && major !== '不限专业' ? ' · ' + major.replace(/\([^)]*\)/g, '') : ''}`;
 
   // 分数对比表格（使用共用构建函数）
   document.getElementById('detailScoreTable').innerHTML =
@@ -57,6 +76,14 @@ export function openDetailPage(result, { degree, zone }) {
   // 判定结果
   document.getElementById('detailVerdict').innerHTML = `
     <span class="${verdictClass}">${verdict === 'safe' ? '✅ 稳过' : verdict === 'likely' ? '👍 大概率录取' : verdict === 'reach' ? '🎯 可冲刺' : verdict === 'nodata' ? '📋 参考数据' : '⚠️ 差距较大'}</span>
+  `;
+
+  const highestScore = admissionScores?.length ? Math.max(...admissionScores.map((item) => item.score)) : null;
+  const scoreDiff = highestScore ? userScore - highestScore : null;
+  document.getElementById('detailMatchSummary').innerHTML = `
+    <div><strong>${userScore || '—'}</strong><span>我的分数</span></div>
+    <div class="detail-match-copy"><b>${verdict === 'safe' ? '这所，稳稳拿下' : verdict === 'likely' ? '这所，大概率可行' : verdict === 'reach' ? '这所，值得冲刺' : '这所，谨慎评估'}</b><small>${scoreDiff === null ? '参考历年数据做判断' : scoreDiff >= 0 ? `高于最高录取线 ${scoreDiff} 分` : `距最高录取线还差 ${Math.abs(scoreDiff)} 分`}</small></div>
+    <em class="${verdictClass}">${verdict === 'safe' ? '稳过' : verdict === 'likely' ? '大概率' : verdict === 'reach' ? '冲刺' : '参考'}</em>
   `;
 
   // 复试基础线
@@ -76,8 +103,11 @@ export function openDetailPage(result, { degree, zone }) {
   document.getElementById('detailFeatures').textContent = detail.features || '';
 
   // 显示页面
-  document.getElementById('detailPage').style.display = 'block';
-  document.getElementById('detailPage').scrollTop = 0;
+  const page = document.getElementById('detailPage');
+  clearTimeout(detailCloseTimer);
+  page.classList.remove('hidden', 'is-closing');
+  page.style.display = 'block';
+  page.scrollTop = 0;
 }
 
 /** 渲染复试基础线模块（含单科硬性要求） */
@@ -141,5 +171,13 @@ function renderRetestLine(nationalLines, userScore, admissionScores, subjectLine
 
 /** 关闭详情页 */
 export function closeDetailPage() {
-  document.getElementById('detailPage').style.display = 'none';
+  const page = document.getElementById('detailPage');
+  if (page.classList.contains('hidden') || page.classList.contains('is-closing')) return;
+  page.classList.add('is-closing');
+  clearTimeout(detailCloseTimer);
+  detailCloseTimer = setTimeout(() => {
+    page.style.display = 'none';
+    page.classList.add('hidden');
+    page.classList.remove('is-closing');
+  }, 240);
 }

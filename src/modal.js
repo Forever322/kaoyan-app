@@ -12,14 +12,18 @@ import { escapeHtml } from './utils.js';
 
 /** 显示编辑弹窗 */
 export function openEditModal() {
-  document.getElementById('editModal').style.display = 'flex';
+  const modal = document.getElementById('editModal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
   switchModalTab('universities');
   renderUniEditList('');
 }
 
 /** 关闭编辑弹窗 */
 export function closeEditModal() {
-  document.getElementById('editModal').style.display = 'none';
+  const modal = document.getElementById('editModal');
+  modal.style.display = 'none';
+  modal.classList.add('hidden');
 }
 
 /** 切换弹窗标签页 */
