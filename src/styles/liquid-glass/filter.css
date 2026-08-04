@@ -209,9 +209,6 @@
 .sheet-control-row[hidden], .sheet-advanced-control[hidden] {
     display: none;
 }
-.sheet-advanced-control {
-    display: none;
-}
 
 .sheet-control-row>span i {
     display: inline-block;
