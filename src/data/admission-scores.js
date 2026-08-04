@@ -4918,89 +4918,15 @@ export function mapCategoryToScoreKey(category, degree, major) {
     }
   }
 
-  // Step 2.5: 专硕大类拆解匹配（土木水利→建筑/土木-专硕, 水利工程→土木水利→建筑/土木）
-  if (major && major !== '不限专业' && degree === 'zhuanshuo') {
-    const majorName = major.replace(/\([^)]*\)/g, '').trim();
-    const catParts = category.split('/');
-    // 找到 major 对应的父类（如 水利工程 → 土木水利）
-    let parentPart = '';
-    for (const part of catParts) {
-      if (part.includes(majorName.charAt(0)) && majorName.length > 1 && part.includes(majorName.substring(0, 2))) {
-        parentPart = part;
-        break;
-      }
-    }
-    // 也检查 ZHUANSHUO_MAJOR_MAP 找父类
-    if (!parentPart) {
-      for (const [cat, majors] of Object.entries(ZHUANSHUO_MAJOR_MAP)) {
-        if (cat.includes(category.split('/')[0])) {
-          for (const m of majors) {
-            if (m.name === major) {
-              parentPart = cat; break;
-            }
-          }
-        }
-        if (parentPart) break;
-      }
-    }
-
-    // 在已有 key 中找包含父类关键字的（只匹配与 major 相关的 cp）
-    for (const k of allKeys) {
-      if (!k.endsWith(`-${short}`)) continue;
-      const keyCat = k.replace(`-${short}`, '');
-      const keyParts = keyCat.split('/');
-      for (const kp of keyParts) {
-        for (const cp of catParts) {
-          // 关键修复：cp 必须与 parentPart 相关（如水利工程→土木水利→只匹配土木水利相关的key）
-          const isRelvant = parentPart ? (
-            cp === parentPart ||
-            parentPart.includes(cp) || cp.includes(parentPart) ||
-            (parentPart.includes('土木') && cp.includes('土木')) ||
-            (parentPart.includes('水利') && cp.includes('水利'))
-          ) : true;
-
-          if (isRelvant &&
-              ((cp.includes('土木') && kp.includes('土木')) ||
-               (cp.includes('水利') && kp.includes('水利')) ||
-               (cp.includes('机械') && kp.includes('机械')) ||
-               (cp.includes('材料') && kp.includes('材料')) ||
-               (cp.includes('能源') && kp.includes('能源')) ||
-               cp === kp)) {
-            return k;
-          }
-        }
-      }
-    }
-  }
-
   // Step 3: 大类本身做模糊匹配（如 电子信息/机械/... → 电子信息/机械-专硕）
-  // 关键：如果用户选了细分专业，只匹配与该专业相关的key
-  if (degree === 'zhuanshuo') {
+  // 选了细分专业时不做大类模糊——避免土木水利匹配到建筑/土木
+  if (degree === 'zhuanshuo' && (!major || major === '不限专业')) {
     const catParts = category.split('/');
-
-    // 确定需要匹配的组件（如果选了细分专业，只匹配相关的）
-    let relevantParts = catParts;
-    if (major && major !== '不限专业') {
-      const majorName = major.replace(/\([^)]*\)/g, '').trim();
-      // 缩小范围：只保留与 major 相关的大类组件
-      relevantParts = catParts.filter(cp => {
-        // 直接包含
-        if (cp.includes(majorName) || majorName.includes(cp)) return true;
-        // 模糊关联（如 水利工程→土木水利, 土木水利→水利工程）
-        const cpChars = [...cp].filter(c => c !== '/' && c !== '与');
-        const majorChars = [...majorName].filter(c => c !== '/' && c !== '与');
-        const common = cpChars.filter(c => majorChars.includes(c));
-        return common.length >= 2; // 至少2个共同字
-      });
-      if (relevantParts.length === 0) relevantParts = catParts; // 没找到相关组件则回退全部
-    }
-
     for (const k of allKeys) {
       if (!k.endsWith(`-${short}`)) continue;
       const keyCat = k.replace(`-${short}`, '');
       const keyParts = keyCat.split('/');
-      // key 的所有部分必须在 relevantParts 中
-      if (keyParts.every(kp => relevantParts.some(cp => cp.includes(kp) || kp.includes(cp)))) {
+      if (keyParts.every(kp => catParts.some(cp => cp.includes(kp) || kp.includes(cp)))) {
         return k;
       }
     }
