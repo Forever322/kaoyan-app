@@ -5,7 +5,7 @@ import { initStorage, saveLastSearch, getLastSearch, exportAllData } from './sto
 import { UNIVERSITIES, findUniversity } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 import { getCategories, hasSubMajors, getMajorsForCategory } from './data/national-lines.js';
-import { shakeElement, escapeHtml, debounce } from './utils.js';
+import { escapeHtml, debounce } from './utils.js';
 import { renderResults, renderMoreResults, renderNationalLine } from './render.js';
 import {
   openEditModal as showModal,
@@ -50,7 +50,6 @@ let currentZone = 'A';
 let currentProvince = 'all';
 let currentStudyMode = 'all';
 let currentResults = [];
-let _navState = 'home';
 let _activeScreen = 'home';
 let _detailReturnScreen = 'home';
 let _filterCloseTimer;
@@ -201,7 +200,6 @@ function setActiveScreen(screen) {
     target.classList.add('is-active');
   }
   _activeScreen = screen;
-  _navState = screen;
   updateFooterNav(screen);
   window.scrollTo(0, 0);
 }
@@ -217,7 +215,6 @@ function navigateTo(screen, { push = true } = {}) {
 function openDetailPage(result) {
   _detailReturnScreen = _activeScreen;
   showDetail(result, { degree: currentDegree, zone: currentZone });
-  _navState = 'detail';
   history.pushState({ view: 'detail', returnScreen: _detailReturnScreen }, '');
 }
 
@@ -235,7 +232,6 @@ function openEditModal({ footerIndex = null } = {}) {
   _footerOverlayIndex = Number.isInteger(footerIndex) ? footerIndex : null;
   if (_footerOverlayIndex !== null) setFooterActiveIndex(_footerOverlayIndex);
   showModal();
-  _navState = 'modal';
   history.pushState({ view: 'modal', returnScreen: _activeScreen }, '');
 }
 
@@ -245,7 +241,6 @@ function closeEditModal() {
     return;
   }
   hideModal();
-  _navState = _activeScreen;
   restoreFooterNavAfterOverlay();
 }
 

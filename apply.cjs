@@ -63,8 +63,15 @@ function main() {
   if (process.argv.includes('--build')) {
     console.log('\n构建中...');
     execSync('npx vite build', { cwd: __dirname, stdio: 'inherit' });
-    execSync('rm -rf android-twa/app/src/main/assets/*', { cwd: __dirname });
-    execSync('cp -r dist/* android-twa/app/src/main/assets/', { cwd: __dirname });
+    // 同步到 TWA assets（跨平台，避免 rm -rf / cp -r 在 Windows 上失败）
+    const assetsDir = path.join(__dirname, 'android-twa/app/src/main/assets');
+    const distDir = path.join(__dirname, 'dist');
+    for (const entry of fs.readdirSync(assetsDir)) {
+      // 保留 git 跟踪的 TWA 专属文件（图标/开屏图/清单），其余用 dist 覆盖
+      if (entry === 'icons' || entry === 'splash.png') continue;
+      fs.rmSync(path.join(assetsDir, entry), { recursive: true, force: true });
+    }
+    fs.cpSync(distDir, assetsDir, { recursive: true });
     console.log('构建完成');
   }
 }
