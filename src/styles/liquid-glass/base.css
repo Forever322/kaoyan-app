@@ -103,6 +103,7 @@ button {
   position: relative;
   z-index: 42;
   will-change: transform, opacity;
+  contain: layout style;
 }
 
 .app-screen.screen-enter-forward {
@@ -127,6 +128,7 @@ button {
   overscroll-behavior: contain;
   pointer-events: none;
   will-change: transform, opacity;
+  contain: layout style;
 }
 
 .app-screen.screen-exit-forward {
@@ -149,9 +151,9 @@ button {
 .detail-section {
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow);
-  background: linear-gradient(135deg, rgba(255, 255, 255, .15), rgba(225, 242, 255, .065));
-  -webkit-backdrop-filter: blur(24px) saturate(130%);
-  backdrop-filter: blur(24px) saturate(130%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .18), rgba(225, 242, 255, .10));
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(120%);
 }
 
 .form-input,
