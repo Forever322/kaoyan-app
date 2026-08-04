@@ -99,9 +99,47 @@ button {
   display: block;
 }
 
+/* ---------- 方向感知的主屏幕切换过渡 ---------- */
 .app-screen.screen-entering {
-  animation: screenFadeIn .16s cubic-bezier(.22, .61, .36, 1) both;
-  will-change: opacity;
+  position: relative;
+  z-index: 42;
+  will-change: transform, opacity;
+}
+
+.app-screen.screen-enter-forward {
+  animation: screenEnterForward .4s cubic-bezier(.32, .72, .25, 1) both;
+}
+
+.app-screen.screen-enter-backward {
+  animation: screenEnterBackward .4s cubic-bezier(.32, .72, .25, 1) both;
+}
+
+.app-screen.screen-enter-cross {
+  animation: screenEnterCross .34s cubic-bezier(.32, .72, .25, 1) both;
+}
+
+/* 旧屏幕退场：固定定位叠层，保留滚动位置，与新屏幕同屏滑动。 */
+.app-screen.screen-exiting {
+  position: fixed;
+  z-index: 41;
+  inset: 0;
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.app-screen.screen-exit-forward {
+  animation: screenExitForward .4s cubic-bezier(.55, .06, .68, .19) both;
+}
+
+.app-screen.screen-exit-backward {
+  animation: screenExitBackward .4s cubic-bezier(.55, .06, .68, .19) both;
+}
+
+.app-screen.screen-exit-cross {
+  animation: screenExitCross .3s cubic-bezier(.55, .06, .68, .19) both;
 }
 
 .card,
@@ -167,17 +205,87 @@ button {
   transform: translateY(1px) scale(.985);
 }
 
-@keyframes screenFadeIn {
-  0% {
+/* 前进：新屏幕从右侧滑入（下钻到更深层级）。 */
+@keyframes screenEnterForward {
+  from {
+    transform: translateX(32px);
     opacity: 0;
   }
 
-  35% {
-    opacity: .3;
+  40% {
+    opacity: 1;
   }
 
-  100% {
+  to {
+    transform: translateX(0);
     opacity: 1;
+  }
+}
+
+/* 前进时旧屏幕向左退场并略微缩小。 */
+@keyframes screenExitForward {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(-44px) scale(.985);
+    opacity: 0;
+  }
+}
+
+/* 后退：新屏幕从左侧滑入（返回上层）。 */
+@keyframes screenEnterBackward {
+  from {
+    transform: translateX(-32px);
+    opacity: 0;
+  }
+
+  40% {
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 后退时旧屏幕向右退场并略微缩小。 */
+@keyframes screenExitBackward {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(44px) scale(.985);
+    opacity: 0;
+  }
+}
+
+/* 同级切换（如首页 ↔ 结果页的横向切换）：淡入 + 轻微上浮。 */
+@keyframes screenEnterCross {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes screenExitCross {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(-8px);
+    opacity: 0;
   }
 }
 

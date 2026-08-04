@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标背景层：取自 icon-512.png 边框色 -->
+    <color name="ic_launcher_background">#5CB6E8</color>
+    <!-- 应用品牌色：深海军蓝（与 Web 端 color-bg 变量一致） -->
+    <color name="brand_background">#071525</color>
+</resources>

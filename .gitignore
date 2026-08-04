@@ -7,10 +7,17 @@ package-lock.json
 # Build output
 dist/
 *.apk
+android-twa/.gradle/
 android-twa/build/
 android-twa/app/build/
-android-twa/app/src/main/assets/assets/
-android-twa/app/src/main/assets/index.html
+# WebView 资源由 Gradle syncWebAssets 从 dist 生成，属构建产物
+android-twa/app/src/main/assets/
+
+# Android 本地配置与签名密钥（不入库；CI 用 keytool 重新生成 keystore）
+android-twa/local.properties
+android-twa/release.keystore
+android-twa/keystore.properties
+android-twa/gradle/wrapper/*.bak
 
 # IDE
 .vscode/

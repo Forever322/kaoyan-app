@@ -180,22 +180,50 @@ function initializeFooterSlider() {
   }, true);
 }
 
-function showScreen(target) {
-  target.classList.remove('screen-entering');
-  target.classList.add('is-active', 'screen-entering');
+// 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
+const SCREEN_DEPTH = { home: 0, results: 1, fail: 1 };
+const SCREEN_TRANSITION_MS = 400;
+
+const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
+const EXIT_CLASSES = ['screen-exiting', 'screen-exit-forward', 'screen-exit-backward', 'screen-exit-cross'];
+
+function showScreen(target, direction = 'cross') {
+  target.classList.remove(...ENTER_CLASSES, ...EXIT_CLASSES);
+  void target.offsetWidth; // 强制重排，确保动画可重复触发
+  target.classList.add('is-active', 'screen-entering', `screen-enter-${direction}`);
+  const cleanup = () => target.classList.remove('screen-entering', `screen-enter-${direction}`);
   target.addEventListener('animationend', (event) => {
-    if (event.animationName === 'screenFadeIn') target.classList.remove('screen-entering');
+    // 只响应屏幕自身的动画，避免子元素动画冒泡误清状态。
+    if (event.target === target && event.animationName.startsWith('screenEnter')) cleanup();
+  });
+  window.setTimeout(cleanup, SCREEN_TRANSITION_MS + 150);
+}
+
+/** 旧屏幕退出：转为固定层保留滚动位置，与新屏幕同屏完成方向性退场。 */
+function exitScreen(el, direction) {
+  const scrollY = window.scrollY;
+  el.classList.remove('is-active', ...ENTER_CLASSES, ...EXIT_CLASSES);
+  void el.offsetWidth;
+  el.classList.add('screen-exiting', `screen-exit-${direction}`);
+  if (scrollY > 0) el.scrollTop = scrollY;
+  const cleanup = () => el.classList.remove(...EXIT_CLASSES);
+  el.addEventListener('animationend', (event) => {
+    if (event.target === el && event.animationName.startsWith('screenExit')) cleanup();
   }, { once: true });
+  window.setTimeout(cleanup, SCREEN_TRANSITION_MS + 150);
 }
 
 function setActiveScreen(screen) {
   const target = document.getElementById(`${screen}Screen`);
-  const current = document.querySelector('.app-screen.is-active');
+  const current = document.querySelector('.app-screen.is-active:not(.screen-exiting)');
   if (!target) return;
 
   if (current && current !== target) {
-    current.classList.remove('is-active', 'screen-entering');
-    showScreen(target);
+    const from = SCREEN_DEPTH[_activeScreen] ?? 0;
+    const to = SCREEN_DEPTH[screen] ?? 0;
+    const direction = to > from ? 'forward' : to < from ? 'backward' : 'cross';
+    exitScreen(current, direction);
+    showScreen(target, direction);
   } else {
     target.classList.add('is-active');
   }

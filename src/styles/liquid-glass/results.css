@@ -216,6 +216,30 @@
     border-color: rgba(255, 255, 255, .55);
 }
 
+/* 卡片级联入场：随批次依次上浮淡入，--card-stagger 控制每张卡的延迟。
+   使用 backwards 填充：延迟期间占位、结束后释放 transform，不影响 hover 微动。 */
+.result-card.card-enter {
+    animation: resultCardIn .46s cubic-bezier(.22, .61, .36, 1) backwards;
+    animation-delay: calc(var(--card-stagger, 0) * 34ms);
+    will-change: transform, opacity;
+}
+
+@keyframes resultCardIn {
+    from {
+        transform: translateY(16px) scale(.985);
+        opacity: 0;
+    }
+
+    60% {
+        opacity: 1;
+    }
+
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
 .result-load-more {
     width: 100%;
     min-height: 46px;
