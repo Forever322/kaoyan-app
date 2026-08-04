@@ -8,6 +8,9 @@ on:
       - 'src/**'
       - 'public/**'
       - 'index.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vite.config.js'
   workflow_dispatch:
 
 jobs:
