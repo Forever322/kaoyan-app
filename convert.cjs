@@ -81,8 +81,7 @@ const functions = funcStart > 0 ? asContent.substring(funcStart) : '';
 
 // 生成新数据
 let output = `// 院校录取分数线参考数据 (2022-2026)，来源: 研招网院校白名单 + 各校官网\n`;
-output += `// 研招网确认有研招点: ${confirmedSet.size} 所\n`;
-output += `import { getAllYearLines, ZHUANSHUO_MAJOR_MAP } from './national-lines.js';\n\n`;
+output += `// 研招网确认有研招点: ${confirmedSet.size} 所\n\n`;
 output += `export const ADMISSION_SCORES = {\n`;
 
 const byProvince = {};

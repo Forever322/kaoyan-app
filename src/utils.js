@@ -1,5 +1,5 @@
 /**
- * DOM 工具函数：XSS 转义、防抖、抖动动画
+ * DOM 工具函数：XSS 转义、防抖
  */
 
 /** HTML 转义，防止 XSS */
@@ -20,32 +20,4 @@ export function debounce(fn, delay = 200) {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delay);
   };
-}
-
-/** 抖动动画（首次调用时注入 keyframes） */
-let _shakeInjected = false;
-function ensureShakeKeyframes() {
-  if (_shakeInjected || typeof document === 'undefined') return;
-  _shakeInjected = true;
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20% { transform: translateX(-8px); }
-      40% { transform: translateX(8px); }
-      60% { transform: translateX(-6px); }
-      80% { transform: translateX(6px); }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-export function shakeElement(el) {
-  ensureShakeKeyframes();
-  el.style.animation = 'none';
-  el.offsetHeight; // 强制回流
-  el.style.animation = 'shake 0.4s ease';
-  setTimeout(() => {
-    el.style.animation = '';
-  }, 400);
 }
