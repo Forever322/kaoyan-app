@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "KaoyanApp"
-include ':app'
+include(":app")

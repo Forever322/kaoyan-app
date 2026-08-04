@@ -68,7 +68,7 @@
 ├── convert.cjs             # 数据全量重生成脚本（provinces → admission-scores.js）
 ├── real-scores.json        # 采集的真实录取分数数据
 ├── province-schools.json   # 研招网院校白名单
-└── android-twa/            # Android TWA 壳工程
+└── android-twa/            # Android 壳工程（Kotlin + Compose，WebView 加载离线网页）
 ```
 
 **技术栈**：Vite 8 + ES Modules + ESLint + Prettier + Vitest，模块化架构，支持 Tree-shaking。
@@ -113,13 +113,26 @@ pnpm preview
 
 ### 方式四：Android APK
 
+`android-twa/` 是标准 Android Studio 工程（Kotlin + Jetpack Compose + Kotlin DSL），
+通过 WebView 加载打包在 `assets/` 中的离线网页。构建 APK 时 Gradle 会自动先运行
+`pnpm build` 并把 `dist/` 同步进 assets，无需手动打包 Web 资源。
+
 ```bash
-# 前置条件：Android SDK + JDK 17+
+# 前置条件：Android SDK + JDK 17+（注意：JDK 25 无法运行 Gradle，
+# 本机可用 Android Studio 自带的 JBR 21：设置 JAVA_HOME 指向其 jbr 目录）
 cd android-twa
-./gradlew assembleDebug
+./gradlew assembleDebug      # Windows 使用 gradlew.bat
+./gradlew assembleRelease    # release 需要 release.keystore（CI 会自动生成）
 
 # APK 输出路径
-# android-twa/app/build/outputs/apk/debug/
+# android-twa/app/build/outputs/apk/debug/app-debug.apk
+# android-twa/app/build/outputs/apk/release/app-release.apk
+```
+
+重新生成自适应图标（从 `public/icons/icon-512.png` 生成各密度 mipmap）：
+
+```bash
+node android-twa/tools/generate-icons.mjs
 ```
 
 ### 代码检查与测试
@@ -185,7 +198,7 @@ pnpm test:watch
 | `vitest.config.js` | Vitest 测试配置 |
 | `eslint.config.js` | ESLint 代码检查规则 |
 | `.prettierrc` | Prettier 代码格式化配置 |
-| `android-twa/` | Android TWA 壳工程 |
+| `android-twa/` | Android 壳工程（Kotlin + Jetpack Compose + Kotlin DSL） |
 
 ## 🌐 分区说明
 

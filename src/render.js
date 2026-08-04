@@ -76,13 +76,13 @@ export function renderNationalLine(result, { userScore, category, degree, zone }
         <tbody><tr>
           <td><strong>国家线</strong></td>
           ${allLines
-            .map(
-              (l) => `
+      .map(
+        (l) => `
             <td><span class="nl-val ${userScore >= l.score ? 'nl-above' : 'nl-below'}">${l.score}</span>
             <div class="nl-diff">${userScore >= l.score ? '✅' : '❌'}</div></td>
           `,
-            )
-            .join('')}
+      )
+      .join('')}
         </tr></tbody>
       </table>
     </div>
@@ -141,7 +141,7 @@ export function renderMoreResults() {
   list.querySelector('.result-load-more')?.remove();
   const next = results.slice(shown, shown + RESULT_BATCH_SIZE);
   list.insertAdjacentHTML('beforeend', next
-    .map((result, offset) => renderResultCard(result, shown + offset, options))
+    .map((result, offset) => renderResultCard(result, shown + offset, options, offset))
     .join(''));
   resultRenderState.shown += next.length;
 
@@ -152,7 +152,7 @@ export function renderMoreResults() {
 }
 
 /** 渲染单张院校卡片 */
-function renderResultCard(result, index, { degree: _degree, category }) {
+function renderResultCard(result, index, { degree: _degree, category }, batchIndex = 0) {
   const { university: uni, verdict, verdictLabel, verdictClass, admissionScores } = result;
 
   const levelBadgeClass = `level-${uni.level === '985' ? '985' : uni.level === '211' ? '211' : uni.level === '双一流' ? 'l1' : 'normal'}`;
@@ -165,8 +165,11 @@ function renderResultCard(result, index, { degree: _degree, category }) {
   const min = scores.length ? Math.min(...scores) : '—';
   const max = scores.length ? Math.max(...scores) : '—';
 
+  // 仅对单批前若干张做级联入场，避免数百卡片同时动画造成掉帧。
+  const enterClass = batchIndex < 10 ? ' card-enter' : '';
+  const staggerAttr = batchIndex < 10 ? ` style="--card-stagger:${batchIndex}"` : '';
   return `
-    <div class="result-card ${verdict}" data-index="${index}">
+    <div class="result-card ${verdict}${enterClass}"${staggerAttr} data-index="${index}">
       <div class="uni-name">
         <span class="name-text">${escapeHtml(uni.name)}</span>
         <span class="level-badge ${levelBadgeClass}">${escapeHtml(uni.level)}</span>

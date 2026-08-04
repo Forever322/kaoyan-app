@@ -206,7 +206,8 @@
     font-weight: 740;
 }
 
-.sheet-control-row[hidden], .sheet-advanced-control[hidden] {
+.sheet-control-row[hidden],
+.sheet-advanced-control[hidden] {
     display: none;
 }
 
@@ -457,13 +458,37 @@
     }
 }
 
+@keyframes sheetDown {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(104%);
+    }
+}
+
 .filter-sheet:not(.hidden) {
-    animation: filterFadeIn .18s ease-out both;
+    animation: filterFadeIn .22s ease-out both;
+}
+
+/* 面板随抽屉整体上滑入场，带轻微回弹。 */
+.filter-sheet:not(.hidden) .filter-sheet-panel {
+    animation: sheetUp .34s cubic-bezier(.24, .92, .32, 1.02) both;
+}
+
+/* 标题文案渐入，与面板形成层次。 */
+.filter-sheet:not(.hidden) .filter-context-copy {
+    animation: optionsFadeIn .3s .08s ease-out both;
 }
 
 .filter-sheet.is-closing {
     pointer-events: none;
-    animation: filterFadeOut .18s ease-in both;
+    animation: filterFadeOut .24s ease-in both;
+}
+
+.filter-sheet.is-closing .filter-sheet-panel {
+    animation: sheetDown .26s cubic-bezier(.5, 0, .75, .4) both;
 }
 
 @keyframes filterFadeIn {

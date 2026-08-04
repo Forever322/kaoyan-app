@@ -10,20 +10,29 @@ import {
 } from './storage.js';
 import { escapeHtml } from './utils.js';
 
+let modalCloseTimer;
+
 /** 显示编辑弹窗 */
 export function openEditModal() {
   const modal = document.getElementById('editModal');
-  modal.classList.remove('hidden');
+  clearTimeout(modalCloseTimer);
+  modal.classList.remove('hidden', 'is-closing');
   modal.style.display = 'flex';
   switchModalTab('universities');
   renderUniEditList('');
 }
 
-/** 关闭编辑弹窗 */
+/** 关闭编辑弹窗（先播放退出动画再隐藏，避免瞬间消失） */
 export function closeEditModal() {
   const modal = document.getElementById('editModal');
-  modal.style.display = 'none';
-  modal.classList.add('hidden');
+  if (modal.classList.contains('hidden') || modal.classList.contains('is-closing')) return;
+  modal.classList.add('is-closing');
+  clearTimeout(modalCloseTimer);
+  modalCloseTimer = setTimeout(() => {
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+    modal.classList.remove('is-closing');
+  }, 200);
 }
 
 /** 切换弹窗标签页 */
@@ -46,10 +55,10 @@ export function renderUniEditList(query) {
   const all = getAllUniversitiesForEdit();
   const filtered = query
     ? all.filter(
-        (u) =>
-          u.name.toLowerCase().includes(query.toLowerCase()) ||
-          u.province.toLowerCase().includes(query.toLowerCase()),
-      )
+      (u) =>
+        u.name.toLowerCase().includes(query.toLowerCase()) ||
+        u.province.toLowerCase().includes(query.toLowerCase()),
+    )
     : all;
 
   if (filtered.length === 0) {
