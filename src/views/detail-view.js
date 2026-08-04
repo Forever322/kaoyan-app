@@ -13,6 +13,8 @@ export function detailView() {
 
         <section class="detail-section" id="detailRetestSection" style="display:none;"><div class="detail-section-heading"><h3 class="detail-section-title"><i>▣</i> 复试基础线</h3><span class="section-note">2026 年</span></div><p class="detail-nl-note">复试基本分数线参考（国家线 + 院校预估）</p><div class="retest-grid" id="detailRetestGrid"></div></section>
 
+        <section class="detail-section" id="detailRequirementsSection" style="display:none;"><div class="detail-section-heading"><h3 class="detail-section-title"><i>⚙</i> 硬性报考要求</h3><span class="section-note">招生简章要点</span></div><div class="requirements-grid" id="detailRequirementsGrid"></div></section>
+
         <section class="detail-section detail-info-section"><div class="detail-section-heading"><h3 class="detail-section-title">院校档案</h3><span class="section-note">招生分区与位置</span></div><div class="detail-info-row" id="detailInfo"></div></section>
 
         <section class="detail-section"><div class="detail-section-heading"><h3 class="detail-section-title"><i>♧</i> 优势与不足</h3><span class="section-note">择校参考</span></div><div class="pros-cons-grid"><div class="pros-column"><h4>✓ 优势</h4><ul id="detailPros"></ul></div><div class="cons-column"><h4>△ 不足</h4><ul id="detailCons"></ul></div></div></section>

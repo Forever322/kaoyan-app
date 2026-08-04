@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'kaoyan_app';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db = null;
 
@@ -35,6 +35,13 @@ export function openDB() {
         scoreStore.createIndex('category', 'category');
         scoreStore.createIndex('degree', 'degree');
         scoreStore.createIndex('year', 'year');
+      }
+
+      // 硬性要求表（v2 新增）
+      if (!db.objectStoreNames.contains('requirements')) {
+        const reqStore = db.createObjectStore('requirements', { keyPath: 'universityName' });
+        reqStore.createIndex('hasMachineTest', 'hasMachineTest');
+        reqStore.createIndex('examSubjects', 'examSubjects');
       }
     };
 
@@ -263,6 +270,39 @@ export async function importDB(data) {
   }
 }
 
+// ==================== 硬性要求 CRUD ====================
+
+/** 获取某院校的硬性要求 */
+export function getRequirements(universityName) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('requirements', 'readonly');
+    const req = tx.objectStore('requirements').get(universityName);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 批量插入硬性要求 */
+export function bulkInsertRequirements(list) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('requirements', 'readwrite');
+    const store = tx.objectStore('requirements');
+    list.forEach(r => store.put(r));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** 获取所有硬性要求 */
+export function getAllRequirements() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('requirements', 'readonly');
+    const req = tx.objectStore('requirements').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 /** 清空数据库 */
 function clearDB() {
   return new Promise((resolve, reject) => {
@@ -271,7 +311,12 @@ function clearDB() {
     tx1.oncomplete = () => {
       const tx2 = db.transaction('scores', 'readwrite');
       tx2.objectStore('scores').clear();
-      tx2.oncomplete = () => resolve();
+      tx2.oncomplete = () => {
+        const tx3 = db.transaction('requirements', 'readwrite');
+        tx3.objectStore('requirements').clear();
+        tx3.oncomplete = () => resolve();
+        tx3.onerror = () => reject(tx3.error);
+      };
       tx2.onerror = () => reject(tx2.error);
     };
     tx1.onerror = () => reject(tx1.error);

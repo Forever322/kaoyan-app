@@ -2,10 +2,12 @@
 
 import { UNIVERSITIES } from './data/universities.js';
 import { ADMISSION_SCORES } from './data/admission-scores.js';
+import { UNI_REQUIREMENTS } from './data/uni-requirements.js';
 
 const STORAGE_KEYS = {
   CUSTOM_UNIVERSITIES: 'kaoyan_custom_universities',
   CUSTOM_SCORES: 'kaoyan_custom_scores',
+  CUSTOM_REQUIREMENTS: 'kaoyan_custom_requirements',
   LAST_SEARCH: 'kaoyan_last_search',
 };
 
@@ -139,10 +141,11 @@ export function getLastSearch() {
 /** 导出全部数据 */
 export function exportAllData() {
   const data = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     customUniversities: getCustomUniversities(),
     customScores: getCustomScores(),
+    customRequirements: getCustomRequirements(),
   };
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -199,9 +202,51 @@ export function importData(jsonStr) {
       Object.assign(ADMISSION_SCORES, data.customScores);
     }
 
+    // 导入硬性要求
+    if (data.customRequirements && typeof data.customRequirements === 'object') {
+      const existing = getCustomRequirements();
+      const merged = { ...existing, ...data.customRequirements };
+      saveCustomRequirements(merged);
+      for (const [name, req] of Object.entries(data.customRequirements)) {
+        if (UNI_REQUIREMENTS[name]) {
+          Object.assign(UNI_REQUIREMENTS[name], req);
+        } else {
+          UNI_REQUIREMENTS[name] = req;
+        }
+      }
+    }
+
     return { success: true, count: importCount };
   } catch (e) {
     return { success: false, error: e.message };
+  }
+}
+
+/** 获取用户自定义硬性要求 */
+export function getCustomRequirements() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM_REQUIREMENTS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 保存自定义硬性要求 */
+function saveCustomRequirements(reqs) {
+  localStorage.setItem(STORAGE_KEYS.CUSTOM_REQUIREMENTS, JSON.stringify(reqs));
+}
+
+/** 更新某院校硬性要求 */
+export function updateCustomRequirements(universityName, reqData) {
+  const all = getCustomRequirements();
+  all[universityName] = { ...(all[universityName] || {}), ...reqData };
+  saveCustomRequirements(all);
+  // 同步更新内存
+  if (UNI_REQUIREMENTS[universityName]) {
+    Object.assign(UNI_REQUIREMENTS[universityName], reqData);
+  } else {
+    UNI_REQUIREMENTS[universityName] = reqData;
   }
 }
 
@@ -226,6 +271,16 @@ export function initStorage() {
         level: uni.level,
         type: uni.type || '综合',
       });
+    }
+  }
+
+  // 加载自定义硬性要求到内存
+  const customReqs = getCustomRequirements();
+  for (const [name, req] of Object.entries(customReqs)) {
+    if (UNI_REQUIREMENTS[name]) {
+      Object.assign(UNI_REQUIREMENTS[name], req);
+    } else {
+      UNI_REQUIREMENTS[name] = req;
     }
   }
 }
