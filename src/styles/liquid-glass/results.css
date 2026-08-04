@@ -24,16 +24,14 @@
 .fail-screen::before {
     top: -130px;
     right: -130px;
-    background: radial-gradient(circle, rgba(72, 255, 210, .86), rgba(72, 255, 210, .34) 48%, transparent 70%);
-    filter: blur(5px);
+    background: radial-gradient(circle, rgba(72, 255, 210, .62), rgba(72, 255, 210, .24) 48%, transparent 70%);
 }
 
 .results-screen::after,
 .fail-screen::after {
     bottom: -46px;
     left: -145px;
-    background: radial-gradient(circle, rgba(86, 104, 255, .83), rgba(49, 76, 255, .34) 52%, transparent 71%);
-    filter: blur(4px);
+    background: radial-gradient(circle, rgba(86, 104, 255, .58), rgba(49, 76, 255, .22) 52%, transparent 71%);
 }
 
 .fail-screen::before {
@@ -508,13 +506,15 @@
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, .48);
     border-radius: 37px;
-    background: linear-gradient(125deg, rgba(92, 125, 164, .92), rgba(68, 100, 143, .91) 48%, rgba(77, 129, 132, .90));
+    background: linear-gradient(125deg, rgba(92, 125, 164, .82), rgba(68, 100, 143, .80) 48%, rgba(77, 129, 132, .78));
     box-shadow: 0 12px 26px rgba(0, 0, 0, .30), inset 0 1px 0 rgba(255, 255, 255, .34);
     isolation: isolate;
-    contain: paint;
+    contain: layout style paint;
     transform: translateZ(0);
     touch-action: pan-y;
     user-select: none;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
 }
 
 .app-footer::before {
