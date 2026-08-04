@@ -2,11 +2,12 @@
  * 数据库种子：将静态数据文件迁移到 IndexedDB
  * 首次运行或版本升级时自动执行
  */
-import { openDB, getDBStats, bulkInsertUniversities, bulkInsertScores } from './db.js';
+import { openDB, getDBStats, bulkInsertUniversities, bulkInsertScores, bulkInsertRequirements } from './db.js';
 import { UNIVERSITIES } from './data/universities.js';
 import { ADMISSION_SCORES } from './data/admission-scores.js';
+import { UNI_REQUIREMENTS } from './data/uni-requirements.js';
 
-const SEED_VERSION = 1;
+const SEED_VERSION = 2;
 const SEED_KEY = '_db_seed_version';
 
 /** 检查是否需要种子 */
@@ -79,6 +80,14 @@ export async function checkAndSeed() {
   }
   await bulkInsertScores(scoreRecords);
   console.log('[DB] Inserted ' + scoreRecords.length + ' score records');
+
+  // 3. 插入硬性要求数据
+  const reqRecords = Object.entries(UNI_REQUIREMENTS).map(([name, req]) => ({
+    universityName: name,
+    ...req,
+  }));
+  await bulkInsertRequirements(reqRecords);
+  console.log('[DB] Inserted ' + reqRecords.length + ' requirement records');
 
   sessionStorage.setItem(SEED_KEY, String(SEED_VERSION));
 

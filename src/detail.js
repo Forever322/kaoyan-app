@@ -3,6 +3,7 @@
  */
 
 import { getUniversityDetail } from './data/uni-details.js';
+import { getRequirements } from './data/uni-requirements.js';
 import { getCampusHero } from './data/campus-hero-library.js';
 import { renderPhotos } from './photos.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
@@ -91,6 +92,9 @@ export function openDetailPage(result, { degree, zone }) {
   const subjectLines = getSubjectLines(degree, category, retestZone);
   renderRetestLine(allNL, userScore, admissionScores, subjectLines);
 
+  // 硬性报考要求
+  renderRequirements(uni.name, subjectLines);
+
   // 优缺点
   document.getElementById('detailPros').innerHTML = (detail.pros || [])
     .map((p) => `<li>${escapeHtml(p)}</li>`)
@@ -167,6 +171,64 @@ function renderRetestLine(nationalLines, userScore, admissionScores, subjectLine
     </div>
     ${subjectHtml}
   `;
+}
+
+/** 渲染硬性报考要求 */
+function renderRequirements(uniName, subjectLines) {
+  const section = document.getElementById('detailRequirementsSection');
+  const grid = document.getElementById('detailRequirementsGrid');
+  if (!section || !grid) return;
+
+  const req = getRequirements(uniName);
+
+  // 考试科目
+  const examRow = `<div class="req-card"><div class="req-icon">📚</div><div class="req-body"><div class="req-label">初试考试科目</div><div class="req-value">${escapeHtml(req.examSubjects || '408计算机学科专业基础（统考）')}</div></div></div>`;
+
+  // 单科线
+  const sl = req.singleSubjectLine || { politics: 34, english: 34, business1: 51, business2: 51 };
+  const subjectLineRow = `<div class="req-card"><div class="req-icon">📝</div><div class="req-body"><div class="req-label">单科最低线（政治/英语/数学/专业课）</div><div class="req-value">🟡 政治≥<strong>${sl.politics}</strong> &nbsp; 🟡 英语≥<strong>${sl.english}</strong> &nbsp; 🔵 数学≥<strong>${sl.business1}</strong> &nbsp; 🔵 专业课≥<strong>${sl.business2}</strong></div><div class="req-note">⚠️ 任一门未达线则无法进入复试</div></div></div>`;
+
+  // 四六级
+  const cetIcon = req.cet4Required || req.cet6Required ? '🔴' : '✅';
+  const cetRow = `<div class="req-card"><div class="req-icon">${cetIcon}</div><div class="req-body"><div class="req-label">四六级要求</div><div class="req-value">${escapeHtml(req.cetNote || '无硬性要求')}</div></div></div>`;
+
+  // 跨专业
+  const crossIcon = req.crossMajorAllowed ? '✅' : '🚫';
+  const crossRow = `<div class="req-card"><div class="req-icon">${crossIcon}</div><div class="req-body"><div class="req-label">跨专业报考</div><div class="req-value">${req.crossMajorAllowed ? '允许' : '不允许'}${req.crossMajorNote ? ' — ' + escapeHtml(req.crossMajorNote) : ''}</div></div></div>`;
+
+  // 同等学力
+  const eqIcon = req.equivalentDegreeAllowed ? '⚠️' : '🚫';
+  const eqRow = `<div class="req-card"><div class="req-icon">${eqIcon}</div><div class="req-body"><div class="req-label">同等学力考生</div><div class="req-value">${req.equivalentDegreeAllowed ? '允许报考' : '不招收'} — ${escapeHtml(req.equivalentDegreeNote || '')}</div></div></div>`;
+
+  // 复试形式
+  const hasMT = req.hasMachineTest;
+  const hasWE = req.hasWrittenExam;
+  let retestIcons = '';
+  if (hasMT) retestIcons += '💻 机试 ';
+  if (hasWE) retestIcons += '📄 笔试 ';
+  if (!hasMT && !hasWE) retestIcons = '🎤 纯面试 ';
+  const retestFormRow = `<div class="req-card"><div class="req-icon">${hasMT ? '💻' : '🎤'}</div><div class="req-body"><div class="req-label">复试形式</div><div class="req-value">${escapeHtml(req.retestForm || '笔试 + 面试')}</div><div class="req-note">${retestIcons} · 复试费 ${req.retestFee || 100} 元 · 面试最低 ${req.interviewMinScore || 60} 分及格</div></div></div>`;
+
+  // 初复试占比
+  const weight = req.retestWeight ? Math.round(req.retestWeight * 100) : 40;
+  const initWeight = 100 - weight;
+  const weightRow = `<div class="req-card"><div class="req-icon">⚖️</div><div class="req-body"><div class="req-label">初试复试成绩占比</div><div class="req-value">初试 <strong>${initWeight}%</strong> + 复试 <strong>${weight}%</strong></div><div class="req-note">${escapeHtml(req.retestWeightNote || '')}</div></div></div>`;
+
+  // 推免比例
+  const recRatio = req.recommendationRatio ? Math.round(req.recommendationRatio * 100) : 30;
+  let recColor = 'var(--color-success)';
+  if (recRatio >= 60) recColor = 'var(--color-danger)';
+  else if (recRatio >= 40) recColor = 'var(--color-warning)';
+  const recRow = `<div class="req-card"><div class="req-icon">🎓</div><div class="req-body"><div class="req-label">推免比例（统考竞争度）</div><div class="req-value">约 <strong style="color:${recColor}">${recRatio}%</strong> 名额留给推免生</div><div class="req-note">${escapeHtml(req.recommendationRatioNote || '')}</div></div></div>`;
+
+  // 额外备注
+  let extraHtml = '';
+  if (req.extraNotes && req.extraNotes.length > 0) {
+    extraHtml = `<div class="req-card" style="grid-column:1/-1"><div class="req-icon">💡</div><div class="req-body"><div class="req-label">特别提醒</div><div class="req-value">${req.extraNotes.map(n => '· ' + escapeHtml(n)).join('<br>')}</div></div></div>`;
+  }
+
+  grid.innerHTML = examRow + subjectLineRow + cetRow + crossRow + eqRow + retestFormRow + weightRow + recRow + extraHtml;
+  section.style.display = 'block';
 }
 
 /** 关闭详情页 */

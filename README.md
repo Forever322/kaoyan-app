@@ -10,24 +10,22 @@
 - 结果按匹配度 → 院校层次（985 > 211 > 双一流 > 双非）智能排序
 
 ### 📊 多维数据参考
-- **国家线**：2022—2025 年完整数据，14 个学硕门类 + 30 个专硕类别，A/B 区全覆盖
-- **录取分数线**：50+ 所头部高校各专业历年录取线（清华/北大/北航/北邮等）
+- **国家线**：2022—2026 年完整数据，14 个学硕门类 + 30 个专硕类别，A/B 区全覆盖
+- **录取分数线**：研招网院校白名单 + 各校官网，覆盖 700+ 所高校各专业历年录取线
 - **院校详情**：优缺点分析、学科特色、校园地址、实景照片
 - **历年对比表**：一张表对比四年国家线 vs 院校线 vs 你的分数
 
-### 🔍 全局院校搜索
-- 顶部搜索栏支持院校名称、省份实时模糊匹配
+### 🔍 院校搜索
+- 筛选面板内支持院校名称实时模糊匹配
 - 点击即可查看该校详情和历年录取数据
 
 ### 📱 原生应用体验
 - **PWA 支持**：可安装到桌面，离线使用
-- **开屏动画**：CSS Animation 驱动，启动即展示
 - **数据持久化**：搜索条件自动保存，下次打开恢复上次状态
 
 ### 🔧 数据管理
 - 支持添加/编辑/删除自定义院校数据
-- 一键导出所有数据为 JSON 文件
-- 导入自定义数据扩展院校库
+- 数据维护脚本：`collect.cjs` 采集真实分数 → `apply.cjs` 写入数据（可选 `--build` 构建并同步 TWA）→ `convert.cjs` 全量重新生成
 
 ## 📐 技术架构
 
@@ -43,25 +41,33 @@
 │   ├── modal.js            # 弹窗编辑模块（自定义院校管理）
 │   ├── photos.js           # 校园实景照片模块
 │   ├── matcher.js          # 匹配引擎（分数评估 + 排序）
-│   ├── utils.js            # 工具函数（DOM 操作 / XSS 防护）
+│   ├── utils.js            # 工具函数（XSS 转义 / 防抖）
 │   ├── storage.js          # localStorage 存储管理
-│   ├── matcher.test.js     # Vitest 单元测试
+│   ├── seed.js             # 示例数据
+│   ├── db.js               # IndexedDB 数据层
+│   ├── views/              # 视图模块（首页 / 结果 / 详情 / 筛选 / 弹窗 / 底部导航）
+│   ├── styles/             # 主题样式（liquid-glass）
 │   └── data/
 │       ├── universities.js       # 院校数据库（700+ 所）
-│       ├── national-lines.js     # 国家线（2022-2025）
-│       ├── admission-scores.js   # 录取分数线
+│       ├── national-lines.js     # 国家线（2022-2026）
+│       ├── admission-scores.js   # 录取分数线（研招网白名单 + 各校官网）
 │       ├── uni-details.js        # 院校详情（优缺点/特色）
 │       └── uni-photos.js         # 院校照片 CDN
 ├── public/
 │   ├── sw.js               # Service Worker（离线缓存）
 │   ├── manifest.json       # PWA 清单
-│   ├── icons/              # PWA 图标
-│   └── splash.png          # 开屏图片
+│   ├── version.json        # 版本号与 APK 下载地址（更新检测用）
+│   └── icons/              # PWA 图标
 ├── dist/                   # 构建输出
 ├── vite.config.js          # Vite 配置
 ├── vitest.config.js        # Vitest 测试配置
 ├── eslint.config.js        # ESLint 配置
 ├── .prettierrc             # Prettier 配置
+├── collect.cjs             # 数据采集脚本（真实分数 → real-scores.json）
+├── apply.cjs               # 数据应用脚本（real-scores.json → admission-scores.js，可 --build）
+├── convert.cjs             # 数据全量重生成脚本（provinces → admission-scores.js）
+├── real-scores.json        # 采集的真实录取分数数据
+├── province-schools.json   # 研招网院校白名单
 └── android-twa/            # Android TWA 壳工程
 ```
 
@@ -145,7 +151,7 @@ pnpm test:watch
 无录取数据                  →  📋 无数据（仅参考国家线）
 ```
 
-匹配基于近 4 年（2022—2025）录取数据的最高分/最低分/平均分，提供客观参考。
+匹配基于近 5 年（2022—2026）录取数据的最高分/最低分/平均分，提供客观参考。
 
 ## 📂 项目结构
 
@@ -154,22 +160,27 @@ pnpm test:watch
 | `index.html` | Vite 入口 HTML |
 | `src/main.js` | Vite 入口 JS |
 | `src/style.css` | Mobile-first 响应式样式 |
-| `src/app.js` | 主逻辑（UI 初始化 / 事件绑定 / 导航管理） |
+| `src/app.js` | 主逻辑（UI 初始化 / 事件绑定 / 导航管理 / 更新检测） |
 | `src/render.js` | 渲染模块（国家线 / 搜索结果 / 分数表格） |
 | `src/detail.js` | 详情页模块 |
 | `src/modal.js` | 弹窗编辑模块（自定义院校管理） |
 | `src/photos.js` | 校园实景照片模块 |
 | `src/matcher.js` | 匹配引擎（分数评估 + 排序） |
-| `src/utils.js` | 工具函数（DOM 操作 / XSS 防护） |
+| `src/utils.js` | 工具函数（XSS 转义 / 防抖） |
 | `src/storage.js` | 本地存储管理 |
-| `src/matcher.test.js` | Vitest 单元测试（18 个用例） |
+| `src/db.js` | IndexedDB 数据层 |
+| `src/views/` | 视图模块（首页 / 结果 / 详情 / 筛选 / 弹窗 / 底部导航） |
+| `src/styles/` | 主题样式（liquid-glass） |
+| `src/matcher.test.js` / `src/utils.test.js` / `src/data/national-lines.test.js` | Vitest 单元测试（42 个用例） |
 | `src/data/universities.js` | 全国院校数据库（700+ 所） |
-| `src/data/national-lines.js` | 国家线数据（14 门类 × 4 年） |
-| `src/data/admission-scores.js` | 录取分数线（50+ 所高校） |
+| `src/data/national-lines.js` | 国家线数据（14 门类 + 30 专硕类别 × 5 年） |
+| `src/data/admission-scores.js` | 录取分数线（700+ 所高校） |
 | `src/data/uni-details.js` | 院校详情（优缺点/特色） |
 | `src/data/uni-photos.js` | 院校照片（百度百科 CDN） |
 | `public/sw.js` | Service Worker 离线缓存 |
 | `public/manifest.json` | PWA 清单配置 |
+| `public/version.json` | 版本号与 APK 下载地址（更新检测用） |
+| `collect.cjs` / `apply.cjs` / `convert.cjs` | 数据维护脚本（采集 → 应用 → 全量重生成） |
 | `vite.config.js` | Vite 构建配置 |
 | `vitest.config.js` | Vitest 测试配置 |
 | `eslint.config.js` | ESLint 代码检查规则 |
@@ -210,8 +221,10 @@ pnpm test            # 运行单元测试
 
 ```
 main.js
-  └── style.css
-  └── app.js
+  ├── style.css + styles/liquid-glass/*.css
+  ├── views/app-shell.js
+  └── app.js（动态 import）
+        ├── views/（home / results / detail / filter / modal / footer）
         ├── render.js
         │     └── data/admission-scores.js
         │     └── data/national-lines.js
@@ -230,6 +243,7 @@ main.js
         │     └── data/universities.js
         │     └── data/admission-scores.js
         ├── storage.js
+        ├── db.js
         ├── photos.js
         │     └── utils.js
         ├── utils.js
@@ -258,11 +272,14 @@ main.js
 dist/
 ├── index.html                    # 入口 HTML
 ├── assets/
-│   ├── index-[hash].css         # CSS（自动注入）
-│   ├── index-[hash].js          # 主 JS（24KB gzip 8KB）
-│   └── data-[hash].js           # 数据模块（149KB gzip 33KB）
+│   ├── index-[hash].css         # CSS（约 58KB）
+│   ├── index-[hash].js          # 入口 JS（约 19KB gzip 6KB）
+│   ├── app-[hash].js            # 主逻辑（约 47KB gzip 14KB，动态分包）
+│   ├── data-[hash].js           # 数据模块（约 345KB gzip 44KB）
+│   └── campus-*.png / *.ttf     # 校园照片与字体资源
 ├── icons/                        # PWA 图标
 ├── manifest.json                 # PWA 清单
+├── version.json                  # 版本号（更新检测用）
 └── sw.js                         # Service Worker
 ```
 

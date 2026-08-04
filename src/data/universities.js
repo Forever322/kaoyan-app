@@ -774,12 +774,3 @@ export function getUniversitiesByZone(zone) {
 export function findUniversity(name) {
   return UNIVERSITIES.find((u) => u.name === name);
 }
-
-/** 搜索院校 (模糊匹配) */
-export function searchUniversities(query) {
-  const q = query.toLowerCase().trim();
-  if (!q) return UNIVERSITIES;
-  return UNIVERSITIES.filter(
-    (u) => u.name.toLowerCase().includes(q) || u.province.toLowerCase().includes(q),
-  );
-}

@@ -355,6 +355,76 @@
     font-size: .57rem;
 }
 
+/* 硬性报考要求 */
+.requirements-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, .30);
+    border-radius: 22px;
+    background: rgba(234, 246, 255, .12);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+}
+
+.req-card {
+    display: flex;
+    gap: 8px;
+    padding: 11px;
+    border-radius: 14px;
+    background: rgba(217, 255, 116, .24);
+    align-items: flex-start;
+    min-height: 0;
+}
+
+.req-card:nth-child(2n) {
+    background: rgba(170, 210, 255, .24);
+}
+
+.req-card:nth-child(5n) {
+    background: rgba(255, 200, 140, .24);
+}
+
+.req-card:nth-child(7n) {
+    background: rgba(200, 180, 255, .24);
+}
+
+.req-icon {
+    flex: 0 0 auto;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.req-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.req-label {
+    color: #c8d7e8;
+    font-size: .55rem;
+    margin-bottom: 3px;
+}
+
+.req-value {
+    color: #eff7ff;
+    font-size: .61rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.req-value strong {
+    color: #e9ff77;
+}
+
+.req-note {
+    margin-top: 3px;
+    color: #b5c8dd;
+    font-size: .52rem;
+    line-height: 1.35;
+}
+
 .detail-info-section .detail-section-heading {
     margin-bottom: 9px;
 }
