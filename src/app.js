@@ -44,12 +44,7 @@ async function initializeLocalDatabase() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
-} else {
-  bootstrapApp();
-}
-
+// ==================== 全局状态 ====================
 let currentDegree = 'xueshuo';
 let currentZone = 'A';
 let currentProvince = 'all';
@@ -60,6 +55,12 @@ let _activeScreen = 'home';
 let _detailReturnScreen = 'home';
 let _filterCloseTimer;
 let _footerOverlayIndex = null;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
+} else {
+  bootstrapApp();
+}
 
 // ==================== 导航封装 ====================
 function setFooterPillPosition(position) {
@@ -136,7 +137,21 @@ function initializeFooterSlider() {
     drag = null;
     releasePointer(event);
     footer.classList.remove('is-dragging');
-    if (!completedDrag.moved) return;
+
+    if (!completedDrag.moved) {
+      // 简单点击（无拖拽）：setPointerCapture 使原生 click 落在 footer
+      // 而非按钮上，需要手动查找按钮并触发
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const btn = target?.closest('.footer-nav-btn');
+      if (btn) {
+        const idx = buttons.indexOf(btn);
+        if (idx >= 0) {
+          setFooterActiveIndex(idx);
+          btn.click();
+        }
+      }
+      return;
+    }
 
     const targetIndex = Math.round(completedDrag.position);
     setFooterActiveIndex(targetIndex);
@@ -523,60 +538,6 @@ function bindEvents() {
     clearResults();
   });
 
-
-
-  // 全局院校搜索（防抖）
-  const globalSearch = document.getElementById('globalUniSearch');
-  const globalDropdown = document.getElementById('globalUniDropdown');
-  if (globalSearch && globalDropdown) {
-    const debouncedGlobalSearch = debounce(() => {
-      const q = globalSearch.value.trim().toLowerCase();
-      if (!q) {
-        globalDropdown.style.display = 'none';
-        return;
-      }
-      const matches = UNIVERSITIES.filter(
-        (u) => u.name.toLowerCase().includes(q) || u.province.toLowerCase().includes(q),
-      ).slice(0, 15);
-      if (matches.length === 0) {
-        globalDropdown.innerHTML =
-          '<div style="padding:14px;color:#999;text-align:center;font-size:0.85rem;">未找到匹配院校</div>';
-      } else {
-        globalDropdown.innerHTML = matches
-          .map(
-            (u) => `
-        <div class="header-search-item" data-uni-name="${escapeHtml(u.name)}">
-          <span class="s-name">${escapeHtml(u.name)}</span>
-          <span class="s-level">${escapeHtml(u.level)}</span>
-          <span class="s-loc">📍 ${escapeHtml(u.province)}${u.city && u.city !== u.province ? ' ' + escapeHtml(u.city) : ''}</span>
-        </div>
-      `,
-          )
-          .join('');
-      }
-      globalDropdown.style.display = 'block';
-    }, 150);
-    globalSearch.addEventListener('input', debouncedGlobalSearch);
-    globalSearch.addEventListener('blur', () => {
-      setTimeout(() => {
-        globalDropdown.style.display = 'none';
-      }, 200);
-    });
-    globalSearch.addEventListener('focus', () => {
-      if (globalSearch.value.trim()) globalDropdown.style.display = 'block';
-    });
-    globalDropdown.addEventListener('click', (e) => {
-      const item = e.target.closest('.header-search-item');
-      if (!item) return;
-      const uni = findUniversity(item.dataset.uniName);
-      if (uni) {
-        openUniversityDetail(uni);
-        globalDropdown.style.display = 'none';
-        globalSearch.value = '';
-      }
-    });
-  }
-
   // 筛选抽屉：独立界面，但与首页共用同一份查询状态。
   document.querySelectorAll('[data-open-filter]').forEach((button) => button.addEventListener('click', openFilterSheet));
   document.getElementById('openFilterNavBtn').addEventListener('click', () => {
@@ -602,19 +563,19 @@ function bindEvents() {
   });
   document.getElementById('scoreInput').addEventListener('input', updateHomeDashboard);
   document.getElementById('sheetDegreeSelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetDegreeOptions', e.target.value);
+    setActiveToggle('sheetDegreeOptions', e.target.value);
     populateSheetCategories(e.target.value, document.getElementById('sheetCategorySelect').value);
     populateSheetMajors(document.getElementById('sheetCategorySelect').value);
     updateSheetEstimate();
   });
   document.getElementById('sheetCategorySelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetCategoryOptions', e.target.value);
+    setActiveToggle('sheetCategoryOptions', e.target.value);
     populateSheetMajors(e.target.value);
     updateSheetEstimate();
   });
   document.getElementById('sheetMajorSelect').addEventListener('change', updateSheetEstimate);
   document.getElementById('sheetProvinceSelect').addEventListener('change', (e) => {
-    setSheetChoice('sheetProvinceOptions', e.target.value);
+    setActiveToggle('sheetProvinceOptions', e.target.value);
     updateSheetProvinceLabel();
     updateSheetEstimate();
   });
@@ -623,7 +584,7 @@ function bindEvents() {
     document.getElementById(containerId).addEventListener('click', (e) => {
       const button = e.target.closest('button[data-value]');
       if (button) {
-        setSheetChoice(containerId, button.dataset.value);
+        setActiveToggle(containerId, button.dataset.value);
         updateSheetEstimate();
       }
     });
@@ -913,6 +874,8 @@ function initHistoryNav() {
 // ==================== 自动更新检测 ====================
 const LOCAL_VERSION = '4.3';
 const UPDATE_CHECK_URL = 'https://forever322.github.io/kaoyan-app/version.json';
+const DISMISSED_KEY = 'update_dismissed_v';
+const isAndroid = /Android/i.test(navigator.userAgent);
 
 async function checkForUpdate() {
   // APK 内嵌资源在 file:// 协议下运行，不应被远程网页版本覆盖。
@@ -922,28 +885,43 @@ async function checkForUpdate() {
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.version !== LOCAL_VERSION) {
-      showUpdateBanner(data.version);
+      // 用户点击「暂不」后，同一版本不再弹出
+      if (localStorage.getItem(DISMISSED_KEY + data.version)) return;
+      showUpdateBanner(data.version, data.apkUrl);
     }
   } catch {
     // 无网络或检查失败，静默跳过
   }
 }
 
-function showUpdateBanner(remoteVersion) {
+function showUpdateBanner(remoteVersion, apkUrl) {
   const banner = document.createElement('div');
   banner.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:100;background:#1a73e8;color:#fff;padding:12px 16px;border-radius:12px;display:flex;align-items:center;gap:12px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out';
-  banner.innerHTML = `
-    <span style="flex:1">🔄 发现新版本 v${remoteVersion}，是否更新？</span>
-    <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">更新</button>
-    <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
-  `;
-  document.body.appendChild(banner);
 
-  document.getElementById('updateYes').onclick = () => {
-    location.href = 'https://forever322.github.io/kaoyan-app/';
-  };
+  if (isAndroid) {
+    // Android TWA: 引导用户下载新 APK（优先 CNB 国内镜像）
+    const downloadUrl = apkUrl ? `${apkUrl}/v${remoteVersion}/app-release.apk` : 'https://cnb.cool/lvcdy/kaoyan-app/-/releases';
+    banner.innerHTML = `
+      <span style="flex:1">🔄 发现新版本 v${remoteVersion}</span>
+      <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">下载更新</button>
+      <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById('updateYes').onclick = () => { window.open(downloadUrl, '_blank'); };
+  } else {
+    // PWA / Web: 刷新页面即可获取最新资源（SW 网络优先策略保证拉到新版）
+    banner.innerHTML = `
+      <span style="flex:1">🔄 发现新版本 v${remoteVersion}，刷新即可更新</span>
+      <button id="updateYes" style="background:#fff;color:#1a73e8;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer">刷新</button>
+      <button id="updateNo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:6px 14px;border-radius:6px;cursor:pointer">暂不</button>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById('updateYes').onclick = () => { location.reload(); };
+  }
+
   document.getElementById('updateNo').onclick = () => {
     banner.style.display = 'none';
+    localStorage.setItem(DISMISSED_KEY + remoteVersion, '1');
   };
 }
 
@@ -982,7 +960,7 @@ function populateSheetCategories(degree, selectedValue = '') {
   const fallback = categories.includes('工学') ? '工学' : categories[0];
   select.value = categories.includes(selectedValue) ? selectedValue : fallback;
   options.innerHTML = categories.map((category) => `<button type="button" data-value="${escapeHtml(category)}" role="radio">${escapeHtml(category)}</button>`).join('');
-  setSheetChoice('sheetCategoryOptions', select.value);
+  setActiveToggle('sheetCategoryOptions', select.value);
 }
 
 function populateSheetMajors(category, selectedValue = '') {
@@ -1011,7 +989,7 @@ function populateSheetProvinces() {
   options.innerHTML = [...select.options]
     .map((option) => `<button type="button" data-value="${escapeHtml(option.value)}" role="radio">${escapeHtml(option.textContent)}</button>`)
     .join('');
-  setSheetChoice('sheetProvinceOptions', select.value);
+  setActiveToggle('sheetProvinceOptions', select.value);
   updateSheetProvinceLabel();
 }
 
@@ -1019,12 +997,6 @@ function updateSheetProvinceLabel() {
   const select = document.getElementById('sheetProvinceSelect');
   const current = select.options[select.selectedIndex];
   document.getElementById('sheetProvinceCurrent').textContent = current?.textContent || '全部省份';
-}
-
-function setSheetChoice(containerId, value) {
-  document.querySelectorAll(`#${containerId} button`).forEach((button) => {
-    button.classList.toggle('active', button.dataset.value === value);
-  });
 }
 
 function currentSheetChoice(containerId) {
@@ -1087,12 +1059,12 @@ function openFilterSheet({ footerIndex = null } = {}) {
   const category = document.getElementById('categorySelect').value;
   document.getElementById('sheetScoreInput').value = document.getElementById('scoreInput').value;
   document.getElementById('sheetDegreeSelect').value = currentDegree;
-  setSheetChoice('sheetDegreeOptions', currentDegree);
+  setActiveToggle('sheetDegreeOptions', currentDegree);
   populateSheetCategories(currentDegree, category);
   populateSheetMajors(category, document.getElementById('majorSelect').value);
   populateSheetProvinces();
-  setSheetChoice('sheetZoneToggle', currentZone);
-  setSheetChoice('sheetStudyModeToggle', currentStudyMode);
+  setActiveToggle('sheetZoneToggle', currentZone);
+  setActiveToggle('sheetStudyModeToggle', currentStudyMode);
   updateSheetEstimate();
   document.getElementById('sheetUniSearch').value = '';
   document.getElementById('sheetSearchMatches').innerHTML = '';
