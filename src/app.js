@@ -74,7 +74,9 @@ function setFooterActiveIndex(index) {
 }
 
 function updateFooterNav(screen) {
-  const activeNav = screen === 'home' ? 'homeNavBtn' : 'openFilterNavBtn';
+  let activeNav = 'openFilterNavBtn';
+  if (screen === 'home') activeNav = 'homeNavBtn';
+  if (screen === 'prep') activeNav = 'prepNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
   setFooterActiveIndex(activeIndex);
@@ -181,7 +183,7 @@ function initializeFooterSlider() {
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
-const SCREEN_DEPTH = { home: 0, results: 1, fail: 1 };
+const SCREEN_DEPTH = { home: 0, prep: 0, results: 1, fail: 1 };
 const SCREEN_TRANSITION_MS = 400;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
@@ -573,8 +575,18 @@ function bindEvents() {
   document.getElementById('homeNavBtn').addEventListener('click', () => {
     navigateTo('home');
   });
-  document.getElementById('prepNavBtn').addEventListener('click', () => openFilterSheet({ footerIndex: 2 }));
+  document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
   document.getElementById('profileNavBtn').addEventListener('click', () => openEditModal({ footerIndex: 3 }));
+  document.querySelectorAll('#prepTaskList .prep-task').forEach((task) => {
+    task.addEventListener('click', () => {
+      task.classList.toggle('is-complete');
+      const completed = document.querySelectorAll('#prepTaskList .prep-task.is-complete').length;
+      document.getElementById('prepTaskProgress').textContent = `${completed} / 4`;
+      document.getElementById('prepCompletedCount').textContent = String(10 + completed);
+      const check = task.querySelector('.prep-task-check');
+      check.textContent = task.classList.contains('is-complete') ? '✓' : '';
+    });
+  });
   initializeFooterSlider();
   document.getElementById('resultsBackBtn').addEventListener('click', () => navigateTo('home'));
   document.getElementById('resultsFilterBtn').addEventListener('click', openFilterSheet);
@@ -890,7 +902,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'results', 'fail'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'results', 'fail'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
