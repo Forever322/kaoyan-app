@@ -21,7 +21,7 @@ export const UNIVERSITIES = [
   { name: '北京外国语大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '语言' },
   { name: '中国传媒大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '综合' },
   { name: '中央财经大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '财经' },
-  { name: '对外经济贸易大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '综合' },
+  { name: '对外经济贸易大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '财经' },
   { name: '中国政法大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '政法' },
   { name: '华北电力大学', province: '北京', city: '北京', zone: 'A', level: '211', type: '电力' },
   { name: '中国地质大学(北京)', province: '北京', city: '北京', zone: 'A', level: '211', type: '地质' },
@@ -134,7 +134,7 @@ export const UNIVERSITIES = [
 
   // ==================== 辽宁 (A区) - 38所 ====================
   { name: '大连理工大学', province: '辽宁', city: '大连', zone: 'A', level: '985', type: '理工' },
-  { name: '东北大学', province: '辽宁', city: '沈阳', zone: 'A', level: '985', type: '综合' },
+  { name: '东北大学', province: '辽宁', city: '沈阳', zone: 'A', level: '985', type: '理工' },
   { name: '辽宁大学', province: '辽宁', city: '沈阳', zone: 'A', level: '211', type: '综合' },
   { name: '大连海事大学', province: '辽宁', city: '大连', zone: 'A', level: '211', type: '综合' },
   { name: '东北财经大学', province: '辽宁', city: '沈阳', zone: 'A', level: '双非', type: '财经' },
@@ -172,7 +172,7 @@ export const UNIVERSITIES = [
   { name: '海军大连舰艇学院', province: '辽宁', city: '大连', zone: 'A', level: '双非', type: '综合' },
 
   // ==================== 吉林 (A区) - 21所 ====================
-  { name: '吉林大学', province: '吉林', city: '吉林', zone: 'A', level: '985', type: '林业' },
+  { name: '吉林大学', province: '吉林', city: '吉林', zone: 'A', level: '985', type: '综合' },
   { name: '东北师范大学', province: '吉林', city: '长春', zone: 'A', level: '211', type: '师范' },
   { name: '延边大学', province: '吉林', city: '延吉', zone: 'A', level: '211', type: '综合' },
   { name: '长春理工大学', province: '吉林', city: '长春', zone: 'A', level: '双非', type: '理工' },
@@ -217,7 +217,7 @@ export const UNIVERSITIES = [
 
   // ==================== 上海 (A区) - 31所 ====================
   { name: '复旦大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '综合' },
-  { name: '上海交通大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '交通' },
+  { name: '上海交通大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '综合' },
   { name: '同济大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '综合' },
   { name: '华东师范大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '师范' },
   { name: '华东理工大学', province: '上海', city: '上海', zone: 'A', level: '211', type: '理工' },
@@ -463,12 +463,12 @@ export const UNIVERSITIES = [
 
   // ==================== 湖北 (A区) - 35所 ====================
   { name: '武汉大学', province: '湖北', city: '武汉', zone: 'A', level: '985', type: '综合' },
-  { name: '华中科技大学', province: '湖北', city: '武汉', zone: 'A', level: '985', type: '理工' },
+  { name: '华中科技大学', province: '湖北', city: '武汉', zone: 'A', level: '985', type: '综合' },
   { name: '武汉理工大学', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '理工' },
   { name: '中国地质大学(武汉)', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '地质' },
   { name: '华中农业大学', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '农业' },
   { name: '华中师范大学', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '师范' },
-  { name: '中南财经政法大学', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '政法' },
+  { name: '中南财经政法大学', province: '湖北', city: '武汉', zone: 'A', level: '211', type: '综合' },
   { name: '武汉科技大学', province: '湖北', city: '武汉', zone: 'A', level: '双非', type: '理工' },
   { name: '湖北大学', province: '湖北', city: '武汉', zone: 'A', level: '双非', type: '综合' },
   { name: '长江大学', province: '湖北', city: '荆州', zone: 'A', level: '双非', type: '综合' },
@@ -612,7 +612,7 @@ export const UNIVERSITIES = [
   { name: '四川民族学院', province: '四川', city: '甘孜', zone: 'A', level: '双非', type: '民族' },
 
   // ==================== 陕西 (A区) - 30所 ====================
-  { name: '西安交通大学', province: '陕西', city: '西安', zone: 'A', level: '985', type: '交通' },
+  { name: '西安交通大学', province: '陕西', city: '西安', zone: 'A', level: '985', type: '综合' },
   { name: '西北工业大学', province: '陕西', city: '西安', zone: 'A', level: '985', type: '理工' },
   { name: '西北农林科技大学', province: '陕西', city: '西安', zone: 'A', level: '985', type: '理工' },
   { name: '西安电子科技大学', province: '陕西', city: '西安', zone: 'A', level: '211', type: '电子' },
