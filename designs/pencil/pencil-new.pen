@@ -1428,7 +1428,7 @@
               "fill": {
                 "type": "image",
                 "enabled": true,
-                "url": "../../../../../../Desktop/images/generated-1785660127608.png",
+                "url": "../../../../../images/generated-1785660127608.png",
                 "mode": "fill"
               },
               "width": 430,
@@ -5974,6 +5974,1026 @@
                       "fill": "#D9FF42"
                     }
                   ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "F7OCW",
+      "x": 2590,
+      "y": 0,
+      "name": "备考工作台 · 液态玻璃",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#071633",
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "i4Mdj",
+          "x": 0,
+          "y": 0,
+          "name": "顶部氛围光",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#24466F",
+                "position": 0
+              },
+              {
+                "color": "#071633",
+                "position": 1
+              }
+            ]
+          },
+          "width": 390,
+          "height": 240
+        },
+        {
+          "type": "frame",
+          "id": "iSNc3",
+          "x": 22,
+          "y": 24,
+          "name": "备考页头部",
+          "width": 346,
+          "height": 36,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Xpgki",
+              "name": "页面标题",
+              "fill": "#F4F8FF",
+              "content": "备考",
+              "fontFamily": "Inter",
+              "fontSize": 22,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "S5egb0",
+              "name": "日期",
+              "fill": "#B7C9E1",
+              "content": "2026 · 研考",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "kGI9O",
+          "x": 20,
+          "y": 82,
+          "name": "倒计时主卡",
+          "width": 350,
+          "height": 152,
+          "fill": "#163154",
+          "cornerRadius": 26,
+          "stroke": "#54779D",
+          "strokeWidth": 1,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000044",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "BRFlj",
+              "x": 20,
+              "y": 18,
+              "name": "阶段标签",
+              "fill": "#D9FF42",
+              "content": "距离初试",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "hmM3T",
+              "x": 18,
+              "y": 38,
+              "name": "倒计时数字",
+              "fill": "#F4F8FF",
+              "content": "142",
+              "fontFamily": "Inter",
+              "fontSize": 52,
+              "fontWeight": "800"
+            },
+            {
+              "type": "text",
+              "id": "ACNSG",
+              "x": 132,
+              "y": 66,
+              "name": "倒计时单位",
+              "fill": "#B7C9E1",
+              "content": "天",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "hIXF8",
+              "x": 20,
+              "y": 112,
+              "name": "备考阶段",
+              "fill": "#C6D6E9",
+              "content": "强化阶段 · 目标 12 月 20 日",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 3,
+              "id": "anIBG",
+              "x": 220,
+              "y": 117,
+              "name": "阶段进度轨道",
+              "fill": "#284B70",
+              "width": 104,
+              "height": 6
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 3,
+              "id": "fu4o8",
+              "x": 220,
+              "y": 117,
+              "name": "阶段进度",
+              "fill": "#D9FF42",
+              "width": 62,
+              "height": 6
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "RtSEj",
+          "x": 22,
+          "y": 260,
+          "name": "今日任务标题",
+          "width": 346,
+          "height": 26,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "c8vv1m",
+              "name": "今日任务标题文字",
+              "fill": "#F4F8FF",
+              "content": "今日任务",
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "A9DCb",
+              "name": "任务完成数",
+              "fill": "#D9FF42",
+              "content": "2 / 4 完成",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "i7e2E",
+          "x": 20,
+          "y": 294,
+          "name": "今日任务列表",
+          "width": 350,
+          "height": 152,
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "frame",
+              "id": "Vy8YT",
+              "name": "英语 · 阅读理解",
+              "width": 350,
+              "height": 30,
+              "fill": "#193B4D",
+              "cornerRadius": 10,
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "FxYD2",
+                  "name": "任务状态",
+                  "fill": "#D9FF42",
+                  "width": 14,
+                  "height": 14,
+                  "stroke": "#D9FF42",
+                  "strokeWidth": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "BhaSS",
+                  "name": "任务内容",
+                  "width": 280,
+                  "layout": "vertical",
+                  "gap": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sSZt8",
+                      "name": "任务名称",
+                      "fill": "#F4F8FF",
+                      "content": "英语 · 阅读理解",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "V22w8X",
+                      "name": "任务说明",
+                      "fill": "#AFC2DA",
+                      "content": "完成 2 篇真题",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "FIlma",
+              "name": "数学 · 高数",
+              "width": 350,
+              "height": 30,
+              "fill": "#193B4D",
+              "cornerRadius": 10,
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "c4aubf",
+                  "name": "任务状态",
+                  "fill": "#D9FF42",
+                  "width": 14,
+                  "height": 14,
+                  "stroke": "#D9FF42",
+                  "strokeWidth": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "uKYEY",
+                  "name": "任务内容",
+                  "width": 280,
+                  "layout": "vertical",
+                  "gap": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kgPnJ",
+                      "name": "任务名称",
+                      "fill": "#F4F8FF",
+                      "content": "数学 · 高数",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "vHgxG",
+                      "name": "任务说明",
+                      "fill": "#AFC2DA",
+                      "content": "整理错题 15 道",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kvZkF",
+              "name": "专业课 · 数据结构",
+              "width": 350,
+              "height": 30,
+              "fill": "#102747",
+              "cornerRadius": 10,
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "I3vDrr",
+                  "name": "任务状态",
+                  "fill": "#294A6F",
+                  "width": 14,
+                  "height": 14,
+                  "stroke": "#6D86A3",
+                  "strokeWidth": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "P2USb",
+                  "name": "任务内容",
+                  "width": 280,
+                  "layout": "vertical",
+                  "gap": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "X3pygZ",
+                      "name": "任务名称",
+                      "fill": "#F4F8FF",
+                      "content": "专业课 · 数据结构",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JebYU",
+                      "name": "任务说明",
+                      "fill": "#AFC2DA",
+                      "content": "复习树与图章节",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Cfk2c",
+              "name": "政治 · 选择题",
+              "width": 350,
+              "height": 30,
+              "fill": "#102747",
+              "cornerRadius": 10,
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "odBLk",
+                  "name": "任务状态",
+                  "fill": "#294A6F",
+                  "width": 14,
+                  "height": 14,
+                  "stroke": "#6D86A3",
+                  "strokeWidth": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "gWhY2",
+                  "name": "任务内容",
+                  "width": 280,
+                  "layout": "vertical",
+                  "gap": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dgRoa",
+                      "name": "任务名称",
+                      "fill": "#F4F8FF",
+                      "content": "政治 · 选择题",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "yfsd8",
+                      "name": "任务说明",
+                      "fill": "#AFC2DA",
+                      "content": "完成每日 30 题",
+                      "fontFamily": "Inter",
+                      "fontSize": 9,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "aIMH9",
+          "x": 22,
+          "y": 466,
+          "name": "学习数据标题",
+          "fill": "#F4F8FF",
+          "content": "本周状态",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "700"
+        },
+        {
+          "type": "frame",
+          "id": "HtTi9",
+          "x": 20,
+          "y": 498,
+          "name": "学习数据指标",
+          "width": 350,
+          "height": 76,
+          "gap": 8,
+          "children": [
+            {
+              "type": "frame",
+              "id": "hmHMW",
+              "name": "学习时长",
+              "width": 111,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 16,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 5,
+              "padding": 10,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "r3OMf",
+                  "name": "指标标签",
+                  "fill": "#9FB5D0",
+                  "content": "学习时长",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "q9yAdt",
+                  "name": "指标数值",
+                  "fill": "#F4F8FF",
+                  "content": "18.5 h",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "I9U7be",
+                  "name": "指标趋势",
+                  "fill": "#D9FF42",
+                  "content": "+24%",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yJXmI",
+              "name": "连续学习",
+              "width": 111,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 16,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 5,
+              "padding": 10,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "l4CbxT",
+                  "name": "指标标签",
+                  "fill": "#9FB5D0",
+                  "content": "连续学习",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "kjIRN",
+                  "name": "指标数值",
+                  "fill": "#F4F8FF",
+                  "content": "6 天",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "FF9hw",
+                  "name": "指标趋势",
+                  "fill": "#D9FF42",
+                  "content": "本周",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "muEkL",
+              "name": "完成任务",
+              "width": 111,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 16,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 5,
+              "padding": 10,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "T62dZ",
+                  "name": "指标标签",
+                  "fill": "#9FB5D0",
+                  "content": "完成任务",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "Wbxrr",
+                  "name": "指标数值",
+                  "fill": "#F4F8FF",
+                  "content": "12 / 16",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "ktBPL",
+                  "name": "指标趋势",
+                  "fill": "#D9FF42",
+                  "content": "75%",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Sv05m",
+          "x": 22,
+          "y": 606,
+          "name": "科目进度标题",
+          "width": 346,
+          "height": 24,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "s9SK7V",
+              "name": "科目进度标题文字",
+              "fill": "#F4F8FF",
+              "content": "科目进度",
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "wSfT1",
+              "name": "查看全部",
+              "fill": "#D9FF42",
+              "content": "查看全部 ›",
+              "fontFamily": "Inter",
+              "fontSize": 10,
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "L23x8",
+          "x": 20,
+          "y": 638,
+          "name": "科目进度列表",
+          "width": 350,
+          "height": 76,
+          "gap": 8,
+          "children": [
+            {
+              "type": "frame",
+              "id": "V3NvO",
+              "name": "英语进度卡",
+              "width": 81,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 15,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P9MCj",
+                  "x": 9,
+                  "y": 9,
+                  "name": "科目名称",
+                  "fill": "#F4F8FF",
+                  "content": "英语",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "noExR",
+                  "x": 9,
+                  "y": 29,
+                  "name": "科目阶段",
+                  "fill": "#9FB5D0",
+                  "content": "强化",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "YRKox",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度轨道",
+                  "fill": "#294A6F",
+                  "width": 63,
+                  "height": 5
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "Uv6vH",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度值",
+                  "fill": "#78D7FF",
+                  "width": 42.84,
+                  "height": 5
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NcX0A",
+              "name": "数学进度卡",
+              "width": 81,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 15,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YSK3w",
+                  "x": 9,
+                  "y": 9,
+                  "name": "科目名称",
+                  "fill": "#F4F8FF",
+                  "content": "数学",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "G0JqBY",
+                  "x": 9,
+                  "y": 29,
+                  "name": "科目阶段",
+                  "fill": "#9FB5D0",
+                  "content": "强化",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "qE7uc",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度轨道",
+                  "fill": "#294A6F",
+                  "width": 63,
+                  "height": 5
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "o02SRA",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度值",
+                  "fill": "#D9FF42",
+                  "width": 34.02,
+                  "height": 5
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "FgA0W",
+              "name": "专业课进度卡",
+              "width": 81,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 15,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yirSA",
+                  "x": 9,
+                  "y": 9,
+                  "name": "科目名称",
+                  "fill": "#F4F8FF",
+                  "content": "专业课",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "o3GBbX",
+                  "x": 9,
+                  "y": 29,
+                  "name": "科目阶段",
+                  "fill": "#9FB5D0",
+                  "content": "基础",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "SJDNu",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度轨道",
+                  "fill": "#294A6F",
+                  "width": 63,
+                  "height": 5
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "P0KXL",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度值",
+                  "fill": "#FFB86B",
+                  "width": 26.46,
+                  "height": 5
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TN0Ij",
+              "name": "政治进度卡",
+              "width": 81,
+              "height": 76,
+              "fill": "#102747",
+              "cornerRadius": 15,
+              "stroke": "#294A6F",
+              "strokeWidth": 1,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "In4Zh",
+                  "x": 9,
+                  "y": 9,
+                  "name": "科目名称",
+                  "fill": "#F4F8FF",
+                  "content": "政治",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "ngHrU",
+                  "x": 9,
+                  "y": 29,
+                  "name": "科目阶段",
+                  "fill": "#9FB5D0",
+                  "content": "未开始",
+                  "fontFamily": "Inter",
+                  "fontSize": 9,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "Fpy95",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度轨道",
+                  "fill": "#294A6F",
+                  "width": 63,
+                  "height": 5
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 3,
+                  "id": "oTTqQ",
+                  "x": 9,
+                  "y": 57,
+                  "name": "进度值",
+                  "fill": "#C09BFF",
+                  "width": 7.56,
+                  "height": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "r9wkJ1",
+          "x": 0,
+          "y": 764,
+          "name": "备考底部导航",
+          "width": 390,
+          "height": 80,
+          "fill": "#091B39",
+          "stroke": "#294A6F",
+          "strokeWidth": 1,
+          "justifyContent": "space_around",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "zZ0lR",
+              "name": "首页导航",
+              "width": 72,
+              "height": 50,
+              "layout": "vertical",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tR7vO",
+                  "name": "导航图标",
+                  "fill": "#7892B4",
+                  "content": "⌂",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "BDJWO",
+                  "name": "导航标签",
+                  "fill": "#7892B4",
+                  "content": "首页",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "d5IDP",
+              "name": "院校导航",
+              "width": 72,
+              "height": 50,
+              "layout": "vertical",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ByOm5",
+                  "name": "导航图标",
+                  "fill": "#7892B4",
+                  "content": "⌕",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "BbvvV",
+                  "name": "导航标签",
+                  "fill": "#7892B4",
+                  "content": "院校",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VjbpI",
+              "name": "备考导航",
+              "width": 72,
+              "height": 50,
+              "layout": "vertical",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "uJD6P",
+                  "name": "导航图标",
+                  "fill": "#D9FF42",
+                  "content": "▤",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "J2FaY",
+                  "name": "导航标签",
+                  "fill": "#D9FF42",
+                  "content": "备考",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "cD0L4",
+              "name": "我的导航",
+              "width": 72,
+              "height": 50,
+              "layout": "vertical",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Sf3hD",
+                  "name": "导航图标",
+                  "fill": "#7892B4",
+                  "content": "♙",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "NJUKQ",
+                  "name": "导航标签",
+                  "fill": "#7892B4",
+                  "content": "我的",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "700"
                 }
               ]
             }

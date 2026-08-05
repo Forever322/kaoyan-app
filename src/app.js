@@ -74,7 +74,9 @@ function setFooterActiveIndex(index) {
 }
 
 function updateFooterNav(screen) {
-  const activeNav = screen === 'home' ? 'homeNavBtn' : 'openFilterNavBtn';
+  let activeNav = 'openFilterNavBtn';
+  if (screen === 'home') activeNav = 'homeNavBtn';
+  if (screen === 'prep') activeNav = 'prepNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
   setFooterActiveIndex(activeIndex);
@@ -181,7 +183,7 @@ function initializeFooterSlider() {
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
-const SCREEN_DEPTH = { home: 0, results: 1, fail: 1 };
+const SCREEN_DEPTH = { home: 0, prep: 0, results: 1, fail: 1 };
 const SCREEN_TRANSITION_MS = 400;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
@@ -278,6 +280,7 @@ function initUI() {
   updateCategorySelect();
   initCombobox('majorSelect', { placeholder: '🔍 输入关键词筛选专业...', alwaysShowAll: true });
   updateMajorSelect();
+  initSheetMajorCombobox();
   checkMajorVisibility();
   initProvinceSelect();
 }
@@ -572,8 +575,18 @@ function bindEvents() {
   document.getElementById('homeNavBtn').addEventListener('click', () => {
     navigateTo('home');
   });
-  document.getElementById('prepNavBtn').addEventListener('click', () => openFilterSheet({ footerIndex: 2 }));
+  document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
   document.getElementById('profileNavBtn').addEventListener('click', () => openEditModal({ footerIndex: 3 }));
+  document.querySelectorAll('#prepTaskList .prep-task').forEach((task) => {
+    task.addEventListener('click', () => {
+      task.classList.toggle('is-complete');
+      const completed = document.querySelectorAll('#prepTaskList .prep-task.is-complete').length;
+      document.getElementById('prepTaskProgress').textContent = `${completed} / 4`;
+      document.getElementById('prepCompletedCount').textContent = String(10 + completed);
+      const check = task.querySelector('.prep-task-check');
+      check.textContent = task.classList.contains('is-complete') ? '✓' : '';
+    });
+  });
   initializeFooterSlider();
   document.getElementById('resultsBackBtn').addEventListener('click', () => navigateTo('home'));
   document.getElementById('resultsFilterBtn').addEventListener('click', openFilterSheet);
@@ -889,7 +902,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'results', 'fail'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'results', 'fail'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -993,12 +1006,90 @@ function populateSheetMajors(category, selectedValue = '') {
   row.hidden = !shouldShow;
   if (!shouldShow) {
     select.innerHTML = '';
+    renderSheetMajorOptions();
     return;
   }
   const majors = getMajorsForCategory(category);
   const currentMajor = selectedValue || document.getElementById('majorSelect').value;
   select.innerHTML = majors.map((major) => `<option value="${escapeHtml(major)}">${escapeHtml(major)}</option>`).join('');
   select.value = majors.includes(currentMajor) ? currentMajor : majors[0];
+  renderSheetMajorOptions();
+}
+
+function initSheetMajorCombobox() {
+  const dropdown = document.getElementById('sheetMajorSelectDisplay');
+  const select = document.getElementById('sheetMajorSelect');
+  if (!dropdown || !select) return;
+  const trigger = dropdown.querySelector('.sheet-major-trigger');
+  const input = dropdown.querySelector('.sheet-major-input');
+  const panel = dropdown.querySelector('.sheet-major-panel');
+  const render = () => {
+    const selected = select.value;
+    input.value = dropdown.classList.contains('open') ? '' : selected;
+    input.placeholder = selected ? '' : '选择专业方向';
+    panel.querySelectorAll('.sheet-major-option').forEach((item) => {
+      item.setAttribute('aria-selected', item.dataset.value === selected ? 'true' : 'false');
+    });
+  };
+  const close = () => {
+    dropdown.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    input.setAttribute('readonly', '');
+    render();
+  };
+  const open = () => {
+    dropdown.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    input.removeAttribute('readonly');
+    input.value = '';
+    input.placeholder = '搜索专业方向';
+    input.focus();
+    panel.querySelector(`[data-value="${CSS.escape(select.value)}"]`)?.scrollIntoView({ block: 'nearest' });
+  };
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    dropdown.classList.contains('open') ? close() : open();
+  });
+  input.addEventListener('input', () => {
+    const query = input.value.trim().toLowerCase();
+    panel.querySelectorAll('.sheet-major-option').forEach((item) => {
+      item.hidden = Boolean(query) && !item.dataset.value.toLowerCase().includes(query);
+    });
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') close();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      panel.querySelector('.sheet-major-option:not([hidden])')?.click();
+    }
+  });
+  panel.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    const option = event.target.closest('.sheet-major-option');
+    if (!option) return;
+    select.value = option.dataset.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    close();
+  });
+  input.addEventListener('blur', () => setTimeout(() => {
+    if (!dropdown.contains(document.activeElement)) close();
+  }, 120));
+  select.addEventListener('change', render);
+  document.addEventListener('click', (event) => {
+    if (!dropdown.contains(event.target)) close();
+  });
+  dropdown._render = render;
+  render();
+}
+
+function renderSheetMajorOptions() {
+  const dropdown = document.getElementById('sheetMajorSelectDisplay');
+  const select = document.getElementById('sheetMajorSelect');
+  if (!dropdown || !select) return;
+  dropdown.querySelector('.sheet-major-panel').innerHTML = [...select.options]
+    .map((option) => `<button type="button" class="sheet-major-option" role="option" data-value="${escapeHtml(option.value)}" aria-selected="false">${escapeHtml(option.textContent)}</button>`)
+    .join('');
+  dropdown._render?.();
 }
 
 function populateSheetProvinces() {

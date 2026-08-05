@@ -118,8 +118,8 @@ pnpm preview
 `pnpm build` 并把 `dist/` 同步进 assets，无需手动打包 Web 资源。
 
 ```bash
-# 前置条件：Android SDK + JDK 17+（注意：JDK 25 无法运行 Gradle，
-# 本机可用 Android Studio 自带的 JBR 21：设置 JAVA_HOME 指向其 jbr 目录）
+# 前置条件：Android SDK + JDK 17+。若本机 JAVA_HOME 指向 JDK 25（Gradle 暂不支持），
+# gradlew 会自动回退到 Android Studio 自带 JBR 21 或其他兼容 JDK，无需手动设置
 cd android-twa
 ./gradlew assembleDebug      # Windows 使用 gradlew.bat
 ./gradlew assembleRelease    # release 需要 release.keystore（CI 会自动生成）
