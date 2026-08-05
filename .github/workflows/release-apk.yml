@@ -32,10 +32,13 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+          # 修复：去除 crossorigin 属性（file:// 协议下不支持 CORS）
+          # 先改 dist，Gradle syncWebAssets 二次同步时保留修复
+          sed -i 's/ crossorigin//g' dist/index.html
+          # assets 目录已不入库（Git 不跟踪空目录），必须先创建
+          mkdir -p android-twa/app/src/main/assets
           rm -rf android-twa/app/src/main/assets/*
           cp -r dist/* android-twa/app/src/main/assets/
-          # 修复：去除 crossorigin 属性（file:// 协议下不支持 CORS）
-          sed -i 's/ crossorigin//g' android-twa/app/src/main/assets/index.html
           echo "=== Fixed index.html ==="
           grep -E '(src=|href=)' android-twa/app/src/main/assets/index.html || true
 
