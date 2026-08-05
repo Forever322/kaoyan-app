@@ -118,6 +118,41 @@ esac
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
 
+# Gradle 8.x supports running on JDK 8–24; newer JDKs (e.g. 25) crash at startup.
+# If JAVA_HOME points at an unsupported JDK, try to locate a compatible one
+# (JBR bundled with Android Studio, Homebrew JDK, or the JDK_HOME fallback).
+java_major_version () {
+    "$1" -version 2>&1 | awk -F '"' '/version/ { print $2 }' | awk -F. '{ if ($1 == "1") print $2; else print $1 }'
+}
+
+java_home_supported () {
+    [ -x "$1/bin/java" ] || return 1
+    major=$( java_major_version "$1/bin/java" )
+    [ -n "$major" ] && [ "$major" -ge 8 ] 2>/dev/null && [ "$major" -le 24 ] 2>/dev/null
+}
+
+if [ -n "$JAVA_HOME" ] && ! java_home_supported "$JAVA_HOME" ; then
+    for candidate in \
+        "/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+        "/usr/libexec/java_home -v 21" \
+        "/usr/libexec/java_home -v 17" \
+        "$HOME/Library/Java/JavaVirtualMachines"/jdk-2[1-4]*/Contents/Home \
+        "$HOME/Library/Java/JavaVirtualMachines"/jdk-17*/Contents/Home \
+        /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+        /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home \
+        "$JDK_HOME" ; do
+        if [ "${candidate#/usr/libexec}" != "$candidate" ] ; then
+            resolved=$( /usr/libexec/java_home ${candidate#/usr/libexec/java_home } 2>/dev/null ) || continue
+            candidate=$resolved
+        fi
+        if java_home_supported "$candidate" ; then
+            echo "gradlew: JAVA_HOME ($( java_major_version "$JAVA_HOME/bin/java" 2>/dev/null )) is not supported by this Gradle version; using $candidate" >&2
+            JAVA_HOME=$candidate
+            break
+        fi
+    done
+fi
+
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
     if [ -x "$JAVA_HOME/jre/sh/java" ] ; then

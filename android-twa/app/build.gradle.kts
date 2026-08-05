@@ -108,7 +108,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     // ComponentActivity.setContent 扩展
     implementation("androidx.activity:activity-compose:1.10.1")
-    implementation("androidx.core:core-ktx:1.19.0")
+    // core-ktx 1.19.0 需要 compileSdk 37 + AGP 9.1；保持与 AGP 8.10 兼容使用 1.15.0
+    implementation("androidx.core:core-ktx:1.15.0")
 }
 
 tasks.named("preBuild") {
