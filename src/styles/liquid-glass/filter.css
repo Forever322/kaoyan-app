@@ -241,6 +241,99 @@
     color: #172844;
 }
 
+.sheet-major-dropdown {
+    position: relative;
+    width: min(58%, 190px);
+    min-width: 0;
+}
+
+.sheet-major-trigger {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    padding: 0 10px;
+    color: #f4f8ff;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 12px;
+    background: rgba(8, 22, 42, .42);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+    cursor: pointer;
+}
+
+.sheet-major-trigger:focus-within,
+.sheet-major-dropdown.open .sheet-major-trigger {
+    border-color: rgba(217, 255, 66, .78);
+    box-shadow: 0 0 0 3px rgba(217, 255, 66, .12), inset 0 1px 0 rgba(255, 255, 255, .10);
+}
+
+.sheet-major-input {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    color: inherit;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: .66rem;
+    font-weight: 830;
+    text-align: right;
+    cursor: pointer;
+}
+
+.sheet-major-input::placeholder {
+    color: #a9bdd5;
+}
+
+.sheet-major-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 7px);
+    z-index: 30;
+    display: none;
+    width: min(260px, 72vw);
+    max-height: 220px;
+    padding: 5px;
+    overflow-y: auto;
+    border: 1px solid rgba(217, 255, 66, .48);
+    border-radius: 15px;
+    background: rgba(11, 27, 49, .98);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .10);
+    -webkit-overflow-scrolling: touch;
+}
+
+.sheet-major-dropdown.open .sheet-major-panel {
+    display: grid;
+    gap: 3px;
+}
+
+.sheet-major-option {
+    min-height: 34px;
+    padding: 7px 9px;
+    color: #cbd9eb;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    font-size: .64rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sheet-major-option:hover,
+.sheet-major-option:focus-visible {
+    color: #efff92;
+    outline: 0;
+    background: rgba(217, 255, 66, .12);
+}
+
+.sheet-major-option[aria-selected="true"] {
+    color: #101d12;
+    background: #d9ff42;
+    font-weight: 850;
+}
+
 .sheet-control-row b {
     margin-left: 7px;
     color: #e1ebf8;

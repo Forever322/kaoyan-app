@@ -31,7 +31,7 @@ export function filterView() {
           <div id="sheetProvinceOptions" class="sheet-option-grid sheet-province-options" role="radiogroup" aria-label="省份筛选"></div>
           <select id="sheetProvinceSelect" class="sheet-select-source" tabindex="-1" aria-hidden="true"></select>
         </div>
-        <label id="sheetMajorRow" class="sheet-control-row sheet-advanced-control"><span><i>⌁</i> 专业方向</span><select id="sheetMajorSelect"></select><b class="sheet-select-caret" aria-hidden="true">⌄</b></label>
+        <div id="sheetMajorRow" class="sheet-control-row sheet-advanced-control"><span><i>⌁</i> 专业方向</span><div id="sheetMajorSelectDisplay" class="sheet-major-dropdown"><div class="sheet-major-trigger" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-controls="sheetMajorPanel"><input type="text" class="sheet-major-input" autocomplete="off" readonly aria-label="专业方向"></div><div id="sheetMajorPanel" class="sheet-major-panel" role="listbox"></div></div><select id="sheetMajorSelect" class="sheet-select-source" tabindex="-1" aria-hidden="true"></select></div>
 
         <div class="sheet-choice-group"><span>招生分区</span><div id="sheetZoneToggle" class="sheet-choice-row"><button type="button" data-value="A">A 区</button><button type="button" data-value="B">B 区</button><button type="button" data-value="all">不限</button></div></div>
         <div class="sheet-choice-group"><span>培养方式</span><div id="sheetStudyModeToggle" class="sheet-choice-row"><button type="button" data-value="all">全部</button><button type="button" data-value="全日制">全日制</button><button type="button" data-value="非全日制">非全日制</button></div></div>

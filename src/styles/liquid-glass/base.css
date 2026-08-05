@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Kaoyan Sans";
-  src: url("../../assets/fonts/KaoyanSansSC-VF.ttf") format("truetype");
+  src: url("../../assets/fonts/KaoyanSansSC-VF-subset.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -225,12 +225,12 @@ button {
 /* 前进时旧屏幕向左退场并略微缩小。 */
 @keyframes screenExitForward {
   from {
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
     opacity: 1;
   }
 
   to {
-    transform: translateX(-44px) scale(.985);
+    transform: translateX(-44px);
     opacity: 0;
   }
 }
@@ -356,5 +356,45 @@ button {
   .detail-content,
   .filter-sheet-panel {
     max-width: 560px;
+  }
+}
+
+/* 低功耗/触控设备：用不透明渐变替代大面积实时模糊，避免转场期间重复栅格化。 */
+@media (pointer: coarse) {
+  .card,
+  .form-section,
+  .national-line-section,
+  .result-card,
+  .fail-state,
+  .detail-section,
+  .score-dashboard,
+  .home-score-card,
+  .detail-info-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .card,
+  .form-section,
+  .national-line-section,
+  .result-card,
+  .fail-state,
+  .detail-section {
+    background: linear-gradient(135deg, rgba(55, 79, 105, .94), rgba(39, 61, 86, .96));
+  }
+
+  .app-screen.screen-entering,
+  .app-screen.screen-exiting,
+  .detail-overlay:not(.hidden) .detail-content {
+    will-change: auto;
+  }
+
+  .result-card.card-enter {
+    animation: none;
+    will-change: auto;
+  }
+
+  .score-equalizer i {
+    animation: none;
   }
 }
