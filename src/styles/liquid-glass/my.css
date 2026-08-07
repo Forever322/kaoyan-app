@@ -1,6 +1,7 @@
 .my-screen {
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   color: #edf5ff;
   background:
     radial-gradient(circle at 92% 6%, rgba(255, 180, 60, .18), transparent 31%),

@@ -1,6 +1,7 @@
 .prep-screen {
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   color: #edf5ff;
   background:
     radial-gradient(circle at 92% 6%, rgba(54, 144, 255, .28), transparent 31%),

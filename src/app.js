@@ -172,7 +172,20 @@ function initializeFooterSlider() {
     drag = null;
     releasePointer(event);
     footer.classList.remove('is-dragging');
-    setFooterActiveIndex(Math.round(cancelledDrag.initialIndex));
+    // 未移动时触发点击（修复移动端 pointercancel 导致 tap 丢失）
+    if (!cancelledDrag.moved) {
+      const target = document.elementFromPoint(cancelledDrag.startX, cancelledDrag.startY);
+      const btn = target?.closest('.footer-nav-btn');
+      if (btn) {
+        const idx = buttons.indexOf(btn);
+        if (idx >= 0) {
+          setFooterActiveIndex(idx);
+          btn.click();
+        }
+      }
+    } else {
+      setFooterActiveIndex(Math.round(cancelledDrag.initialIndex));
+    }
   });
 
   footer.addEventListener('click', (event) => {

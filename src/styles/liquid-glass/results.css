@@ -513,7 +513,7 @@
     isolation: isolate;
     contain: paint;
     transform: translateZ(0);
-    touch-action: pan-y;
+    touch-action: manipulation;
     user-select: none;
 }
 
