@@ -318,6 +318,9 @@ export const UNI_REQUIREMENTS = {
   },
   中南大学: {
     examSubjects: '943数据结构（自命题，26年全面改考408）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '940自动控制原理（自命题）' },
+    },
     singleSubjectLine: { politics: 50, english: 50, business1: 80, business2: 80 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -551,6 +554,13 @@ export const UNI_REQUIREMENTS = {
   },
   大连海事大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '交通运输工程': { examSubjects: '809管理运筹学（自命题）' },
+      '信息与通信工程': { examSubjects: '806电路分析、信号与系统（自命题）' },
+      '控制科学与工程': { examSubjects: '805自动控制原理（自命题）' },
+      '机械工程': { examSubjects: '805机械设计基础（自命题）' },
+      '电气工程': { examSubjects: '804电路原理（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -566,6 +576,9 @@ export const UNI_REQUIREMENTS = {
   },
   东北林业大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '土木工程': { examSubjects: '891结构力学（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -613,6 +626,9 @@ export const UNI_REQUIREMENTS = {
   },
   西安邮电大学: {
     examSubjects: '自命题（数据结构+计算机组成原理）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '824信号与系统（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -688,6 +704,9 @@ export const UNI_REQUIREMENTS = {
   },
   天津工业大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '电气工程': { examSubjects: '849电路理论（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -718,6 +737,11 @@ export const UNI_REQUIREMENTS = {
   },
   南京邮电大学: {
     examSubjects: '自命题（数据结构+微机原理）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '801通信原理（自命题）' },
+      '控制科学与工程': { examSubjects: '812自动控制原理（自命题）' },
+      '电气工程': { examSubjects: '813电路（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -750,6 +774,10 @@ export const UNI_REQUIREMENTS = {
   },
   新疆大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '828机械设计基础（自命题）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
     singleSubjectLine: { politics: 31, english: 31, business1: 47, business2: 47 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -842,6 +870,10 @@ export const UNI_REQUIREMENTS = {
   },
   湘潭大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '823模电/数电（自命题，2025换考纲）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -1377,6 +1409,9 @@ export const UNI_REQUIREMENTS = {
   },
   苏州大学: {
     examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '840理论力学（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -1403,6 +1438,10 @@ export const UNI_REQUIREMENTS = {
   },
   河北工业大学: {
     examSubjects: '408计算机学科专业基础（统考），数一+英一',
+    otherMajors: {
+      '机械工程': { examSubjects: '821机械原理与机械设计（自命题）' },
+      '电气工程': { examSubjects: '840电工基础（自命题）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -1623,6 +1662,14 @@ export const UNI_REQUIREMENTS = {
   // ==================== 第十四批新增 ====================
   长安大学: {
     examSubjects: '846自命题（数据结构+计组），26年全面改考408',
+    otherMajors: {
+      '交通运输工程': { examSubjects: '自命题（待确认）' },
+      '土木工程': { examSubjects: '自命题（待确认）' },
+      '控制科学与工程': { examSubjects: '自命题（待确认）' },
+      '机械工程': { examSubjects: '自命题（待确认）' },
+      '水利工程': { examSubjects: '自命题（待确认）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
     singleSubjectLine: { politics: 34, english: 34, business1: 51, business2: 51 },
     cet4Required: false, cet6Required: false, cetNote: '无硬性要求',
     crossMajorAllowed: true, crossMajorNote: '无限制',
@@ -1683,6 +1730,181 @@ export const UNI_REQUIREMENTS = {
       '985/211院校推免比例高（30-70%），报考前务必查清统考剩余名额',
     ],
   },
+
+  // ==================== 其他非CS工学新增 ====================
+  北京化工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '化学工程与技术': { examSubjects: '810化工原理或860物理化学（自命题）' },
+      '控制科学与工程': { examSubjects: '841自动控制原理（自命题）' },
+      '机械工程': { examSubjects: '830材料力学（自命题）' },
+    },
+  },
+
+  燕山大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '801材料力学（自命题）' },
+    },
+  },
+
+  山西大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '电气工程': { examSubjects: '875电力系统分析（自命题，仅招专硕）' },
+    },
+  },
+
+  东北农业大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '809机械设计基础（自命题）' },
+      '电气工程': { examSubjects: '912电力系统分析基础（自命题）' },
+    },
+  },
+
+  哈尔滨工程大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '水利工程': { examSubjects: '自命题（待确认）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
+  },
+
+  上海海事大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '804自动控制原理（自命题）' },
+      '机械工程': { examSubjects: '805工程力学（自命题）' },
+    },
+  },
+
+  上海理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '871信号与系统（自命题）' },
+    },
+  },
+
+  南京工业大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '820自动控制原理（自命题）' },
+      '机械工程': { examSubjects: '807机械设计（自命题）' },
+      '电气工程': { examSubjects: '819电路（自命题）' },
+    },
+  },
+
+  江苏大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '833自动控制理论（自命题）' },
+      '机械工程': { examSubjects: '803机械原理（自命题）' },
+    },
+  },
+
+  安徽大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '830信号与系统+数字电路（自命题）' },
+      '控制科学与工程': { examSubjects: '831自动控制原理（自命题）' },
+      '机械工程': { examSubjects: '855机械设计基础（自命题）' },
+      '电气工程': { examSubjects: '833电路（自命题）' },
+    },
+  },
+
+  安徽理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '安全科学与工程': { examSubjects: '829安全学原理（自命题）' },
+      '机械工程': { examSubjects: '807机械设计（自命题）' },
+    },
+  },
+
+  南昌大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '827机械设计基础（自命题）' },
+    },
+  },
+
+  山东科技大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '电气工程': { examSubjects: '816电路（自命题）' },
+    },
+  },
+
+  河南大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '849自动控制理论（自命题）' },
+    },
+  },
+
+  三峡大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '电气工程': { examSubjects: '831电路（自命题）' },
+    },
+  },
+
+  武汉科技大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '冶金工程': { examSubjects: '自命题（待确认）' },
+      '控制科学与工程': { examSubjects: '自命题（待确认）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
+  },
+
+  成都理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '826信号与系统（自命题）' },
+    },
+  },
+
+  昆明理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '信息与通信工程': { examSubjects: '817信号与系统（自命题）' },
+      '机械工程': { examSubjects: '811机械原理（自命题）' },
+    },
+  },
+
+  西安建筑科技大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '土木工程': { examSubjects: '802结构力学（自命题）' },
+    },
+  },
+
+  兰州交通大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '土木工程': { examSubjects: '自命题（待确认）' },
+      '机械工程': { examSubjects: '自命题（待确认）' },
+    },
+  },
+
+  兰州理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '机械工程': { examSubjects: '817机械原理（自命题）' },
+    },
+  },
+
+  西安理工大学: {
+    examSubjects: '408计算机学科专业基础（统考）',
+    otherMajors: {
+      '控制科学与工程': { examSubjects: '自命题（待确认）' },
+      '机械工程': { examSubjects: '自命题（待确认）' },
+      '水利工程': { examSubjects: '自命题（待确认）' },
+      '电气工程': { examSubjects: '自命题（待确认）' },
+    },
+  },
+
 };
 
 /** 获取某院校的硬性要求，未收录时返回默认值 */
