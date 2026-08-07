@@ -1905,6 +1905,7 @@ export const UNI_REQUIREMENTS = {
     },
   },
 
+
 };
 
 /** 获取某院校的硬性要求，未收录时返回默认值 */

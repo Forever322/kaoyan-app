@@ -190,9 +190,27 @@ function renderRequirements(uniName, subjectLines) {
   if (!section || !grid) return;
 
   const req = getRequirements(uniName);
+  const category = document.getElementById('categorySelect').value;
+  const majorEl = document.getElementById('majorSelect');
+  const subMajor = hasSubMajors(category) && document.getElementById('majorGroup').style.display !== 'none' ? majorEl.value : null;
 
-  // 考试科目
-  const examRow = `<div class="req-card"><div class="req-icon">📚</div><div class="req-body"><div class="req-label">初试考试科目</div><div class="req-value">${escapeHtml(req.examSubjects || '408计算机学科专业基础（统考）')}</div></div></div>`;
+  // 确定当前查看的专业名称
+  let currentMajor = '计算机科学与技术';
+  if (category && category.includes('工学')) {
+    if (subMajor && subMajor !== '不限专业') {
+      currentMajor = subMajor.replace(/\([^)]*\)/g, '');
+    } else if (category.includes('计算机') || category.includes('软件') || category.includes('网络空间')) {
+      currentMajor = category;
+    }
+  }
+
+  // 考试科目：优先 otherMajors 匹配，否则用默认 examSubjects
+  let examDisplay = req.examSubjects || '408计算机学科专业基础（统考）';
+  if (req.otherMajors && req.otherMajors[currentMajor]) {
+    examDisplay = req.otherMajors[currentMajor].examSubjects;
+  }
+  const examPrefix = currentMajor === '计算机科学与技术' ? '' : `<span style="color:#8ea0c0;font-size:.6rem">${escapeHtml(currentMajor)}</span><br>`;
+  const examRow = `<div class="req-card"><div class="req-icon">📚</div><div class="req-body"><div class="req-label">初试考试科目</div><div class="req-value">${examPrefix}${escapeHtml(examDisplay)}</div></div></div>`;
 
   // 单科线
   const sl = req.singleSubjectLine || { politics: 34, english: 34, business1: 51, business2: 51 };
