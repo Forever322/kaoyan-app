@@ -12,7 +12,7 @@ export function filterView() {
         <button id="sheetQuickUniversity" class="sheet-quick-university" type="button" data-uni-name="清华大学"><span>♜ 清华大学 · 985 · 北京</span><b>查看 ›</b></button>
 
         <p class="sheet-subhead">匹配条件</p>
-        <label class="sheet-control-row"><span><i>▣</i> 初试总分</span><input id="sheetScoreInput" type="number" min="0" max="500" placeholder="378" aria-label="初试总分"></label>
+        <label class="sheet-control-row"><span><i>▣</i> 初试总分</span><input id="sheetScoreInput" type="number" min="0" max="500" placeholder="输入分数" aria-label="初试总分"></label>
         <div class="sheet-option-section">
           <span class="sheet-option-label"><i>♧</i> 学位类型</span>
           <div id="sheetDegreeOptions" class="sheet-option-grid sheet-degree-options" role="radiogroup" aria-label="学位类型">

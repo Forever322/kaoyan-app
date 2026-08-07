@@ -1,0 +1,300 @@
+.my-screen {
+  min-height: 100dvh;
+  overflow: hidden;
+  color: #edf5ff;
+  background:
+    radial-gradient(circle at 92% 6%, rgba(255, 180, 60, .18), transparent 31%),
+    radial-gradient(circle at -8% 72%, rgba(140, 100, 255, .22), transparent 34%),
+    linear-gradient(160deg, #1b1f3b 0%, #10142e 50%, #0a0d23 100%);
+}
+
+.my-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: calc(24px + var(--safe-top)) 20px 12px;
+}
+
+.my-kicker {
+  display: block;
+  color: #b5a8da;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.my-topbar h1 {
+  margin-top: 5px;
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -.06em;
+}
+
+.my-main {
+  padding: 4px 20px 24px;
+}
+
+/* 目标分数卡片 */
+.my-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(194, 210, 255, .16);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(140, 120, 220, .22), rgba(40, 50, 120, .18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 12px 28px rgba(0, 0, 0, .18);
+}
+
+.my-card-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.my-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-card-label {
+  display: block;
+  color: #a8b8d8;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.my-target-row {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.my-target-row strong {
+  color: #fff;
+  font-size: 2.4rem;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: -.06em;
+}
+
+.my-target-row span {
+  color: #b8c8e8;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.my-target-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  color: #a0b0d0;
+  font-size: .65rem;
+  font-weight: 650;
+}
+
+.my-target-sep {
+  color: #6a7aaa;
+}
+
+.my-icon-btn {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #e0e8ff;
+  border: 1px solid rgba(200, 210, 255, .30);
+  border-radius: 50%;
+  background: rgba(180, 190, 255, .14);
+  font-size: .95rem;
+}
+
+/* Section */
+.my-section {
+  margin-top: 22px;
+}
+
+.my-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.my-section-heading h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.05rem;
+  letter-spacing: -.035em;
+}
+
+.my-count {
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  color: #1a1f36;
+  border-radius: 999px;
+  background: #d9ff42;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.my-text-btn {
+  padding: 6px 0;
+  color: #e0c070;
+  border: 0;
+  background: transparent;
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+/* 列表 */
+.my-list {
+  overflow: hidden;
+  border: 1px solid rgba(194, 210, 255, .12);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(100, 120, 180, .14), rgba(30, 42, 80, .12));
+}
+
+.my-empty {
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  gap: 6px;
+}
+
+.my-empty span {
+  color: #8a9abc;
+  font-size: .76rem;
+  font-weight: 650;
+}
+
+.my-empty small {
+  color: #6a7a9a;
+  font-size: .63rem;
+}
+
+.my-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 56px;
+  padding: 10px 14px;
+  color: #e8f0ff;
+  border: 0;
+  border-bottom: 1px solid rgba(194, 210, 255, .08);
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.my-list-item:last-child { border-bottom: 0; }
+.my-list-item:active { background: rgba(178, 200, 240, .08); }
+
+.my-list-item-main { min-width: 0; }
+.my-list-item-main strong { display: block; font-size: .78rem; font-weight: 700; }
+.my-list-item-main small { display: block; color: #8ea0c0; font-size: .62rem; margin-top: 2px; }
+
+.my-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.my-list-item-badge {
+  padding: 3px 8px;
+  color: #8ea0c0;
+  border-radius: 999px;
+  background: rgba(180, 200, 230, .12);
+  font-size: .56rem;
+  font-weight: 700;
+}
+
+.my-list-item-del {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #d08888;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(200, 120, 120, .12);
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.my-list-item-del:active { background: rgba(200, 120, 120, .28); }
+
+/* 快捷操作 */
+.my-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.my-quick-card {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  grid-template-rows: auto auto;
+  gap: 2px 9px;
+  align-items: start;
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid rgba(194, 210, 255, .12);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(100, 120, 180, .16), rgba(30, 42, 80, .14));
+  text-align: left;
+  cursor: pointer;
+}
+
+.my-quick-card:active { background: rgba(178, 200, 240, .12); }
+
+.my-quick-icon {
+  grid-row: 1 / -1;
+  place-self: center;
+  font-size: 1.3rem;
+}
+
+.my-quick-card strong {
+  color: #e8f0ff;
+  font-size: .72rem;
+  font-weight: 720;
+}
+
+.my-quick-card small {
+  color: #8a9abc;
+  font-size: .56rem;
+  grid-column: 2;
+}
+
+/* Footer */
+.my-footer {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.my-footer p {
+  margin: 0;
+  color: #6a7aaa;
+  font-size: .65rem;
+}
+
+.my-footer small {
+  display: block;
+  margin-top: 4px;
+  color: #4a5a7a;
+  font-size: .55rem;
+}
+
+@media (max-width: 350px) {
+  .my-target-row strong { font-size: 2rem; }
+  .my-quick-card { min-height: 60px; padding: 10px; }
+}

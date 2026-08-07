@@ -16,7 +16,7 @@ export function homeView() {
         <section class="score-dashboard" aria-labelledby="homeScoreHeading">
           <div class="score-dashboard-top"><span id="homeScoreHeading">我的初试分数</span><b id="homeScoreState">状态正热</b></div>
           <p id="homeLineStatus" class="home-line-status">✓ 超过 A 区工学线 124 分</p>
-          <div class="home-score-row"><input id="scoreInput" type="number" min="0" max="500" inputmode="numeric" value="378" aria-label="你的初试分数"><span>分</span><small id="homeScoreNote">已为你准备好 32 所院校</small></div>
+          <div class="home-score-row"><input id="scoreInput" type="number" min="0" max="500" inputmode="numeric" value="" aria-label="你的初试分数"><span>分</span><small id="homeScoreNote">已为你准备好 32 所院校</small></div>
           <div class="score-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </section>
 

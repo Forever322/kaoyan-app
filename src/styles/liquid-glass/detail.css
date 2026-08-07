@@ -102,6 +102,29 @@
     font-weight: 800;
 }
 
+.detail-fav-btn {
+    position: absolute;
+    top: 72px;
+    right: 20px;
+    z-index: 1;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 50%;
+    color: #ffd700;
+    background: rgba(18, 39, 50, .72);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    font-size: 1.3rem;
+    transition: transform .15s;
+}
+
+.detail-fav-btn:active { transform: scale(.88); }
+.detail-fav-btn.is-faved { color: #ffd700; background: rgba(255, 215, 0, .2); }
+
 .hero-content {
     position: relative;
     z-index: 1;

@@ -1,7 +1,7 @@
 // 考研择校助手 - 主应用逻辑
 
 import { matchUniversities, sortResults, evaluateMatch } from './matcher.js';
-import { initStorage, saveLastSearch, getLastSearch, exportAllData } from './storage.js';
+import { initStorage, saveLastSearch, getLastSearch, exportAllData, getFavorites, toggleFavorite, isFavorite, getBrowseHistory, addBrowseHistory, clearBrowseHistory, getTargetScore, saveTargetScore } from './storage.js';
 import { UNIVERSITIES, findUniversity } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 import { getCategories, hasSubMajors, getMajorsForCategory } from './data/national-lines.js';
@@ -77,6 +77,7 @@ function updateFooterNav(screen) {
   let activeNav = 'openFilterNavBtn';
   if (screen === 'home') activeNav = 'homeNavBtn';
   if (screen === 'prep') activeNav = 'prepNavBtn';
+  if (screen === 'my') activeNav = 'profileNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
   setFooterActiveIndex(activeIndex);
@@ -183,7 +184,7 @@ function initializeFooterSlider() {
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
-const SCREEN_DEPTH = { home: 0, prep: 0, results: 1, fail: 1 };
+const SCREEN_DEPTH = { home: 0, prep: 0, my: 0, results: 1, fail: 1 };
 const SCREEN_TRANSITION_MS = 400;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
@@ -576,7 +577,10 @@ function bindEvents() {
     navigateTo('home');
   });
   document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
-  document.getElementById('profileNavBtn').addEventListener('click', () => openEditModal({ footerIndex: 3 }));
+  document.getElementById('profileNavBtn').addEventListener('click', () => {
+    renderMyPage();
+    navigateTo('my');
+  });
   document.querySelectorAll('#prepTaskList .prep-task').forEach((task) => {
     task.addEventListener('click', () => {
       task.classList.toggle('is-complete');
@@ -669,6 +673,7 @@ function bindEvents() {
   });
   document.getElementById('applyFilterSheetBtn').addEventListener('click', applyFilterSheet);
   document.getElementById('openDataManagerBtn').addEventListener('click', openEditModal);
+  initMyPageEvents();
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeFilterSheet();
   });
@@ -707,6 +712,15 @@ function bindEvents() {
     const name = document.getElementById('detailName').textContent;
     const url = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(name + ' 校园')}`;
     window.open(url, '_blank');
+  });
+
+  // 收藏按钮
+  document.getElementById('detailFavBtn').addEventListener('click', () => {
+    const name = document.getElementById('detailName').textContent;
+    const faved = toggleFavorite(name);
+    const favBtn = document.getElementById('detailFavBtn');
+    favBtn.textContent = faved ? '★' : '☆';
+    favBtn.classList.toggle('is-faved', faved);
   });
 
   // B区尝试
@@ -902,7 +916,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'results', 'fail'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'results', 'fail', 'my'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -1240,4 +1254,140 @@ function applyFilterSheet() {
   updateHomeDashboard();
   closeFilterSheet();
   doSearch();
+}
+
+// ==================== 我的页 ====================
+
+function renderMyPage() {
+  // 目标分数
+  const target = getTargetScore();
+  document.getElementById('myTargetScore').textContent = target.score || '--';
+  document.getElementById('myTargetDegree').textContent = target.degree === 'xueshuo' ? '学硕' : '专硕';
+  document.getElementById('myTargetCategory').textContent = target.category || '未设置';
+
+  // 收藏院校
+  const favs = getFavorites();
+  document.getElementById('myFavCount').textContent = favs.length;
+  const favList = document.getElementById('myFavList');
+  const favEmpty = document.getElementById('myFavEmpty');
+  if (favs.length === 0) {
+    favList.innerHTML = '';
+    favList.appendChild(favEmpty);
+    favEmpty.style.display = '';
+  } else {
+    favEmpty.style.display = 'none';
+    favList.innerHTML = favs.map(name => {
+      const uni = findUniversity(name);
+      const meta = uni ? `${uni.province} · ${uni.level} · ${uni.zone}区` : '';
+      return `<button class="my-list-item" type="button" data-uni-name="${escapeHtml(name)}">
+        <div class="my-list-item-main"><strong>${escapeHtml(name)}</strong><small>${meta}</small></div>
+        <div class="my-list-item-actions">
+          <span class="my-list-item-badge">${uni ? uni.level : ''}</span>
+          <span class="my-list-item-del" data-uni-name="${escapeHtml(name)}" title="取消收藏">×</span>
+        </div>
+      </button>`;
+    }).join('');
+    if (favEmpty.parentNode === favList) favList.appendChild(favEmpty);
+  }
+
+  // 浏览历史
+  const hist = getBrowseHistory();
+  const histList = document.getElementById('myHistoryList');
+  const histEmpty = document.getElementById('myHistoryEmpty');
+  if (hist.length === 0) {
+    histList.innerHTML = '';
+    histList.appendChild(histEmpty);
+    histEmpty.style.display = '';
+  } else {
+    histEmpty.style.display = 'none';
+    histList.innerHTML = hist.map(name => {
+      const uni = findUniversity(name);
+      const meta = uni ? `${uni.province} · ${uni.zone}区` : '';
+      return `<button class="my-list-item" type="button" data-uni-name="${escapeHtml(name)}">
+        <div class="my-list-item-main"><strong>${escapeHtml(name)}</strong><small>${meta}</small></div>
+        <div class="my-list-item-actions">
+          <span class="my-list-item-badge">${uni ? uni.level : ''}</span>
+        </div>
+      </button>`;
+    }).join('');
+    if (histEmpty.parentNode === histList) histList.appendChild(histEmpty);
+  }
+}
+
+function initMyPageEvents() {
+  // 编辑目标
+  document.getElementById('myEditTargetBtn').addEventListener('click', () => {
+    const target = getTargetScore();
+    const newScore = prompt('请输入目标分数（0-500）：', target.score || '');
+    if (newScore === null) return;
+    const score = parseInt(newScore, 10);
+    if (isNaN(score) || score < 0 || score > 500) { alert('请输入 0-500 之间的分数'); return; }
+
+    const degree = confirm('点击「确定」选择学硕，点击「取消」选择专硕') ? 'xueshuo' : 'zhuanshuo';
+
+    const categories = getCategories(degree);
+    const catList = categories.join(' / ');
+    const category = prompt(`请输入目标门类（${catList}）：`, target.category || '工学');
+    if (!category || !categories.includes(category)) {
+      alert(`无效门类。可选：${catList}`);
+      return;
+    }
+
+    saveTargetScore({ score, degree, category });
+    renderMyPage();
+  });
+
+  // 收藏列表：点击跳转详情 / 删除
+  document.getElementById('myFavList').addEventListener('click', (e) => {
+    const delBtn = e.target.closest('.my-list-item-del');
+    if (delBtn) {
+      e.stopPropagation();
+      toggleFavorite(delBtn.dataset.uniName);
+      renderMyPage();
+      return;
+    }
+    const item = e.target.closest('.my-list-item');
+    if (item) {
+      const uni = findUniversity(item.dataset.uniName);
+      if (uni) {
+        const result = buildDetailResult(uni);
+        openDetailPage(result);
+      }
+    }
+  });
+
+  // 浏览历史：点击跳转详情
+  document.getElementById('myHistoryList').addEventListener('click', (e) => {
+    const item = e.target.closest('.my-list-item');
+    if (item) {
+      const uni = findUniversity(item.dataset.uniName);
+      if (uni) {
+        const result = buildDetailResult(uni);
+        openDetailPage(result);
+      }
+    }
+  });
+
+  // 清空历史
+  document.getElementById('myClearHistoryBtn').addEventListener('click', () => {
+    if (confirm('确定清空所有浏览记录？')) {
+      clearBrowseHistory();
+      renderMyPage();
+    }
+  });
+
+  // 快捷操作
+  document.getElementById('myOpenDataBtn').addEventListener('click', () => openEditModal());
+  document.getElementById('myExportBtn').addEventListener('click', exportAllData);
+  document.getElementById('myShareBtn').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.share) {
+      navigator.share({ title: '考研择校助手', url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => alert('链接已复制到剪贴板！')).catch(() => alert('复制失败，请手动复制地址栏链接'));
+    }
+  });
+  document.getElementById('myFeedbackBtn').addEventListener('click', () => {
+    window.open('https://github.com/Forever322/kaoyan-app/issues/new', '_blank');
+  });
 }

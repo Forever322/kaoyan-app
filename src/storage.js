@@ -9,6 +9,9 @@ const STORAGE_KEYS = {
   CUSTOM_SCORES: 'kaoyan_custom_scores',
   CUSTOM_REQUIREMENTS: 'kaoyan_custom_requirements',
   LAST_SEARCH: 'kaoyan_last_search',
+  FAVORITES: 'kaoyan_favorites',
+  BROWSE_HISTORY: 'kaoyan_browse_history',
+  TARGET_SCORE: 'kaoyan_target_score',
 };
 
 /** 获取用户自定义院校列表 */
@@ -248,6 +251,79 @@ export function updateCustomRequirements(universityName, reqData) {
   } else {
     UNI_REQUIREMENTS[universityName] = reqData;
   }
+}
+
+// ==================== 收藏院校 ====================
+
+/** 获取收藏院校列表 */
+export function getFavorites() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FAVORITES);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 切换收藏状态，返回新的收藏状态 */
+export function toggleFavorite(universityName) {
+  const list = getFavorites();
+  const idx = list.indexOf(universityName);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.push(universityName);
+  }
+  localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(list));
+  return idx < 0; // true = 已收藏, false = 已取消
+}
+
+/** 检查是否已收藏 */
+export function isFavorite(universityName) {
+  return getFavorites().includes(universityName);
+}
+
+// ==================== 浏览历史 ====================
+
+/** 获取浏览历史（最近20条） */
+export function getBrowseHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.BROWSE_HISTORY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 添加浏览记录 */
+export function addBrowseHistory(universityName) {
+  const list = getBrowseHistory();
+  const idx = list.indexOf(universityName);
+  if (idx >= 0) list.splice(idx, 1);
+  list.unshift(universityName);
+  if (list.length > 20) list.pop();
+  localStorage.setItem(STORAGE_KEYS.BROWSE_HISTORY, JSON.stringify(list));
+}
+
+/** 清空浏览历史 */
+export function clearBrowseHistory() {
+  localStorage.removeItem(STORAGE_KEYS.BROWSE_HISTORY);
+}
+
+// ==================== 目标分数 ====================
+
+/** 获取目标分数设置 */
+export function getTargetScore() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.TARGET_SCORE);
+    if (raw) return JSON.parse(raw);
+  } catch { /* fall through */ }
+  return { score: 0, degree: 'xueshuo', category: '工学' };
+}
+
+/** 保存目标分数 */
+export function saveTargetScore(data) {
+  localStorage.setItem(STORAGE_KEYS.TARGET_SCORE, JSON.stringify(data));
 }
 
 /** 初始化: 从 localStorage 加载用户自定义数据到内存 */

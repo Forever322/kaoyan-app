@@ -5,6 +5,7 @@ export function detailView() {
         <div class="detail-hero" id="detailHero">
           <button class="detail-back" id="detailBackBtn" type="button" aria-label="返回">←</button>
           <button class="detail-photo-btn" id="detailPhotoBtn" type="button">◉ 校园实景</button>
+          <button class="detail-fav-btn" id="detailFavBtn" type="button" aria-label="收藏" title="收藏">☆</button>
           <div class="hero-content"><h2 id="detailName">院校名称</h2><div class="hero-badges" id="detailBadges"></div></div>
         </div>
         <section id="detailMatchSummary" class="detail-match-summary"></section>

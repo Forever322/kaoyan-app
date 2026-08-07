@@ -6,6 +6,7 @@ import { footerView } from './footer-view.js';
 import { detailView } from './detail-view.js';
 import { modalView } from './modal-view.js';
 import { prepView } from './prep-view.js';
+import { myView } from './my-view.js';
 
 export function mountAppShell(root = document.getElementById('app')) {
   if (!root) throw new Error('应用挂载节点 #app 不存在');
@@ -14,6 +15,7 @@ export function mountAppShell(root = document.getElementById('app')) {
     resultsView(),
     failView(),
     prepView(),
+    myView(),
     filterView(),
     footerView(),
     detailView(),

@@ -9,6 +9,7 @@ import { renderPhotos } from './photos.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
+import { addBrowseHistory, isFavorite, toggleFavorite } from './storage.js';
 
 let detailCloseTimer;
 
@@ -24,6 +25,10 @@ function applyHeroPhoto(hero, photo) {
 /** 打开院校详情页 */
 export function openDetailPage(result, { degree, zone }) {
   const { university: uni, admissionScores, verdict, verdictClass } = result;
+
+  // 记录浏览历史
+  addBrowseHistory(uni.name);
+
   const detail = getUniversityDetail(uni.name);
   const userScore = parseInt(document.getElementById('scoreInput').value) || 0;
   const category = document.getElementById('categorySelect').value;
@@ -112,6 +117,11 @@ export function openDetailPage(result, { degree, zone }) {
   page.classList.remove('hidden', 'is-closing');
   page.style.display = 'block';
   page.scrollTop = 0;
+
+  // 收藏按钮状态
+  const favBtn = document.getElementById('detailFavBtn');
+  favBtn.textContent = isFavorite(uni.name) ? '★' : '☆';
+  favBtn.classList.toggle('is-faved', isFavorite(uni.name));
 }
 
 /** 渲染复试基础线模块（含单科硬性要求） */
