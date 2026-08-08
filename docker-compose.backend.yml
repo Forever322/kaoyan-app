@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: kaoyan-api:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in the deployment environment}
+      AGENT_MODEL: ${AGENT_MODEL:-deepseek-chat}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - kaoyan-data:/app/server/data
+
+  # 仅在初始化或明确更新静态数据时运行：
+  # docker compose -f docker-compose.backend.yml run --rm api-seed
+  api-seed:
+    image: kaoyan-api:latest
+    profiles: ["tools"]
+    command: ["node", "src/db/seed.js"]
+    volumes:
+      - kaoyan-data:/app/server/data
+
+volumes:
+  kaoyan-data:

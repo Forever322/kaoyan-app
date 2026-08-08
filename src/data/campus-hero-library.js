@@ -1,5 +1,5 @@
 import campusFallback from '../assets/campus-hero-fallback.png';
-import campusHeritage from '../assets/campus-heroes/campus-heritage-ginkgo.png';
+import campusHeritage from '../assets/campus-heroes/campus-heritage-day.png';
 import campusLakeside from '../assets/campus-heroes/campus-lakeside.png';
 import campusModern from '../assets/campus-heroes/campus-modern-library.png';
 

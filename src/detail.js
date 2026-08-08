@@ -64,11 +64,14 @@ export function openDetailPage(result, { degree, zone }) {
   const addr =
     detail.address || `${uni.province}${uni.city && uni.city !== uni.province ? uni.city : ''}`;
   document.getElementById('detailInfo').innerHTML = `
-    <div class="detail-info-item detail-info-address"><div class="info-value">${escapeHtml(addr)}</div><div class="info-label">⌖ 地址</div></div>
-    <div class="detail-info-meta">
-      <div class="detail-info-item"><div class="info-label">培养方式</div><div class="info-value">${escapeHtml(studyModeLabel)}</div></div>
-      <div class="detail-info-item"><div class="info-label">学位类型</div><div class="info-value">${escapeHtml(degreeLabel)}</div></div>
-      <div class="detail-info-item"><div class="info-label">匹配专业</div><div class="info-value">${escapeHtml(majorLabel)}</div></div>
+    <div class="detail-info-card">
+      <div class="detail-info-item detail-info-address"><div class="info-value">⌖ ${escapeHtml(addr)}</div><span class="info-link">地图 ›</span></div>
+      <div class="detail-info-divider"></div>
+      <div class="detail-info-meta">
+        <div class="detail-info-item detail-info-metric"><div class="info-value">${escapeHtml(studyModeLabel)}</div><div class="info-label">培养方式</div></div>
+        <div class="detail-info-item detail-info-metric"><div class="info-value">${escapeHtml(degreeLabel)}</div><div class="info-label">学位类型</div></div>
+        <div class="detail-info-item detail-info-metric"><div class="info-value">${escapeHtml(majorLabel)}</div><div class="info-label">匹配专业</div></div>
+      </div>
     </div>
   `;
 

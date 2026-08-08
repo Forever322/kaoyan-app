@@ -1,303 +1,341 @@
-# 🎓 考研择校助手
+# 考研择校助手 — 项目说明文档
 
-> 输入考研总分，智能匹配最适合的院校。支持学硕/专硕、A/B区、多学科门类，覆盖全国 700+ 所高校。
+> 版本 4.3 | 2026-08-08 | 全栈 SPA + TWA + REST API
 
-## ✨ 功能特性
+本文档是项目的完整技术说明，包含架构设计、API 接口、数据库 Schema、构建流程和后续升级指南。
 
-### 🎯 智能择校匹配
-- 根据总分、学位类型（学硕/专硕）、学科门类、专业方向、招生分区自动匹配院校
-- 四级判定：**✅ 稳过** / **👍 大概率** / **🎯 冲刺** / **⚠️ 差距较大**
-- 结果按匹配度 → 院校层次（985 > 211 > 双一流 > 双非）智能排序
+---
 
-### 📊 多维数据参考
-- **国家线**：2022—2026 年完整数据，14 个学硕门类 + 30 个专硕类别，A/B 区全覆盖
-- **录取分数线**：研招网院校白名单 + 各校官网，覆盖 700+ 所高校各专业历年录取线
-- **院校详情**：优缺点分析、学科特色、校园地址、实景照片
-- **历年对比表**：一张表对比四年国家线 vs 院校线 vs 你的分数
+## 目录
 
-### 🔍 院校搜索
-- 筛选面板内支持院校名称实时模糊匹配
-- 点击即可查看该校详情和历年录取数据
+1. [项目概览](#1-项目概览)
+2. [项目结构](#2-项目结构)
+3. [前端架构](#3-前端架构)
+4. [后端架构](#4-后端架构)
+5. [数据库设计](#5-数据库设计)
+6. [API 接口文档](#6-api-接口文档)
+7. [Android TWA 构建](#7-android-twa-构建)
+8. [升级与扩展指南](#8-升级与扩展指南)
+9. [常见问题](#9-常见问题)
 
-### 📱 原生应用体验
-- **PWA 支持**：可安装到桌面，离线使用
-- **数据持久化**：搜索条件自动保存，下次打开恢复上次状态
+---
 
-### 🔧 数据管理
-- 支持添加/编辑/删除自定义院校数据
-- 数据维护脚本：`collect.cjs` 采集真实分数 → `apply.cjs` 写入数据（可选 `--build` 构建并同步 TWA）→ `convert.cjs` 全量重新生成
+## 1. 项目概览
 
-## 📐 技术架构
+**考研择校助手** 是一款面向考研学生的院校查询与分数分析工具，支持根据初试分数、学位类型、学科门类和招生分区智能匹配目标院校。
+
+| 维度 | 技术选型 |
+|------|----------|
+| 前端框架 | 原生 ES Modules（无框架 SPA） |
+| 构建工具 | Vite 8 |
+| 包管理器 | pnpm 11 |
+| CSS 方案 | 液态玻璃主题（7 模块 CSS） |
+| 本地存储 | IndexedDB + localStorage |
+| PWA | Service Worker + Web Manifest |
+| 后端运行时 | Node.js 24 + Express 5 |
+| 数据库 | SQLite（sql.js WASM） |
+| Android 壳 | Jetpack Compose + TWA |
+| 设计工具 | Pencil (.pen) |
+| 测试框架 | Vitest（42 用例） |
+| 代码规范 | ESLint + Prettier |
+
+---
+
+## 2. 项目结构
 
 ```
-前端 (Vite 8 + ES Modules)
-├── index.html              # Vite 入口 HTML
-├── src/
-│   ├── main.js             # Vite 入口 JS
-│   ├── style.css           # Mobile-first 响应式样式
-│   ├── app.js              # 主逻辑（UI 初始化 / 事件绑定 / 导航管理）
-│   ├── render.js           # 渲染模块（国家线 / 搜索结果 / 分数表格）
-│   ├── detail.js           # 详情页模块
-│   ├── modal.js            # 弹窗编辑模块（自定义院校管理）
-│   ├── photos.js           # 校园实景照片模块
-│   ├── matcher.js          # 匹配引擎（分数评估 + 排序）
-│   ├── utils.js            # 工具函数（XSS 转义 / 防抖）
-│   ├── storage.js          # localStorage 存储管理
-│   ├── seed.js             # 示例数据
-│   ├── db.js               # IndexedDB 数据层
-│   ├── views/              # 视图模块（首页 / 结果 / 详情 / 筛选 / 弹窗 / 底部导航）
-│   ├── styles/             # 主题样式（liquid-glass）
-│   └── data/
-│       ├── universities.js       # 院校数据库（700+ 所）
-│       ├── national-lines.js     # 国家线（2022-2026）
-│       ├── admission-scores.js   # 录取分数线（研招网白名单 + 各校官网）
-│       ├── uni-details.js        # 院校详情（优缺点/特色）
-│       └── uni-photos.js         # 院校照片 CDN
-├── public/
-│   ├── sw.js               # Service Worker（离线缓存）
-│   ├── manifest.json       # PWA 清单
-│   ├── version.json        # 版本号与 APK 下载地址（更新检测用）
-│   └── icons/              # PWA 图标
-├── dist/                   # 构建输出
-├── vite.config.js          # Vite 配置
-├── vitest.config.js        # Vitest 测试配置
-├── eslint.config.js        # ESLint 配置
-├── .prettierrc             # Prettier 配置
-├── collect.cjs             # 数据采集脚本（真实分数 → real-scores.json）
-├── apply.cjs               # 数据应用脚本（real-scores.json → admission-scores.js，可 --build）
-├── convert.cjs             # 数据全量重生成脚本（provinces → admission-scores.js）
-├── real-scores.json        # 采集的真实录取分数数据
-├── province-schools.json   # 研招网院校白名单
-└── android-twa/            # Android 壳工程（Kotlin + Compose，WebView 加载离线网页）
+kaoyan-app/
+├── index.html                  # Vite 入口 HTML
+├── package.json                # 前端依赖与脚本
+├── pnpm-workspace.yaml         # pnpm monorepo 配置
+├── vite.config.js              # Vite 构建配置
+├── vitest.config.js            # 测试配置
+├── eslint.config.js            # ESLint 配置
+│
+├── public/                     # PWA 静态资源
+│   ├── manifest.json           # Web App Manifest
+│   ├── sw.js                   # Service Worker
+│   ├── version.json            # 版本标记
+│   └── icons/                  # PWA 图标
+│
+├── src/                        # 前端源码
+│   ├── main.js                 # 入口：挂载 App + 注册 SW
+│   ├── app.js                  # 核心：路由/导航/事件/筛选/详情/弹窗
+│   ├── render.js               # 视图渲染引擎
+│   ├── matcher.js              # 院校匹配算法
+│   ├── db.js                   # IndexedDB 封装
+│   ├── storage.js              # localStorage 封装
+│   ├── seed.js                 # 初次启动数据种子脚本
+│   ├── modal.js                # 弹窗逻辑
+│   ├── detail.js               # 院校详情渲染
+│   ├── photos.js               # 校园图片处理
+│   ├── utils.js                # 工具函数
+│   ├── style.css               # 入口样式
+│   ├── assets/campus-heroes/   # 校园封面图
+│   ├── assets/fonts/           # KaoyanSansSC 可变字体
+│   ├── data/                   # 静态数据（7500+ 行，356KB）
+│   │   ├── universities.js     # 700 所院校库
+│   │   ├── uni-details.js      # 90 所院校详情
+│   │   ├── uni-requirements.js # 报考要求
+│   │   ├── admission-scores.js # 录取分数线
+│   │   ├── national-lines.js   # 国家线
+│   │   └── uni-photos.js       # 校园照片索引
+│   ├── views/                  # 视图组件
+│   │   ├── home-view.js        # 首页
+│   │   ├── filter-view.js      # 筛选面板
+│   │   ├── results-view.js     # 匹配结果
+│   │   ├── detail-view.js      # 院校详情
+│   │   ├── fail-view.js        # 未过国家线
+│   │   ├── modal-view.js       # 弹窗
+│   │   ├── footer-view.js      # 底部导航
+│   │   ├── my-view.js          # 我的
+│   │   └── prep-view.js        # 备考
+│   └── styles/liquid-glass/    # CSS 主题
+│       ├── base.css            # 全局变量/重置/卡片/动画
+│       ├── home.css            # 首页
+│       ├── filter.css          # 筛选面板
+│       ├── results.css         # 结果 + 未过线 + 底部导航
+│       ├── detail.css          # 详情页
+│       ├── modal.css           # 弹窗
+│       ├── my.css              # 我的页面
+│       └── prep.css            # 备考
+│
+├── server/                     # 后端 API 服务
+│   ├── package.json
+│   ├── data/kaoyan.db          # SQLite 数据库
+│   ├── src/
+│   │   ├── index.js            # Express 入口 (端口 3000)
+│   │   ├── db/
+│   │   │   ├── schema.sql      # DDL（6 张表）
+│   │   │   ├── index.js        # getDB() / migrate() / reset()
+│   │   │   ├── migrate.js      # CLI 迁移
+│   │   │   └── seed.js         # 从 src/data/*.js 导入
+│   │   └── routes/
+│   │       ├── universities.js # /api/universities
+│   │       ├── national-lines.js # /api/national-lines
+│   │       └── match.js        # /api/match
+│   └── check-db.cjs           # 数据库校验
+│
+├── android-twa/                # Android TWA 壳
+│   ├── build.gradle.kts        # AGP 8.10.1
+│   ├── gradle.properties
+│   ├── app/build.gradle.kts    # TWA + Compose
+│   └── ...
+│
+├── designs/pencil/             # Pencil UI 设计稿
+│   └── pencil-new.pen
+│
+├── dist/                       # Vite 构建输出
+├── apply.cjs / collect.cjs / convert.cjs  # 数据维护脚本
+└── province-schools.json / real-scores.json
 ```
 
-**技术栈**：Vite 8 + ES Modules + ESLint + Prettier + Vitest，模块化架构，支持 Tree-shaking。
+---
 
-## 🚀 快速开始
+## 3. 前端架构
 
-### 环境要求
+### 3.1 SPA 路由（7 个屏幕）
 
-- Node.js 24+
-- pnpm 11+
+| screen | 视图 | 说明 |
+|--------|------|------|
+| `homeScreen` | 首页 | 择校画像 + 匹配按钮 + 推荐院校 |
+| `filterScreen` | 筛选 | 分数/学位/学科/分区/培养方式 |
+| `resultsScreen` | 匹配结果 | 稳过/大概率/冲刺 三级分布 + 院校列表 |
+| `detailScreen` | 院校详情 | 封面/录取表格/复试线/档案/优缺点 |
+| `failScreen` | 未过线 | A/B 区对比 + 调整建议 |
+| `prepScreen` | 备考 | 倒计时/今日任务/学习数据 |
+| `profileScreen` | 我的 | 统计指标/快捷入口 |
 
-### 方式一：开发模式（推荐）
+底部导航: `[为你推荐] [院校库] [备考] [我的]`
+
+### 3.2 数据流
+
+```
+src/data/*.js (静态 JS)
+  → 首次启动: seed.js → IndexedDB
+  → 运行时: matcher.js 计算匹配（国家线 + 分区 + 学位 + 学科）
+  → 分级: 稳过 / 大概率 / 冲刺 / 差距较大
+```
+
+### 3.3 样式加载顺序
+
+```
+base.css → home.css → filter.css → results.css → detail.css → modal.css → my.css → prep.css
+```
+
+---
+
+## 4. 后端架构
+
+### 4.1 启动命令
 
 ```bash
-# 安装依赖
+cd server
 pnpm install
-
-# 启动开发服务器
-pnpm dev
-
-# 访问 http://localhost:5173
+pnpm db:migrate          # 建表
+pnpm db:seed             # 从 src/data/*.js 导入数据
+pnpm dev                 # 开发模式 → http://localhost:3000
+pnpm start               # 生产模式
 ```
 
-### 方式二：构建生产版本
+### 4.2 核心依赖
 
-```bash
-# 构建优化后的生产版本
-pnpm build
+| 包 | 版本 | 用途 |
+|----|------|------|
+| `express` | ^5.0 | HTTP 框架 |
+| `cors` | ^2.8 | 跨域 |
+| `sql.js` | ^1.14 | SQLite WASM（纯 JS，无原生编译） |
 
-# 预览构建结果
-pnpm preview
+### 4.3 数据库接口
 
-# 构建产物在 dist/ 目录
+```js
+import { getDB } from './db/index.js';
+const db = await getDB();
+const stmt = db.prepare('SELECT * FROM universities WHERE zone = ?');
+stmt.bind(['A']);
+while (stmt.step()) { const row = stmt.getAsObject(); }
+stmt.free();
 ```
 
-### 方式三：PWA 安装
+---
 
-1. 使用浏览器（Chrome/Edge/Safari）访问已部署的页面
-2. 浏览器会提示「安装应用」，点击安装
-3. 或在菜单中选择「添加到主屏幕」
-4. 安装后可离线使用
+## 5. 数据库设计
 
-### 方式四：Android APK
+### 5.1 表结构（6 张表）
 
-`android-twa/` 是标准 Android Studio 工程（Kotlin + Jetpack Compose + Kotlin DSL），
-通过 WebView 加载打包在 `assets/` 中的离线网页。构建 APK 时 Gradle 会自动先运行
-`pnpm build` 并把 `dist/` 同步进 assets，无需手动打包 Web 资源。
+```
+universities ──1:1──→ uni_details
+     │
+     ├──1:N──→ uni_photos (filename, label)
+     ├──1:N──→ admission_scores (year, degree, category, score)
+     └──1:N──→ uni_requirements (degree, category, requirement)
+
+national_lines (year, degree, category, zone, score)
+```
+
+### 5.2 数据统计
+
+| 表 | 行数 | 说明 |
+|----|------|------|
+| universities | 700 | 全国 A/B 区 |
+| national_lines | 330 | 2022-2026 学硕/专硕全学科 |
+| uni_details | 90 | 含优缺点 |
+| uni_photos | 160 | 校园实景索引 |
+
+---
+
+## 6. API 接口文档
+
+### 6.1 已实现
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/health` | 健康检查 |
+| `GET` | `/api/universities?zone=A&keyword=清华` | 院校查询 |
+| `GET` | `/api/universities/:id` | 院校详情 |
+| `POST` | `/api/universities` | 新增院校 |
+| `GET` | `/api/national-lines?year=2026&degree=学硕` | 国家线 |
+| `POST` | `/api/national-lines` | 录入国家线 |
+| `GET` | `/api/match?score=378&degree=学硕&category=工学&zone=A` | 智能匹配 |
+
+匹配算法: 用户分数 vs 近 4 年院线均值 → 稳过 / 大概率过 / 冲刺 / 差距较大
+
+### 6.2 预留（升级时实现）
+
+| 方法 | 路径 | 说明 | 优先级 |
+|------|------|------|--------|
+| `POST` | `/api/auth/login` | 登录 | 高 |
+| `POST` | `/api/auth/register` | 注册 | 高 |
+| `GET/POST` | `/api/favorites` | 收藏 | 中 |
+| `GET` | `/api/compare` | 多校对比 | 中 |
+| `POST` | `/api/alerts` | 分数线订阅 | 低 |
+
+---
+
+## 7. Android TWA 构建
+
+| 组件 | 版本 |
+|------|------|
+| AGP | 8.10.1 |
+| Kotlin | 2.2.0 |
+| Compose | BOM 2024.12.01 |
+| compileSdk | 36 |
+| minSdk | 24 |
 
 ```bash
-# 前置条件：Android SDK + JDK 17+。若本机 JAVA_HOME 指向 JDK 25（Gradle 暂不支持），
-# gradlew 会自动回退到 Android Studio 自带 JBR 21 或其他兼容 JDK，无需手动设置
 cd android-twa
-./gradlew assembleDebug      # Windows 使用 gradlew.bat
-./gradlew assembleRelease    # release 需要 release.keystore（CI 会自动生成）
-
-# APK 输出路径
-# android-twa/app/build/outputs/apk/debug/app-debug.apk
-# android-twa/app/build/outputs/apk/release/app-release.apk
+gradlew.bat --no-daemon assembleDebug assembleRelease
+# APK → app/build/outputs/apk/debug|release/
 ```
 
-重新生成自适应图标（从 `public/icons/icon-512.png` 生成各密度 mipmap）：
+---
+
+## 8. 升级与扩展指南
+
+### 8.1 前端接入后端 API
+
+```js
+// API 优先，失败 fallback 静态数据
+const res = await fetch('/api/universities').catch(() => null);
+const data = res ? (await res.json()).data
+  : (await import('./data/universities.js')).UNIVERSITIES;
+```
+
+### 8.2 数据库操作
 
 ```bash
-node android-twa/tools/generate-icons.mjs
+pnpm db:migrate     # 增量迁移（保留数据）
+pnpm db:reset       # 完全重建（⚠️ 清除所有数据）
 ```
 
-### 代码检查与测试
+新增表/字段: 编辑 `schema.sql` → `pnpm db:migrate`
 
+### 8.3 添加新页面
+
+1. `src/views/new-view.js` — HTML 生成函数
+2. `src/styles/liquid-glass/new.css` — 样式
+3. `src/style.css` — `@import`
+4. `src/app.js` — 注册 screen + 导航
+
+### 8.4 扩展路线图
+
+| 功能 | 技术方案 | 优先级 |
+|------|----------|--------|
+| 用户系统 | JWT + `user` 表 | 高 |
+| 收藏同步 | `user_favorites` 表 + REST | 中 |
+| 实时推送 | WebSocket 分数线变动 | 中 |
+| 全文搜索 | SQLite FTS5 | 中 |
+| Docker | Dockerfile + compose | 低 |
+| CI/CD | GitHub Actions | 低 |
+
+---
+
+## 9. 常见问题
+
+### Agent 前端接入
+
+Agent 前端请求、提案确认与开发期身份说明见 [Agent 前端接入文档](docs/agent-frontend-integration.md)。
+
+部署、模型配置、后续 Agent 功能、工具调用和安全约束见 [Agent 开发与部署手册](docs/agent-development-and-deployment.md)。
+
+**Q: 如何启动前端开发？**
 ```bash
-# ESLint 检查
-pnpm lint
-
-# ESLint 自动修复
-pnpm lint:fix
-
-# Prettier 格式化
-pnpm format
-
-# 运行单元测试
-pnpm test
-
-# 监听模式测试
-pnpm test:watch
+pnpm dev          # http://localhost:5173
+pnpm build        # 生产构建 → dist/
 ```
 
-## 📋 匹配算法
-
-```
-用户分数 ≥ 最高录取分 + 10  →  ✅ 稳过
-用户分数 ≥ 最高录取分       →  👍 大概率
-用户分数 ≥ 最低录取分       →  🎯 冲刺
-用户分数 < 最低录取分       →  ⚠️ 差距较大
-无录取数据                  →  📋 无数据（仅参考国家线）
-```
-
-匹配基于近 5 年（2022—2026）录取数据的最高分/最低分/平均分，提供客观参考。
-
-## 📂 项目结构
-
-| 文件/目录 | 说明 |
-|---|---|
-| `index.html` | Vite 入口 HTML |
-| `src/main.js` | Vite 入口 JS |
-| `src/style.css` | Mobile-first 响应式样式 |
-| `src/app.js` | 主逻辑（UI 初始化 / 事件绑定 / 导航管理 / 更新检测） |
-| `src/render.js` | 渲染模块（国家线 / 搜索结果 / 分数表格） |
-| `src/detail.js` | 详情页模块 |
-| `src/modal.js` | 弹窗编辑模块（自定义院校管理） |
-| `src/photos.js` | 校园实景照片模块 |
-| `src/matcher.js` | 匹配引擎（分数评估 + 排序） |
-| `src/utils.js` | 工具函数（XSS 转义 / 防抖） |
-| `src/storage.js` | 本地存储管理 |
-| `src/db.js` | IndexedDB 数据层 |
-| `src/views/` | 视图模块（首页 / 结果 / 详情 / 筛选 / 弹窗 / 底部导航） |
-| `src/styles/` | 主题样式（liquid-glass） |
-| `src/matcher.test.js` / `src/utils.test.js` / `src/data/national-lines.test.js` | Vitest 单元测试（42 个用例） |
-| `src/data/universities.js` | 全国院校数据库（700+ 所） |
-| `src/data/national-lines.js` | 国家线数据（14 门类 + 30 专硕类别 × 5 年） |
-| `src/data/admission-scores.js` | 录取分数线（700+ 所高校） |
-| `src/data/uni-details.js` | 院校详情（优缺点/特色） |
-| `src/data/uni-photos.js` | 院校照片（百度百科 CDN） |
-| `public/sw.js` | Service Worker 离线缓存 |
-| `public/manifest.json` | PWA 清单配置 |
-| `public/version.json` | 版本号与 APK 下载地址（更新检测用） |
-| `collect.cjs` / `apply.cjs` / `convert.cjs` | 数据维护脚本（采集 → 应用 → 全量重生成） |
-| `vite.config.js` | Vite 构建配置 |
-| `vitest.config.js` | Vitest 测试配置 |
-| `eslint.config.js` | ESLint 代码检查规则 |
-| `.prettierrc` | Prettier 代码格式化配置 |
-| `android-twa/` | Android 壳工程（Kotlin + Jetpack Compose + Kotlin DSL） |
-
-## 🌐 分区说明
-
-### A 区（21 省/市）
-北京、天津、河北、山西、辽宁、吉林、黑龙江、上海、江苏、浙江、安徽、福建、江西、山东、河南、湖北、湖南、广东、重庆、四川、陕西
-
-### B 区（10 省/区）
-内蒙古、广西、海南、贵州、云南、西藏、甘肃、青海、宁夏、新疆
-
-> 💡 B 区国家线通常比 A 区低 10 分左右，分数不理想的考生可重点关注。
-
-## 🔧 数据来源
-
-- **院校信息**：[中国研究生招生信息网](https://yz.chsi.com.cn)
-- **国家线**：教育部历年公布的全国硕士研究生招生考试考生进入复试的初试成绩基本要求
-- **录取分数线**：各校研究生院官网历年公示数据
-- **院校照片**：百度百科 CDN
-
-## �️ 开发指南
-
-### 常用命令
-
+**Q: 如何运行测试？**
 ```bash
-pnpm dev             # 启动开发服务器（热更新）
-pnpm build           # 构建生产版本
-pnpm preview         # 预览生产构建
-pnpm lint            # 代码检查
-pnpm format          # 代码格式化
-pnpm test            # 运行单元测试
+pnpm test         # 42 用例
 ```
 
-### 模块依赖关系
-
-```
-main.js
-  ├── style.css + styles/liquid-glass/*.css
-  ├── views/app-shell.js
-  └── app.js（动态 import）
-        ├── views/（home / results / detail / filter / modal / footer）
-        ├── render.js
-        │     └── data/admission-scores.js
-        │     └── data/national-lines.js
-        │     └── utils.js
-        ├── modal.js
-        │     └── storage.js
-        │     └── utils.js
-        ├── detail.js
-        │     └── render.js
-        │     └── photos.js
-        │     └── data/uni-details.js
-        │     └── data/admission-scores.js
-        │     └── utils.js
-        ├── matcher.js
-        │     └── data/national-lines.js
-        │     └── data/universities.js
-        │     └── data/admission-scores.js
-        ├── storage.js
-        ├── db.js
-        ├── photos.js
-        │     └── utils.js
-        ├── utils.js
-        └── data/
-              ├── national-lines.js
-              ├── universities.js
-              ├── admission-scores.js
-              ├── uni-details.js
-              └── uni-photos.js
+**Q: 如何部署？**
+```bash
+pnpm build                    # 前端
+cd server && pnpm start       # 后端 (端口 3000)
+# Nginx: /api/* → 3000, /* → dist/
 ```
 
-### 添加新院校
+---
 
-1. 在 `src/data/universities.js` 的 `UNIVERSITIES` 数组中添加院校对象
-2. 在 `src/data/admission-scores.js` 的 `ADMISSION_SCORES` 中添加录取分数线（可选）
-3. 在 `src/data/uni-details.js` 的 `UNI_DETAILS` 中添加院校详情（可选）
-4. 在 `src/data/uni-photos.js` 的 `UNI_PHOTOS` 中添加照片链接（可选）
-
-### 添加新年份国家线
-
-在 `src/data/national-lines.js` 的 `NATIONAL_LINES` 对象中，为每个门类添加新年份的分数。
-
-### 构建产物
-
-```
-dist/
-├── index.html                    # 入口 HTML
-├── assets/
-│   ├── index-[hash].css         # CSS（约 58KB）
-│   ├── index-[hash].js          # 入口 JS（约 19KB gzip 6KB）
-│   ├── app-[hash].js            # 主逻辑（约 47KB gzip 14KB，动态分包）
-│   ├── data-[hash].js           # 数据模块（约 345KB gzip 44KB）
-│   └── campus-*.png / *.ttf     # 校园照片与字体资源
-├── icons/                        # PWA 图标
-├── manifest.json                 # PWA 清单
-├── version.json                  # 版本号（更新检测用）
-└── sw.js                         # Service Worker
-```
-
-> 💡 数据模块自动分包，支持长期缓存。更新数据后哈希值会自动变化。
-
-## �📄 License
-
-MIT
+> **维护者**: AI Assistant | **更新**: 2026-08-08 | **版本**: 前端 v4.3 / 后端 v1.0 / TWA v4.3

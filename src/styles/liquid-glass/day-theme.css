@@ -1,0 +1,261 @@
+/* Pencil 白天主题。所有覆盖均限定在 day，夜间样式不受影响。 */
+body[data-study-theme='day'] {
+  --day-bg:#f5f7f6;
+  --day-card:#ffffff;
+  --day-ink:#101a15;
+  --day-muted:#34483c;
+  --day-line:#e1e9e3;
+  --day-green:#1f5a41;
+  --day-soft:#eaf2ee;
+  color:var(--day-ink);
+  background:var(--day-bg);
+}
+
+body[data-study-theme='day'] .home-screen,
+body[data-study-theme='day'] .results-screen,
+body[data-study-theme='day'] .fail-screen,
+body[data-study-theme='day'] .detail-overlay,
+body[data-study-theme='day'] .prep-screen,
+body[data-study-theme='day'] .practice-screen,
+body[data-study-theme='day'] .my-screen { color:var(--day-ink); background:var(--day-bg); }
+
+body[data-study-theme='day'] .home-screen::before,
+body[data-study-theme='day'] .home-screen::after,
+body[data-study-theme='day'] .results-screen::before,
+body[data-study-theme='day'] .results-screen::after,
+body[data-study-theme='day'] .fail-screen::before,
+body[data-study-theme='day'] .fail-screen::after { opacity:.10; }
+
+body[data-study-theme='day'] h1,
+body[data-study-theme='day'] h2,
+body[data-study-theme='day'] h3,
+body[data-study-theme='day'] h4,
+body[data-study-theme='day'] strong,
+body[data-study-theme='day'] b { color:var(--day-ink); }
+body[data-study-theme='day'] small,
+body[data-study-theme='day'] p,
+body[data-study-theme='day'] em { color:var(--day-muted); }
+
+body[data-study-theme='day'] .section-note,
+body[data-study-theme='day'] .info-label,
+body[data-study-theme='day'] .req-label,
+body[data-study-theme='day'] .req-note,
+body[data-study-theme='day'] .retest-label,
+body[data-study-theme='day'] .retest-sub,
+body[data-study-theme='day'] .home-score-row small,
+body[data-study-theme='day'] .result-card .uni-meta,
+body[data-study-theme='day'] .practice-entry-grid small,
+body[data-study-theme='day'] .practice-wrong-list small,
+body[data-study-theme='day'] .prep-task span small,
+body[data-study-theme='day'] .my-metric-grid small { color:var(--day-muted) !important; font-weight:600; }
+
+body[data-study-theme='day'] .brand-mark,
+body[data-study-theme='day'] .profile-orb,
+body[data-study-theme='day'] .study-icon-btn,
+body[data-study-theme='day'] .my-profile-head button { color:var(--day-green); border:1px solid var(--day-line); background:var(--day-card); box-shadow:none; }
+body[data-study-theme='day'] .home-brand small,
+body[data-study-theme='day'] .home-greeting,
+body[data-study-theme='day'] .study-topbar p,
+body[data-study-theme='day'] .my-profile-head p { color:var(--day-muted); }
+
+/* 首页与院校库 */
+body[data-study-theme='day'] .home-greeting em,
+body[data-study-theme='day'] .home-condition-chips button { color:var(--day-green); border-color:#d8e7dc; background:var(--day-soft); }
+body[data-study-theme='day'] .score-dashboard,
+body[data-study-theme='day'] .home-recommend-card,
+body[data-study-theme='day'] .result-context,
+body[data-study-theme='day'] .result-card,
+body[data-study-theme='day'] .results-empty { color:var(--day-ink); border-color:var(--day-line); background:var(--day-card); box-shadow:0 8px 20px rgba(44,78,59,.06); }
+body[data-study-theme='day'] .home-score-row input,
+body[data-study-theme='day'] .result-sort-select { color:var(--day-ink); border-color:var(--day-line); background:#fff; box-shadow:none; }
+body[data-study-theme='day'] .home-score-row small,
+body[data-study-theme='day'] .home-line-status,
+body[data-study-theme='day'] .home-recommend-copy small,
+body[data-study-theme='day'] .home-recommend-copy em,
+body[data-study-theme='day'] .result-card .uni-meta,
+body[data-study-theme='day'] .result-context small,
+body[data-study-theme='day'] .result-insights small,
+body[data-study-theme='day'] .result-insights span { color:var(--day-muted); }
+body[data-study-theme='day'] .home-score-row>span,
+body[data-study-theme='day'] .score-dashboard-top b,
+body[data-study-theme='day'] .home-recommend-copy b,
+body[data-study-theme='day'] .result-context strong { color:var(--day-green); }
+body[data-study-theme='day'] .score-equalizer i { background:#a8d5bc; box-shadow:none; }
+body[data-study-theme='day'] .home-match-btn,
+body[data-study-theme='day'] .sheet-apply,
+body[data-study-theme='day'] .result-load-more { color:#fff; background:var(--day-green); box-shadow:0 8px 18px rgba(47,107,80,.16); }
+body[data-study-theme='day'] .home-match-btn *,
+body[data-study-theme='day'] .sheet-apply * { color:inherit; }
+body[data-study-theme='day'] .home-recommend-badges strong { color:var(--day-green); background:#dcefe3; }
+body[data-study-theme='day'] .results-national-line,
+body[data-study-theme='day'] .result-insights>div { color:var(--day-ink); border-color:var(--day-line); background:#fff; }
+body[data-study-theme='day'] .screen-topbar h1,
+body[data-study-theme='day'] .results-title-row h2,
+body[data-study-theme='day'] .result-card .name-text,
+body[data-study-theme='day'] .result-card .uni-name .name-text { color:var(--day-ink); }
+body[data-study-theme='day'] .round-nav-btn {
+  color:var(--day-green);
+  border-color:#d8e7dc;
+  background:#fff;
+  box-shadow:0 3px 10px rgba(31,90,65,.06);
+}
+body[data-study-theme='day'] .round-nav-btn.is-lime { color:#173625; background:#d9f46a; }
+body[data-study-theme='day'] .result-card .uni-meta,
+body[data-study-theme='day'] .result-card .uni-meta span { color:#4f6257; }
+
+/* 筛选面板与模态框 */
+body[data-study-theme='day'] .filter-sheet-backdrop { background:rgba(24,32,28,.28); }
+body[data-study-theme='day'] .filter-sheet-panel,
+body[data-study-theme='day'] .modal-content,
+body[data-study-theme='day'] .modal-card { color:var(--day-ink); border-color:var(--day-line); background:var(--day-bg); box-shadow:0 -12px 32px rgba(24,32,28,.14); }
+body[data-study-theme='day'] .sheet-heading h2,
+body[data-study-theme='day'] .sheet-control-row b,
+body[data-study-theme='day'] .sheet-option-label,
+body[data-study-theme='day'] .sheet-choice-group>span { color:var(--day-ink); }
+body[data-study-theme='day'] .sheet-close,
+body[data-study-theme='day'] .sheet-search-box,
+body[data-study-theme='day'] .sheet-control-row input,
+body[data-study-theme='day'] .sheet-control-row select,
+body[data-study-theme='day'] .sheet-major-trigger,
+body[data-study-theme='day'] .form-input,
+body[data-study-theme='day'] .form-select,
+body[data-study-theme='day'] .form-textarea { color:var(--day-ink); border-color:var(--day-line); background:#fff; }
+body[data-study-theme='day'] .sheet-option-grid button,
+body[data-study-theme='day'] .sheet-choice-row button { color:#385246; border-color:var(--day-line); background:#fff; }
+body[data-study-theme='day'] .sheet-option-grid button.active,
+body[data-study-theme='day'] .sheet-choice-row button.active { color:var(--day-green); border-color:#a8d5bc; background:#dcefe3; }
+
+/* 备考、题库、我的 */
+body[data-study-theme='day'] .today-action-card,
+body[data-study-theme='day'] .prep-shortcuts button:not(.is-dark),
+body[data-study-theme='day'] .prep-task-list,
+body[data-study-theme='day'] .practice-entry-grid button,
+body[data-study-theme='day'] .practice-wrong-list,
+body[data-study-theme='day'] .my-target-snapshot,
+body[data-study-theme='day'] .my-metric-grid span,
+body[data-study-theme='day'] .my-subject-list,
+body[data-study-theme='day'] .my-quick-grid button { color:var(--day-ink); border:1px solid var(--day-line); background:#fff; box-shadow:none; }
+body[data-study-theme='day'] .today-metrics span { background:#f2f5f2; }
+body[data-study-theme='day'] .prep-task { color:var(--day-ink); border-bottom-color:var(--day-line); }
+body[data-study-theme='day'] .prep-task-check { border-color:var(--day-line); background:#fff; }
+body[data-study-theme='day'] .prep-task.is-complete .prep-task-check { color:#fff; border-color:var(--day-green); background:var(--day-green); }
+body[data-study-theme='day'] .prep-shortcuts button:not(.is-dark) i,
+body[data-study-theme='day'] .practice-entry-grid i { color:var(--day-green); }
+body[data-study-theme='day'] .practice-wrong-list button { color:var(--day-ink); border-bottom-color:var(--day-line); }
+body[data-study-theme='day'] .my-week-card { background:var(--day-green); border:0; }
+body[data-study-theme='day'] .my-subject-list i { background:#edf0ed; }
+body[data-study-theme='day'] .my-demo-note,
+body[data-study-theme='day'] .study-ai-tip { color:#385246; border:0; background:#eaf2ee; }
+body[data-study-theme='day'] .my-demo-note > b,
+body[data-study-theme='day'] .study-ai-tip > b { color:var(--day-green); }
+body[data-study-theme='day'] #themeToggleBtn { color:inherit; border:1px solid currentColor; background:transparent; }
+
+/* 院校详情：照片、信息卡与数据模块。 */
+body[data-study-theme='day'] .detail-content { background:var(--day-bg); }
+body[data-study-theme='day'] .detail-hero { background-image:linear-gradient(180deg,rgba(10,40,25,.02),rgba(10,40,25,.12) 34%,rgba(10,40,25,.70) 66%,#163e2a 100%),var(--hero-image),linear-gradient(135deg,#dcefe3,#8fb99e); }
+body[data-study-theme='day'] .detail-hero::before { background:linear-gradient(90deg,rgba(9,38,24,.20),transparent 62%); }
+body[data-study-theme='day'] .detail-hero::after { display:block; height:42px; background:linear-gradient(180deg,rgba(22,62,42,0),var(--day-bg)); }
+body[data-study-theme='day'] .hero-content h2 { color:#fff; text-shadow:0 2px 12px rgba(6,34,20,.72); }
+body[data-study-theme='day'] .hero-badge,
+body[data-study-theme='day'] .detail-back,
+body[data-study-theme='day'] .detail-photo-btn { color:#fff; border-color:rgba(255,255,255,.38); background:rgba(20,57,38,.64); }
+body[data-study-theme='day'] .detail-match-summary,
+body[data-study-theme='day'] .score-table-wrap,
+body[data-study-theme='day'] .retest-grid,
+body[data-study-theme='day'] .requirements-grid,
+body[data-study-theme='day'] .detail-info-card,
+body[data-study-theme='day'] .detail-about-section .detail-features { color:var(--day-ink); border-color:var(--day-line); background:#fff; box-shadow:0 6px 16px rgba(44,78,59,.06); -webkit-backdrop-filter:none; backdrop-filter:none; }
+body[data-study-theme='day'] .detail-match-summary {
+  position:relative;
+  z-index:2;
+  margin-top:0;
+  margin-bottom:0;
+  border-color:#edf1ee;
+  box-shadow:0 8px 18px rgba(21,62,42,.08);
+}
+body[data-study-theme='day'] .detail-match-summary>div:first-child strong,
+body[data-study-theme='day'] .detail-section-title i,
+body[data-study-theme='day'] .detail-score-section .td-ul,
+body[data-study-theme='day'] .info-link { color:var(--day-green); }
+body[data-study-theme='day'] .detail-match-copy b,
+body[data-study-theme='day'] .detail-info-item .info-value { color:var(--day-ink) !important; }
+body[data-study-theme='day'] .detail-match-copy small,
+body[data-study-theme='day'] .detail-match-summary>div:first-child span,
+body[data-study-theme='day'] .detail-nl-note,
+body[data-study-theme='day'] .section-note,
+body[data-study-theme='day'] .retest-label,
+body[data-study-theme='day'] .retest-sub,
+body[data-study-theme='day'] .req-label,
+body[data-study-theme='day'] .req-note,
+body[data-study-theme='day'] .info-label { color:var(--day-muted); }
+body[data-study-theme='day'] .score-table { color:var(--day-muted); }
+body[data-study-theme='day'] .score-table th { color:var(--day-green); background:#eaf2ee; }
+body[data-study-theme='day'] .score-table td { border-bottom-color:var(--day-line); }
+body[data-study-theme='day'] .score-table tbody tr:first-child { background:#f1fad8; }
+body[data-study-theme='day'] .score-table tbody tr:first-child td,
+body[data-study-theme='day'] .td-nl,
+body[data-study-theme='day'] .td-ul,
+body[data-study-theme='day'] .td-you { color:var(--day-green); }
+body[data-study-theme='day'] .td-ok { color:#3eaa74; }
+body[data-study-theme='day'] .retest-card { background:#edf9cb; }
+body[data-study-theme='day'] .retest-card:nth-child(2) { background:#e3eefc; }
+body[data-study-theme='day'] .retest-score,
+body[data-study-theme='day'] .retest-card:nth-child(2) .retest-score,
+body[data-study-theme='day'] .req-value,
+body[data-study-theme='day'] .info-value { color:var(--day-ink) !important; }
+body[data-study-theme='day'] .req-value strong { color:var(--day-green); }
+body[data-study-theme='day'] .detail-info-card { min-height:100px; border-radius:18px; background:linear-gradient(135deg,#fff,#f3f8f4); }
+body[data-study-theme='day'] .detail-info-address,
+body[data-study-theme='day'] .detail-info-item { background:transparent; }
+body[data-study-theme='day'] .detail-info-divider { background:#e4ece6; }
+body[data-study-theme='day'] .pros-cons-grid { min-height:134px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+body[data-study-theme='day'] .pros-column,
+body[data-study-theme='day'] .cons-column { min-height:134px; padding:10px; border-radius:18px; }
+body[data-study-theme='day'] .pros-column { background:#e4f1e8; }
+body[data-study-theme='day'] .cons-column { background:#f8e8e4; }
+body[data-study-theme='day'] .pros-column h4 { color:#27523d; }
+body[data-study-theme='day'] .pros-column li { color:#2f624a; }
+body[data-study-theme='day'] .cons-column h4 { color:#6a3732; }
+body[data-study-theme='day'] .cons-column li { color:#814943; }
+body[data-study-theme='day'] .detail-photos-section .photo-grid>* { border-color:var(--day-line); }
+body[data-study-theme='day'] .photo-item::after { background:linear-gradient(145deg,rgba(255,255,255,.12),rgba(255,255,255,0) 38%,rgba(31,94,66,.18) 64%,rgba(18,53,37,.58)); }
+
+/* 可读性审查：白天主题的次级文字统一使用高对比深灰绿。 */
+body[data-study-theme='day'] .home-screen small,
+body[data-study-theme='day'] .home-screen em,
+body[data-study-theme='day'] .results-screen small,
+body[data-study-theme='day'] .results-screen em,
+body[data-study-theme='day'] .results-screen .uni-meta,
+body[data-study-theme='day'] .filter-sheet-panel small,
+body[data-study-theme='day'] .filter-sheet-panel p,
+body[data-study-theme='day'] .prep-screen small,
+body[data-study-theme='day'] .prep-screen em,
+body[data-study-theme='day'] .practice-screen small,
+body[data-study-theme='day'] .practice-screen em,
+body[data-study-theme='day'] .my-screen small,
+body[data-study-theme='day'] .my-screen em,
+body[data-study-theme='day'] .detail-content small,
+body[data-study-theme='day'] .detail-content p,
+body[data-study-theme='day'] .detail-content .info-label,
+body[data-study-theme='day'] .modal-content small,
+body[data-study-theme='day'] .modal-content p { color:var(--day-muted) !important; opacity:1; }
+
+body[data-study-theme='day'] .app-footer { background:#ffffff; border-color:#d4e1d8; }
+body[data-study-theme='day'] .footer-btn { color:#365247; }
+body[data-study-theme='day'] .footer-nav-btn.active { color:#173f2c; }
+
+/* 我的页的夜间基础规则使用了较高选择器；白天主题在此明确覆盖，防止用户名与档案信息变白。 */
+body[data-study-theme='day'] .my-screen .my-profile-head h1 { color:#101a15 !important; }
+body[data-study-theme='day'] .my-screen .my-profile-head p,
+body[data-study-theme='day'] .my-screen .my-target-snapshot small,
+body[data-study-theme='day'] .my-screen .my-target-snapshot p,
+body[data-study-theme='day'] .my-screen .my-target-snapshot p i,
+body[data-study-theme='day'] .my-screen .my-metric-grid small,
+body[data-study-theme='day'] .my-screen .my-subject-list em,
+body[data-study-theme='day'] .my-screen .my-quick-grid span { color:#34483c !important; opacity:1; }
+body[data-study-theme='day'] .my-screen .my-target-snapshot strong,
+body[data-study-theme='day'] .my-screen .my-metric-grid b,
+body[data-study-theme='day'] .my-screen .my-subject-list p { color:#18201c !important; }
+body[data-study-theme='day'] .my-screen .my-target-snapshot p span,
+body[data-study-theme='day'] .my-screen .my-target-snapshot>b,
+body[data-study-theme='day'] .my-screen .my-profile-head>span { color:#1f5a41 !important; }

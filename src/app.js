@@ -18,8 +18,10 @@ import {
 } from './modal.js';
 import { openDetailPage as showDetail, closeDetailPage as hideDetail } from './detail.js';
 import { checkAndSeed } from './seed.js';
+import { AgentApiError, applyAgentProposal, createAgentProposal } from './agent-api.js';
 
 function bootstrapApp() {
+  initStudyTheme();
   // 匹配与详情直接读取静态数据；先完成可交互页面，IndexedDB 在后台做本地离线备份。
   initStorage();
   initUI();
@@ -33,6 +35,23 @@ function bootstrapApp() {
 
   // 后台检查更新（不阻塞启动）
   checkForUpdate();
+}
+
+const STUDY_THEME_KEY = 'study_theme';
+
+function initStudyTheme() {
+  const theme = localStorage.getItem(STUDY_THEME_KEY) || 'day';
+  document.body.dataset.studyTheme = theme;
+  const button = document.getElementById('themeToggleBtn');
+  if (button) button.textContent = theme === 'day' ? '☾ 夜间' : '☀ 白天';
+}
+
+function toggleStudyTheme() {
+  const next = document.body.dataset.studyTheme === 'day' ? 'night' : 'day';
+  document.body.dataset.studyTheme = next;
+  localStorage.setItem(STUDY_THEME_KEY, next);
+  const button = document.getElementById('themeToggleBtn');
+  if (button) button.textContent = next === 'day' ? '☾ 夜间' : '☀ 白天';
 }
 
 async function initializeLocalDatabase() {
@@ -54,6 +73,18 @@ let _activeScreen = 'home';
 let _detailReturnScreen = 'home';
 let _filterCloseTimer;
 let _footerOverlayIndex = null;
+let activeAgentProposal = null;
+
+const fallbackStudyProposal = {
+  id: null,
+  summary: '为你生成了一份聚焦数学薄弱项的下周计划。',
+  rationale: '数学安排在每日精力最好的时段，英语阅读保持稳定训练。',
+  changes: [{ operation: 'replace_study_plan', data: { items: [
+    { subject: '数学', title: '极限专项 + 真题', hours: '16h', note: '优先补弱' },
+    { subject: '英语', title: '阅读精练 + 单词复习', hours: '14h', note: '保持节奏' },
+    { subject: '政治', title: '肖 1000 与错题回顾', hours: '8h', note: '巩固提升' },
+  ] } }],
+};
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', bootstrapApp, { once: true });
@@ -77,6 +108,8 @@ function updateFooterNav(screen) {
   let activeNav = 'openFilterNavBtn';
   if (screen === 'home') activeNav = 'homeNavBtn';
   if (screen === 'prep') activeNav = 'prepNavBtn';
+  if (screen === 'agentChat' || screen === 'agentProposal') activeNav = 'prepNavBtn';
+  if (screen === 'practice') activeNav = 'practiceNavBtn';
   if (screen === 'my') activeNav = 'profileNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
@@ -150,6 +183,9 @@ function initializeFooterSlider() {
         if (idx >= 0) {
           setFooterActiveIndex(idx);
           btn.click();
+          // pointer capture 后仍可能补发原生 click；拦截它以避免一次点击触发两轮导航。
+          suppressNativeClick = true;
+          window.setTimeout(() => { suppressNativeClick = false; }, 350);
         }
       }
       return;
@@ -181,6 +217,8 @@ function initializeFooterSlider() {
         if (idx >= 0) {
           setFooterActiveIndex(idx);
           btn.click();
+          suppressNativeClick = true;
+          window.setTimeout(() => { suppressNativeClick = false; }, 350);
         }
       }
     } else {
@@ -197,7 +235,7 @@ function initializeFooterSlider() {
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
-const SCREEN_DEPTH = { home: 0, prep: 0, my: 0, results: 1, fail: 1 };
+const SCREEN_DEPTH = { home: 0, prep: 0, practice: 0, my: 0, results: 1, fail: 1, agentChat: 1, agentProposal: 2 };
 const SCREEN_TRANSITION_MS = 400;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
@@ -254,6 +292,62 @@ function navigateTo(screen, { push = true } = {}) {
   closeFilterSheet();
   setActiveScreen(screen);
   if (push) history.pushState({ view: screen }, '');
+}
+
+function proposalItems(proposal) {
+  const data = proposal?.changes?.[0]?.data || {};
+  const items = Array.isArray(data.items) ? data.items : fallbackStudyProposal.changes[0].data.items;
+  const icons = { 数学: '∑', 英语: 'A', 政治: '政', 专业课: '专' };
+  return items.slice(0, 4).map((item, index) => ({
+    subject: item.subject || ['数学', '英语', '政治'][index] || '学习',
+    title: item.title || item.task || item.name || '专项复习',
+    hours: item.hours || item.duration || '8h',
+    note: item.note || item.description || '按计划完成',
+    icon: icons[item.subject] || '✦',
+  }));
+}
+
+function renderAgentProposal(proposal = activeAgentProposal || fallbackStudyProposal) {
+  activeAgentProposal = proposal;
+  const list = document.getElementById('agentPlanItems');
+  if (!list) return;
+  list.innerHTML = proposalItems(proposal).map((item) => `
+    <article class="agent-plan-item"><i>${escapeHtml(item.icon)}</i><span><strong>${escapeHtml(item.subject)} · ${escapeHtml(item.title)}</strong><small>${escapeHtml(item.note)}</small></span><b>${escapeHtml(String(item.hours))}</b></article>
+  `).join('');
+}
+
+function appendAgentMessage(text, type = 'user') {
+  const list = document.getElementById('agentMessages');
+  if (!list) return;
+  const article = document.createElement('article');
+  article.className = `agent-message is-${type}`;
+  article.innerHTML = type === 'assistant'
+    ? `<i>✦</i><p>${escapeHtml(text)}</p>`
+    : `<p>${escapeHtml(text)}</p>`;
+  list.append(article);
+  article.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+async function askAgent(question) {
+  const text = String(question || '').trim();
+  if (!text) return;
+  appendAgentMessage(text, 'user');
+  const input = document.getElementById('agentChatInput');
+  if (input) input.value = '';
+  appendAgentMessage('正在根据你的学习数据生成建议…', 'assistant');
+  const pending = document.querySelector('#agentMessages .agent-message:last-child p');
+  try {
+    const response = await createAgentProposal({ proposalType: 'study', question: text, context: { weeklyStudyHours: 42, completionRate: 76, mathAccuracy: 62, readingAccuracy: 60 } });
+    activeAgentProposal = response.proposal;
+    if (pending) pending.textContent = activeAgentProposal.summary || '已生成新的学习计划提案。';
+  } catch (error) {
+    // 后端尚未部署或用户未登录时，仍提供可体验的本地提案；不会写入任何数据。
+    activeAgentProposal = fallbackStudyProposal;
+    if (pending) pending.textContent = error instanceof AgentApiError
+      ? '已生成本地演示建议。部署并登录后，可获得基于个人数据的正式提案。'
+      : fallbackStudyProposal.summary;
+  }
+  renderAgentProposal(activeAgentProposal);
 }
 
 function openDetailPage(result) {
@@ -590,6 +684,7 @@ function bindEvents() {
     navigateTo('home');
   });
   document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
+  document.getElementById('practiceNavBtn').addEventListener('click', () => navigateTo('practice'));
   document.getElementById('profileNavBtn').addEventListener('click', () => {
     renderMyPage();
     navigateTo('my');
@@ -598,11 +693,62 @@ function bindEvents() {
     task.addEventListener('click', () => {
       task.classList.toggle('is-complete');
       const completed = document.querySelectorAll('#prepTaskList .prep-task.is-complete').length;
-      document.getElementById('prepTaskProgress').textContent = `${completed} / 4`;
-      document.getElementById('prepCompletedCount').textContent = String(10 + completed);
+      document.getElementById('prepTaskProgress').textContent = `${completed + 3} / 7 项`;
+      document.getElementById('prepCompletionRate').textContent = `${Math.round((completed + 3) / 7 * 100)}%`;
       const check = task.querySelector('.prep-task-check');
       check.textContent = task.classList.contains('is-complete') ? '✓' : '';
     });
+  });
+  document.getElementById('startStudyBtn').addEventListener('click', () => {
+    const button = document.getElementById('startStudyBtn');
+    const running = button.classList.toggle('is-running');
+    button.textContent = running ? 'Ⅱ 正在专注' : '▷ 开始学习';
+  });
+  document.getElementById('dailyCheckinBtn').addEventListener('click', () => {
+    const button = document.getElementById('dailyCheckinBtn');
+    button.textContent = '✓ 已打卡';
+    button.disabled = true;
+  });
+  document.getElementById('prepStatsBtn').addEventListener('click', () => {
+    renderAgentProposal();
+    navigateTo('agentProposal');
+  });
+  document.getElementById('agentChatBackBtn').addEventListener('click', () => navigateTo('agentProposal'));
+  document.getElementById('agentProposalBackBtn').addEventListener('click', () => navigateTo('prep'));
+  document.getElementById('agentPlanLink').addEventListener('click', () => {
+    renderAgentProposal();
+    navigateTo('agentProposal');
+  });
+  document.getElementById('agentOpenChatBtn').addEventListener('click', () => navigateTo('agentChat'));
+  document.querySelectorAll('[data-agent-prompt]').forEach((button) => {
+    button.addEventListener('click', () => askAgent(button.dataset.agentPrompt));
+  });
+  document.getElementById('agentChatForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    askAgent(document.getElementById('agentChatInput').value);
+  });
+  document.getElementById('agentAdjustProposalBtn').addEventListener('click', () => navigateTo('agentChat'));
+  document.getElementById('agentApplyProposalBtn').addEventListener('click', async () => {
+    const button = document.getElementById('agentApplyProposalBtn');
+    if (!activeAgentProposal?.id) {
+      button.textContent = '✓ 已应用演示计划';
+      button.disabled = true;
+      return;
+    }
+    button.disabled = true;
+    button.textContent = '正在应用…';
+    try {
+      await applyAgentProposal(activeAgentProposal.id);
+      button.textContent = '✓ 已应用到备考计划';
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = '应用这份计划';
+      alert(error instanceof Error ? error.message : '应用计划失败，请稍后再试。');
+    }
+  });
+  document.getElementById('themeToggleBtn').addEventListener('click', toggleStudyTheme);
+  document.querySelectorAll('[data-practice-action], #resumePracticeBtn, #allWrongBtn, #wrongAnalysisBtn').forEach((button) => {
+    button.addEventListener('click', () => alert(`${button.dataset.practiceAction || '题库功能'}正在准备中，学习记录会同步到这里。`));
   });
   initializeFooterSlider();
   document.getElementById('resultsBackBtn').addEventListener('click', () => navigateTo('home'));
@@ -929,7 +1075,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'results', 'fail', 'my'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'practice', 'results', 'fail', 'my'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -1274,9 +1420,9 @@ function applyFilterSheet() {
 function renderMyPage() {
   // 目标分数
   const target = getTargetScore();
-  document.getElementById('myTargetScore').textContent = target.score || '--';
-  document.getElementById('myTargetDegree').textContent = target.degree === 'xueshuo' ? '学硕' : '专硕';
-  document.getElementById('myTargetCategory').textContent = target.category || '未设置';
+  document.getElementById('myTargetScore').textContent = target.score || '365';
+  document.getElementById('myTargetDegree').textContent = target.score ? (target.degree === 'xueshuo' ? '学硕' : '专硕') : '学硕';
+  document.getElementById('myTargetCategory').textContent = target.category || '工学';
 
   // 收藏院校
   const favs = getFavorites();
@@ -1391,6 +1537,7 @@ function initMyPageEvents() {
 
   // 快捷操作
   document.getElementById('myOpenDataBtn').addEventListener('click', () => openEditModal());
+  document.getElementById('myOpenDataBtn2').addEventListener('click', () => openEditModal());
   document.getElementById('myExportBtn').addEventListener('click', exportAllData);
   document.getElementById('myShareBtn').addEventListener('click', () => {
     const url = location.href;
