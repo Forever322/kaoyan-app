@@ -65,7 +65,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android-twa
-        run: gradle assembleRelease
+        run: ./gradlew --no-daemon assembleRelease
 
       - name: Determine release tag
         id: release-tag

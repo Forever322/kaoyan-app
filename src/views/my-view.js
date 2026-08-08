@@ -1,93 +1,15 @@
 export function myView() {
   return `
     <section id="myScreen" class="app-screen my-screen" aria-label="我的">
-      <header class="my-topbar">
-        <div>
-          <span class="my-kicker">2026 · 研考</span>
-          <h1>我的</h1>
-        </div>
-      </header>
-
-      <main class="my-main">
-        <!-- 目标分数卡片 -->
-        <section class="my-card my-target-card" aria-label="目标分数">
-          <div class="my-card-icon">🎯</div>
-          <div class="my-card-body">
-            <span class="my-card-label">目标总分</span>
-            <div class="my-target-row">
-              <strong id="myTargetScore">--</strong>
-              <span>分</span>
-            </div>
-            <div class="my-target-meta">
-              <span id="myTargetDegree">学硕</span>
-              <span class="my-target-sep">·</span>
-              <span id="myTargetCategory">工学</span>
-            </div>
-          </div>
-          <button id="myEditTargetBtn" class="my-icon-btn" type="button" aria-label="编辑目标" title="编辑目标">✎</button>
-        </section>
-
-        <!-- 收藏院校 -->
-        <section class="my-section" aria-labelledby="myFavTitle">
-          <div class="my-section-heading">
-            <h2 id="myFavTitle">★ 收藏院校</h2>
-            <span id="myFavCount" class="my-count">0</span>
-          </div>
-          <div id="myFavList" class="my-list">
-            <div class="my-empty" id="myFavEmpty">
-              <span>还没有收藏院校</span>
-              <small>在院校详情页点击 ☆ 即可收藏</small>
-            </div>
-          </div>
-        </section>
-
-        <!-- 浏览历史 -->
-        <section class="my-section" aria-labelledby="myHistoryTitle">
-          <div class="my-section-heading">
-            <h2 id="myHistoryTitle">◷ 最近浏览</h2>
-            <button id="myClearHistoryBtn" class="my-text-btn" type="button">清空</button>
-          </div>
-          <div id="myHistoryList" class="my-list">
-            <div class="my-empty" id="myHistoryEmpty">
-              <span>暂无浏览记录</span>
-              <small>浏览院校详情后会显示在这里</small>
-            </div>
-          </div>
-        </section>
-
-        <!-- 快捷入口 -->
-        <section class="my-section" aria-labelledby="myQuickTitle">
-          <div class="my-section-heading">
-            <h2 id="myQuickTitle">⚡ 快捷操作</h2>
-          </div>
-          <div class="my-quick-grid">
-            <button id="myOpenDataBtn" class="my-quick-card" type="button">
-              <span class="my-quick-icon">📋</span>
-              <strong>数据管理</strong>
-              <small>导入/导出/自定义院校</small>
-            </button>
-            <button id="myExportBtn" class="my-quick-card" type="button">
-              <span class="my-quick-icon">📤</span>
-              <strong>导出数据</strong>
-              <small>备份收藏与设置</small>
-            </button>
-            <button id="myShareBtn" class="my-quick-card" type="button">
-              <span class="my-quick-icon">🔗</span>
-              <strong>分享给研友</strong>
-              <small>复制链接发送给好友</small>
-            </button>
-            <button id="myFeedbackBtn" class="my-quick-card" type="button">
-              <span class="my-quick-icon">💬</span>
-              <strong>反馈建议</strong>
-              <small>帮助我们改进产品</small>
-            </button>
-          </div>
-        </section>
-
-        <footer class="my-footer">
-          <p>考研择校助手 v4.3</p>
-          <small>数据来源：研招网及各校官网</small>
-        </footer>
+      <header class="my-profile-head"><span>♙</span><div><h1>小研同学</h1><p>2027 · 北邮软件工程</p></div><button id="myEditTargetBtn" type="button" aria-label="设置">⚙</button></header>
+      <main class="study-main my-main">
+        <section class="my-target-snapshot" aria-label="模拟目标档案"><div><small>模拟目标档案</small><strong>北京邮电大学 · 软件工程</strong><p><span id="myTargetScore">365</span> 分 <i id="myTargetDegree">学硕</i> · <i id="myTargetCategory">工学</i></p></div><b>083500</b></section>
+        <section class="my-week-card"><small>本周学习</small><div><strong>52h 31min</strong><em>日均 7h 30m</em></div><div class="my-bars" aria-label="学习趋势"><i></i><i></i><i></i><i></i><i></i><i class="active"></i><i></i></div></section>
+        <section class="my-metric-grid"><span><b>28 天</b><small>连续学习</small></span><span><b>87%</b><small>任务完成率</small></span><span><b>486h</b><small>总学习时长</small></span></section>
+        <section class="my-subject-section"><h2>学科投入</h2><div class="my-subject-list"><p><span>数学</span><i><b style="width:73%"></b></i><em>21h</em></p><p><span>英语</span><i><b style="width:52%"></b></i><em>15h</em></p><p><span>专业课</span><i><b style="width:38%"></b></i><em>11h</em></p><p><span>政治</span><i><b style="width:18%"></b></i><em>5h</em></p></div></section>
+        <section class="my-quick-grid" aria-label="个人功能"><button id="myOpenDataBtn" type="button"><b>⌂</b><span>目标院校</span></button><button id="myExportBtn" type="button"><b>▥</b><span>学习报告</span></button><button id="myShareBtn" type="button"><b>♧</b><span>收藏</span></button><button id="myFeedbackBtn" type="button"><b>◌</b><span>通知</span></button></section>
+        <section class="my-demo-note" aria-label="模拟数据说明"><b>✦</b><span><strong>模拟学习数据</strong><small>完成目标设置与学习记录后，这些数据会自动更新。</small></span><button id="themeToggleBtn" type="button">☾ 夜间</button></section>
+        <div class="my-data-compat" aria-hidden="true"><span id="myFavCount"></span><div id="myFavList"><div id="myFavEmpty"></div></div><div id="myHistoryList"><div id="myHistoryEmpty"></div></div><button id="myClearHistoryBtn" type="button"></button><button id="myOpenDataBtn2" type="button"></button></div>
       </main>
     </section>
   `;

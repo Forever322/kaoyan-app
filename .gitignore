@@ -1,4 +1,8 @@
 .vercel
+server/.env
+server/.env.*
+!server/.env.example
+.env.local
 
 # Dependencies
 node_modules/

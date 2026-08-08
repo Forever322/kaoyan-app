@@ -1,59 +1,22 @@
 export function prepView() {
   return `
-    <section id="prepScreen" class="app-screen prep-screen" aria-label="备考工作台">
-      <header class="prep-topbar">
-        <div>
-          <span class="prep-kicker">2026 · 研考</span>
-          <h1>备考</h1>
-        </div>
-        <button id="prepSettingsBtn" class="prep-icon-btn" type="button" aria-label="备考设置" title="备考设置">⚙</button>
-      </header>
-
-      <main class="prep-main">
+    <section id="prepScreen" class="app-screen prep-screen" aria-label="备考">
+      <header class="study-topbar"><div><h1>备考</h1><p>计划、专注与复习节奏</p></div><button id="prepSettingsBtn" class="study-icon-btn" type="button" aria-label="备考设置">⚙</button></header>
+      <main class="study-main">
         <section class="prep-countdown-card" aria-label="初试倒计时">
-          <div class="prep-countdown-copy">
-            <span class="prep-label">距离初试</span>
-            <strong id="prepDaysLeft">142</strong>
-            <span class="prep-days-unit">天</span>
-          </div>
-          <div class="prep-stage-copy">
-            <span class="prep-stage-dot"></span>
-            <span>强化阶段</span>
-            <small>目标 12 月 20 日</small>
-          </div>
+          <div><span>距离 2027 考研</span><strong id="prepDaysLeft">138</strong><em>天</em></div>
+          <b>强化阶段</b>
+          <p>本周任务 <i id="prepWeekProgress">23 / 31</i><small><u></u></small></p>
         </section>
-
-        <section class="prep-section prep-tasks-section" aria-labelledby="prepTasksTitle">
-          <div class="prep-section-heading">
-            <div><span class="prep-eyebrow">TODAY</span><h2 id="prepTasksTitle">今日任务</h2></div>
-            <span id="prepTaskProgress" class="prep-section-value">2 / 4</span>
-          </div>
-          <div id="prepTaskList" class="prep-task-list">
-            <button class="prep-task is-complete" type="button" data-task-id="english"><span class="prep-task-check">✓</span><span class="prep-task-copy"><strong>英语真题阅读</strong><small>完成 2 篇 · 45 分钟</small></span><span class="prep-task-arrow">›</span></button>
-            <button class="prep-task is-complete" type="button" data-task-id="politics"><span class="prep-task-check">✓</span><span class="prep-task-copy"><strong>政治选择题</strong><small>肖 1000 题 · 30 分钟</small></span><span class="prep-task-arrow">›</span></button>
-            <button class="prep-task" type="button" data-task-id="math"><span class="prep-task-check"></span><span class="prep-task-copy"><strong>数学强化训练</strong><small>高数专题 · 90 分钟</small></span><span class="prep-task-arrow">›</span></button>
-            <button class="prep-task" type="button" data-task-id="major"><span class="prep-task-check"></span><span class="prep-task-copy"><strong>专业课背诵</strong><small>名词解释 · 60 分钟</small></span><span class="prep-task-arrow">›</span></button>
-          </div>
+        <section class="today-action-card" aria-labelledby="todayActionTitle">
+          <div class="today-action-head"><div><h2 id="todayActionTitle">今天该干什么</h2><small>最近节点 · 9月24日预报名</small></div><b id="prepCompletionRate">57%</b></div>
+          <div class="today-metrics"><span><small>今日学习</small><strong id="prepStudyTime">4h 32m / 8h</strong></span><span><small>任务完成</small><strong id="prepTaskProgress">4 / 7 项</strong></span></div>
+          <div class="today-actions"><button id="startStudyBtn" type="button">▷ 开始学习</button><button id="dailyCheckinBtn" type="button">✓ 打卡</button></div>
+          <p>✦ 完成今天，比计划明天更重要。</p>
         </section>
-
-        <section class="prep-section prep-week-section" aria-labelledby="prepWeekTitle">
-          <div class="prep-section-heading"><div><span class="prep-eyebrow">THIS WEEK</span><h2 id="prepWeekTitle">本周状态</h2></div><button id="prepStatsBtn" class="prep-text-btn" type="button">查看统计</button></div>
-          <div class="prep-stats-grid">
-            <div class="prep-stat"><strong>18.5<span>h</span></strong><small>学习时长</small></div>
-            <div class="prep-stat"><strong>6<span>天</span></strong><small>连续学习</small></div>
-            <div class="prep-stat"><strong id="prepCompletedCount">12</strong><small>完成任务</small></div>
-          </div>
-        </section>
-
-        <section class="prep-section prep-subject-section" aria-labelledby="prepSubjectTitle">
-          <div class="prep-section-heading"><div><span class="prep-eyebrow">SUBJECTS</span><h2 id="prepSubjectTitle">科目进度</h2></div><button id="prepSubjectsBtn" class="prep-text-btn" type="button">全部</button></div>
-          <div class="prep-subject-grid">
-            <article class="prep-subject-card"><div><strong>英语</strong><span>强化阶段</span></div><b>68%</b><div class="prep-progress"><i style="width:68%"></i></div></article>
-            <article class="prep-subject-card"><div><strong>数学</strong><span>强化阶段</span></div><b>52%</b><div class="prep-progress"><i style="width:52%"></i></div></article>
-            <article class="prep-subject-card"><div><strong>专业课</strong><span>基础阶段</span></div><b>41%</b><div class="prep-progress"><i style="width:41%"></i></div></article>
-            <article class="prep-subject-card"><div><strong>政治</strong><span>基础阶段</span></div><b>35%</b><div class="prep-progress"><i style="width:35%"></i></div></article>
-          </div>
-        </section>
+        <section class="prep-shortcuts" aria-label="备考功能"><button type="button"><i>▣</i><strong>计划</strong><small>年 / 月 / 周</small></button><button id="openTimerBtn" class="is-dark" type="button"><i>◷</i><strong>计时</strong><small>开始专注</small></button><button type="button"><i>文</i><strong>单词</strong><small>今日 120/200</small></button></section>
+        <section class="study-section prep-tasks-section" aria-labelledby="prepTasksTitle"><div class="study-section-heading"><h2 id="prepTasksTitle">今日任务</h2><button type="button">管理计划</button></div><div id="prepTaskList" class="prep-task-list"><button class="prep-task" type="button" data-task-id="english"><span class="prep-task-check"></span><span><small class="english-subject">英语</small><strong>核心词汇 200</strong></span><em>25分钟</em></button><button class="prep-task is-complete" type="button" data-task-id="math"><span class="prep-task-check">✓</span><span><small class="math-subject">数学</small><strong>高数强化 · 多元积分</strong></span><em>120分钟</em></button><button class="prep-task" type="button" data-task-id="politics"><span class="prep-task-check"></span><span><small class="politics-subject">政治</small><strong>肖1000 · 60题</strong></span><em>45分钟</em></button><button class="prep-task" type="button" data-task-id="major"><span class="prep-task-check"></span><span><small class="major-subject">专业课</small><strong>数据结构 · 图</strong></span><em>90分钟</em></button></div></section>
+        <button id="prepStatsBtn" class="study-ai-tip study-ai-entry" type="button"><b>✦</b><span><strong>AI 学习顾问</strong><small>数学进度落后 8%，今晚补 30 分钟积分专项。</small></span><em>去聊聊 ↗</em></button>
       </main>
     </section>
   `;

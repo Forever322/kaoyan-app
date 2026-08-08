@@ -61,7 +61,6 @@ body::before {
   background:
     radial-gradient(circle at -11% 80%, rgba(117, 135, 255, .58), transparent 14rem),
     radial-gradient(circle at 108% 8%, rgba(101, 255, 215, .45), transparent 15rem);
-  filter: blur(4px);
 }
 
 button,
@@ -103,7 +102,7 @@ button {
 .app-screen.screen-entering {
   position: relative;
   z-index: 42;
-  will-change: transform, opacity;
+  will-change: transform;
 }
 
 .app-screen.screen-enter-forward {
@@ -127,7 +126,7 @@ button {
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: none;
-  will-change: transform, opacity;
+  will-change: transform;
 }
 
 .app-screen.screen-exit-forward {
@@ -151,8 +150,8 @@ button {
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow);
   background: linear-gradient(135deg, rgba(255, 255, 255, .15), rgba(225, 242, 255, .065));
-  -webkit-backdrop-filter: blur(24px) saturate(130%);
-  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  backdrop-filter: blur(8px) saturate(130%);
 }
 
 .form-input,
@@ -361,6 +360,7 @@ button {
 
 /* 低功耗/触控设备：用不透明渐变替代大面积实时模糊，避免转场期间重复栅格化。 */
 @media (pointer: coarse) {
+
   .card,
   .form-section,
   .national-line-section,
