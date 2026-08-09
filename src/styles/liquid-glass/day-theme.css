@@ -3,12 +3,14 @@ body[data-study-theme='day'] {
   --day-bg:#f5f7f6;
   --day-card:#ffffff;
   --day-ink:#101a15;
-  --day-muted:#34483c;
-  --day-line:#e1e9e3;
-  --day-green:#1f5a41;
+  --day-muted:#2a3a31;
+  --day-line:#d4e0d8;
+  --day-green:#1a4d36;
   --day-soft:#eaf2ee;
   color:var(--day-ink);
   background:var(--day-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body[data-study-theme='day'] .home-screen,

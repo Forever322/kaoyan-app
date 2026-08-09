@@ -20,16 +20,16 @@
   --color-danger-light: rgba(255, 139, 158, 0.14);
   --color-bg: #071525;
   --app-night: linear-gradient(155deg, #10233a 0%, #091725 42%, #0b1230 100%);
-  --color-surface: rgba(232, 245, 255, 0.11);
-  --color-surface-50: rgba(255, 255, 255, 0.075);
-  --color-surface-100: rgba(255, 255, 255, 0.14);
-  --color-surface-hover: rgba(255, 255, 255, 0.18);
+  --color-surface: rgba(232, 245, 255, 0.15);
+  --color-surface-50: rgba(255, 255, 255, 0.10);
+  --color-surface-100: rgba(255, 255, 255, 0.18);
+  --color-surface-hover: rgba(255, 255, 255, 0.22);
   --color-text: #f4f8ff;
-  --color-text-secondary: #afbed4;
-  --color-text-placeholder: #7f91aa;
+  --color-text-secondary: #c8d4eb;
+  --color-text-placeholder: #95aac9;
   --color-text-inverse: #07101f;
-  --color-border: rgba(234, 245, 255, 0.18);
-  --color-border-light: rgba(234, 245, 255, 0.10);
+  --color-border: rgba(234, 245, 255, 0.22);
+  --color-border-light: rgba(234, 245, 255, 0.12);
   --radius: 22px;
   --radius-sm: 14px;
   --shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
@@ -49,6 +49,10 @@ body {
     radial-gradient(circle at 109% 9%, rgba(42, 255, 201, .62), transparent 18rem),
     var(--app-night);
   font-family: var(--font-samsung);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-synthesis: none;
 }
 
