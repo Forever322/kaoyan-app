@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Kaoyan Sans";
+  src: url("../src/assets/fonts/KaoyanSansSC-VF-subset.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --admin-ink: #14211b;
@@ -13,7 +21,8 @@
   --admin-red: #c65d5d;
   --admin-blue: #4577ca;
   --admin-shadow: 0 18px 50px rgba(23, 49, 36, .10);
-  font-family: "Kaoyan Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --admin-font-ui: "Kaoyan Sans", "SamsungOne", "Samsung One", "SamsungOne UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Roboto", sans-serif;
+  font-family: var(--admin-font-ui);
 }
 
 * { box-sizing: border-box; }
@@ -27,6 +36,7 @@ body {
     radial-gradient(circle at 0 100%, rgba(76, 165, 119, .12), transparent 28rem),
     var(--admin-page);
   color: var(--admin-ink);
+  font-family: var(--admin-font-ui);
 }
 
 button, input, select, textarea { font: inherit; }

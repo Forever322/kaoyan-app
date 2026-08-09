@@ -7,7 +7,8 @@
 }
 
 :root {
-  --font-samsung: "Kaoyan Sans", "SamsungOne", "Samsung One", "SamsungOne UI", "Roboto", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-ui: "Kaoyan Sans", "SamsungOne", "Samsung One", "SamsungOne UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Roboto", sans-serif;
+  --font-samsung: var(--font-ui);
   --color-primary: #d9ff42;
   --color-primary-dark: #a8ce20;
   --color-primary-light: rgba(217, 255, 66, 0.16);

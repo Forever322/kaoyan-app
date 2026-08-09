@@ -3,6 +3,14 @@
    Mobile-first, PWA native-like UI
    ======================================== */
 
+@font-face {
+  font-family: "Kaoyan Sans";
+  src: url("./assets/fonts/KaoyanSansSC-VF-subset.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* ----- CSS Variables ----- */
 :root {
   /* Brand */
@@ -75,6 +83,9 @@
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+
+  /* Fonts */
+  --font-ui: "Kaoyan Sans", "SamsungOne", "Samsung One", "SamsungOne UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Roboto", sans-serif;
 }
 
 /* ----- Reset ----- */
@@ -94,9 +105,7 @@ html {
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-ui);
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
