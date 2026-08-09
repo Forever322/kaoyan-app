@@ -12,7 +12,9 @@
         "db:seed": "node src/db/seed.js",
         "db:seed:mysql": "node src/db/seed.js",
         "db:reset": "node src/db/migrate.js --reset && node src/db/seed.js",
-        "db:import:mysql": "node scripts/import-sqljs-to-mysql.js"
+        "db:import:mysql": "node scripts/import-sqljs-to-mysql.js",
+        "db:audit:catalog": "node scripts/audit-university-data.js",
+        "admin:bootstrap": "node scripts/bootstrap-admin.js"
     },
     "dependencies": {
         "cors": "^2.8.5",

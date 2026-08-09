@@ -6,6 +6,7 @@ import { AgentServiceError, generateChatReply, generateProposal } from '../servi
 import { KAOYAN_COACH_POLICY_VERSION } from '../services/kaoyan-coach-policy.js';
 import { getPlanState, getPlansState, replacePlan, validateAgentPlan } from '../services/plan-service.js';
 import { runAuditedAgentCall } from '../services/agent-run-service.js';
+import { assertAgentCapabilityEnabled } from '../services/agent-runtime-policy.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 
 const router = Router();
@@ -223,6 +224,7 @@ router.post('/conversations', async (req, res, next) => {
     if (!user) return;
     const { agentType = 'study-assistant', title = '', context = {} } = req.body || {};
     const normalizedAgentType = normalizeAgentType(agentType);
+    await assertAgentCapabilityEnabled(db, { userId: user.id, agentType: normalizedAgentType, capability: 'chat' });
     if (String(title).length > 100) return res.status(400).json({ error: '会话参数不合法' });
     const clientContext = safeClientContext(context);
     const result = await db.execute('INSERT INTO agent_conversations(user_id,agent_type,title,context_json) VALUES(?,?,?,?)', [
@@ -285,6 +287,7 @@ router.post('/conversations/:id/messages', agentGenerationRateLimiter, async (re
     const conversation = await getConversationForUser(db, user.id, req.params.id);
     if (!conversation) return res.status(404).json({ error: '会话不存在' });
     const agentType = conversationAgentType(conversation.agent_type);
+    await assertAgentCapabilityEnabled(db, { userId: user.id, agentType, capability: 'chat' });
     const history = (await db.all('SELECT role,content FROM agent_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 16', [conversation.id])).reverse();
     const context = { ...await buildAgentContext(db, user.id), conversation: parseJson(conversation.context_json, {}) };
     const reply = await runAuditedAgentCall(db, {
@@ -323,6 +326,7 @@ router.post('/proposals', agentGenerationRateLimiter, async (req, res, next) => 
     if (!['admission', 'study'].includes(proposalType)) return res.status(400).json({ error: 'proposalType 必须为 admission 或 study' });
     if (String(question).length > MAX_QUESTION_LENGTH) return res.status(400).json({ error: `question 不能超过 ${MAX_QUESTION_LENGTH} 个字符` });
     const normalizedAgentType = normalizeAgentType(agentType);
+    await assertAgentCapabilityEnabled(db, { userId: user.id, agentType: normalizedAgentType, capability: 'proposal' });
     const sourceContext = {
       agentType: normalizedAgentType,
       agentContext: await buildAgentContext(db, user.id),

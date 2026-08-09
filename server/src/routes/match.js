@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { getDB } from '../db/index.js';
 
-const router = Router();
+export function createMatchRouter({ database = getDB } = {}) {
+  const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const db = await getDB();
+    const db = await database();
     const { score, degree, category, zone, limit } = req.query;
     if (!score || !degree || !category || !zone) {
       return res.status(400).json({ error: 'missing params: score, degree, category, zone' });
@@ -18,7 +19,8 @@ router.get('/', async (req, res, next) => {
       db.all(`SELECT u.*, GROUP_CONCAT(CONCAT(a.year, ':', a.score) ORDER BY a.year DESC SEPARATOR ',') AS score_history
         FROM universities u
         LEFT JOIN admission_scores a ON a.university_id = u.id AND a.degree = ? AND a.category = ?
-        WHERE u.zone = ?
+          AND COALESCE(a.catalog_status,'active')='active'
+        WHERE u.zone = ? AND COALESCE(u.catalog_status,'active')='active'
         GROUP BY u.id
         ORDER BY u.level DESC, u.name ASC`, [degree, category, zone]),
     ]);
@@ -62,4 +64,7 @@ router.get('/', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-export default router;
+  return router;
+}
+
+export default createMatchRouter();

@@ -8,7 +8,8 @@ router.get('/', async (req, res, next) => {
   try {
     const db = await getDB();
     const { zone, province, level, keyword } = req.query;
-    let sql = 'SELECT * FROM universities WHERE 1=1';
+    // 已归档院校仅能由管理后台查看，避免用户端继续展示被撤回或待治理的资料。
+    let sql = "SELECT * FROM universities WHERE COALESCE(catalog_status,'active')='active'";
     const params = [];
 
     if (zone) { sql += ' AND zone = ?'; params.push(zone); }
@@ -25,14 +26,14 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const db = await getDB();
-    const university = await db.one('SELECT * FROM universities WHERE id = ?', [req.params.id]);
+    const university = await db.one("SELECT * FROM universities WHERE id = ? AND COALESCE(catalog_status,'active')='active'", [req.params.id]);
     if (!university) return res.status(404).json({ error: 'not found' });
 
     const [detail, photos, scores, requirements] = await Promise.all([
-      db.one('SELECT * FROM uni_details WHERE university_id = ?', [university.id]),
-      db.all('SELECT * FROM uni_photos WHERE university_id = ? ORDER BY id ASC', [university.id]),
-      db.all('SELECT * FROM admission_scores WHERE university_id = ? ORDER BY year DESC', [university.id]),
-      db.all('SELECT * FROM uni_requirements WHERE university_id = ? ORDER BY id ASC', [university.id]),
+      db.one("SELECT * FROM uni_details WHERE university_id = ? AND COALESCE(catalog_status,'active')='active'", [university.id]),
+      db.all("SELECT * FROM uni_photos WHERE university_id = ? AND COALESCE(catalog_status,'active')='active' ORDER BY id ASC", [university.id]),
+      db.all("SELECT * FROM admission_scores WHERE university_id = ? AND COALESCE(catalog_status,'active')='active' ORDER BY year DESC", [university.id]),
+      db.all("SELECT * FROM uni_requirements WHERE university_id = ? AND COALESCE(catalog_status,'active')='active' ORDER BY id ASC", [university.id]),
     ]);
 
     return res.json({

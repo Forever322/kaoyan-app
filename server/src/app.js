@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import universitiesRouter from './routes/universities.js';
+import programsRouter from './routes/programs.js';
 import nationalLinesRouter from './routes/national-lines.js';
 import matchRouter from './routes/match.js';
 import agentsRouter from './routes/agents.js';
@@ -8,6 +9,9 @@ import authRouter from './routes/auth.js';
 import studyRouter from './routes/study.js';
 import plansRouter from './routes/plans.js';
 import favoritesRouter from './routes/favorites.js';
+import adminRouter from './routes/admin.js';
+import adminCatalogRouter from './routes/admin-catalog.js';
+import adminDatabaseRouter from './routes/admin-database.js';
 import { AgentServiceError } from './services/agent-service.js';
 import { createRateLimiter } from './middleware/rate-limit.js';
 import { getDB } from './db/index.js';
@@ -52,6 +56,7 @@ export function createApp() {
     }
   });
   app.use('/api/universities', universitiesRouter);
+  app.use('/api/programs', programsRouter);
   app.use('/api/national-lines', nationalLinesRouter);
   app.use('/api/match', matchRouter);
   app.use('/api/auth', createRateLimiter({ windowMs: 15 * 60_000, max: authRequestsPer15Min }), authRouter);
@@ -59,6 +64,9 @@ export function createApp() {
   app.use('/api/plans', plansRouter);
   app.use('/api/favorites', favoritesRouter);
   app.use('/api/agents', agentsRouter);
+  app.use('/api/admin', adminRouter);
+  app.use('/api/admin', adminCatalogRouter);
+  app.use('/api/admin', adminDatabaseRouter);
 
   app.use((_req, res) => res.status(404).json({ error: '接口不存在' }));
 

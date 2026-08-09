@@ -12,6 +12,10 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     rollupOptions: {
+      input: {
+        app: 'index.html',
+        admin: 'admin/index.html',
+      },
       output: {
         manualChunks(id) {
           if (id.includes('/src/data/')) {

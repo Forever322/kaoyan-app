@@ -13,6 +13,9 @@ const CONNECT_RETRY_MS = Math.min(10_000, Math.max(100, Number(process.env.MYSQL
 const MIGRATIONS = [
   { version: '001-initial-schema', file: 'migrations/001-initial-schema.sql' },
   { version: '002-extension-primitives', file: 'migrations/002-extension-primitives.sql' },
+  { version: '003-university-catalog-governance', file: 'migrations/003-university-catalog-governance.sql' },
+  { version: '004-admin-rbac-and-agent-controls', file: 'migrations/004-admin-rbac-and-agent-controls.sql' },
+  { version: '005-catalog-issue-lifecycle', file: 'migrations/005-catalog-issue-lifecycle.sql' },
 ];
 
 let dbPromise = null;
@@ -169,6 +172,15 @@ function splitStatements(sql) {
   return sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
 }
 
+function isRetryableAlreadyAppliedDdl(error) {
+  // MySQL 8.4 does not support `ADD COLUMN IF NOT EXISTS` in the form used by
+  // multi-column ALTER statements. When a deployment is interrupted after a
+  // DDL statement committed but before schema_migrations was recorded, retry
+  // only the narrow duplicate-DDL cases and continue the migration. Any type,
+  // constraint, permission, or data error still aborts the release.
+  return ['ER_TABLE_EXISTS_ERROR', 'ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME', 'ER_FK_DUP_NAME', 'ER_CANT_DROP_FIELD_OR_KEY'].includes(error?.code);
+}
+
 async function ensureMigrationTable(db) {
   await db.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version VARCHAR(191) NOT NULL,
@@ -192,7 +204,14 @@ async function runMigration(db, migration) {
 
   // MySQL DDL 会隐式提交，因此每个语句必须可重复执行；只有全部 DDL 成功后
   // 才记录版本。中途失败时修复后可安全重新运行。
-  for (const statement of splitStatements(source)) await db.execute(statement);
+  for (const statement of splitStatements(source)) {
+    try {
+      await db.execute(statement);
+    } catch (error) {
+      if (!isRetryableAlreadyAppliedDdl(error)) throw error;
+      console.warn(`[DB] 迁移 ${migration.version} 检测到已存在的 DDL，跳过并继续：${error.code}`);
+    }
+  }
   await db.execute('INSERT INTO schema_migrations(version, checksum) VALUES(?, ?)', [migration.version, checksum]);
   console.log(`[DB] 已应用迁移 ${migration.version}`);
   return true;
@@ -250,10 +269,14 @@ export async function reset() {
   }
   const db = await getDB();
   const tables = [
-    'domain_events', 'background_jobs', 'agent_runs', 'agent_proposals', 'user_study_plans',
-    'user_admission_plans', 'agent_memories', 'agent_messages', 'agent_conversations',
-    'study_sessions', 'user_favorites', 'auth_tokens', 'users', 'uni_requirements',
-    'admission_scores', 'uni_photos', 'uni_details', 'national_lines', 'universities',
+    'domain_events', 'background_jobs', 'catalog_data_issues', 'catalog_change_log',
+    'retest_rules', 'admission_statistics', 'exam_subjects', 'score_lines',
+    'program_offerings', 'programs', 'academic_units', 'campuses', 'university_aliases',
+    'source_documents', 'data_import_batches', 'admin_audit_logs', 'agent_configurations',
+    'feature_flags', 'agent_runs', 'agent_proposals',
+    'user_study_plans', 'user_admission_plans', 'agent_memories', 'agent_messages',
+    'agent_conversations', 'study_sessions', 'user_favorites', 'auth_tokens', 'users',
+    'uni_requirements', 'admission_scores', 'uni_photos', 'uni_details', 'national_lines', 'universities',
     'schema_migrations',
   ];
   await db.execute('SET FOREIGN_KEY_CHECKS=0');

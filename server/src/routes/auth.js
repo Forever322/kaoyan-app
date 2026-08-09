@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDB } from '../db/index.js';
 import { hashPassword, issueAccessToken, publicUser, requireAuthenticatedUser, revokeAccessToken, verifyPassword } from '../services/auth-service.js';
+import { writeAdminAudit } from '../services/admin-audit-service.js';
 
 const router = Router();
 const USERNAME_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]{2,32}$/;
@@ -39,7 +40,7 @@ router.post('/register', async (req, res, next) => {
       }
       throw insertError;
     }
-    const user = await db.one('SELECT id,username,email,avatar_url FROM users WHERE id=?', [result.insertId]);
+    const user = await db.one('SELECT id,username,email,avatar_url,role,status,last_login_at FROM users WHERE id=?', [result.insertId]);
     const token = await issueAccessToken(db, user.id);
     return res.status(201).json({ user: publicUser(user), ...token });
   } catch (error) {
@@ -54,9 +55,26 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: '昵称或密码格式不正确' });
     }
     const db = await getDB();
-    const user = await db.one('SELECT id,username,email,avatar_url,password_hash FROM users WHERE username=?', [String(username).trim()]);
+    const user = await db.one(
+      'SELECT id,username,email,avatar_url,role,status,last_login_at,password_hash FROM users WHERE username=?',
+      [String(username).trim()],
+    );
     if (!user || !verifyPassword(password, user.password_hash)) return res.status(401).json({ error: '昵称或密码错误' });
+    if (String(user.status || 'active') !== 'active') {
+      return res.status(403).json({ error: '该账号已被停用，请联系管理员' });
+    }
+    await db.execute('UPDATE users SET last_login_at=UTC_TIMESTAMP(3) WHERE id=?', [user.id]);
+    user.last_login_at = new Date().toISOString();
     const token = await issueAccessToken(db, user.id);
+    if (['admin', 'super_admin'].includes(String(user.role || 'user'))) {
+      await writeAdminAudit(db, {
+        actorUserId: user.id,
+        action: 'auth.admin_login',
+        resourceType: 'user',
+        resourceId: String(user.id),
+        metadata: { mechanism: 'password' },
+      });
+    }
     return res.json({ user: publicUser(user), ...token });
   } catch (error) {
     next(error);
