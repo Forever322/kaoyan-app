@@ -40,6 +40,8 @@ function normalizeUser(user) {
     username: String(user.username || ''),
     email: String(user.email || ''),
     avatarUrl: String(user.avatarUrl || ''),
+    role: String(user.role || 'user'),
+    status: String(user.status || 'active'),
   };
 }
 

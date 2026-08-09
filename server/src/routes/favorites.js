@@ -15,7 +15,8 @@ const FAVORITE_SELECT = `SELECT
   u.level,
   u.type
 FROM user_favorites f
-INNER JOIN universities u ON u.id = f.university_id`;
+INNER JOIN universities u ON u.id = f.university_id
+  AND COALESCE(u.catalog_status,'active')='active'`;
 
 function requestError(message, status = 400) {
   const error = new Error(message);
@@ -75,13 +76,14 @@ function toFavorite(row) {
   };
 }
 
-async function resolveUniversity(db, rawTarget) {
+async function resolveUniversity(db, rawTarget, { includeArchived = false } = {}) {
   const target = normalizeUniversityTarget(rawTarget);
   let university;
+  const visibility = includeArchived ? '' : " AND COALESCE(catalog_status,'active')='active'";
 
   if (target.universityId) {
     university = await db.one(
-      'SELECT id,name,province,city,zone,level,type FROM universities WHERE id=?',
+      `SELECT id,name,province,city,zone,level,type FROM universities WHERE id=?${visibility}`,
       [target.universityId],
     );
     if (!university) throw requestError('院校不存在或已下架', 404);
@@ -90,7 +92,7 @@ async function resolveUniversity(db, rawTarget) {
     }
   } else {
     university = await db.one(
-      'SELECT id,name,province,city,zone,level,type FROM universities WHERE name=?',
+      `SELECT id,name,province,city,zone,level,type FROM universities WHERE name=?${visibility}`,
       [target.universityName],
     );
     if (!university) throw requestError('院校不存在或已下架', 404);
@@ -184,7 +186,7 @@ export function createFavoritesRouter({
       const db = await database();
       const user = await authenticate(req, res, db);
       if (!user) return;
-      const university = await resolveUniversity(db, target);
+      const university = await resolveUniversity(db, target, { includeArchived: true });
       const result = await db.execute(
         'DELETE FROM user_favorites WHERE user_id=? AND university_id=?',
         [user.id, university.id],

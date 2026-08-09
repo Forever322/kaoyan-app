@@ -112,6 +112,23 @@ services:
     volumes:
       - kaoyan-data:/legacy:ro
 
+  # 仅首次初始化后台超级管理员时运行。它不暴露 HTTP 接口，需同时提供
+  # ADMIN_BOOTSTRAP_TOKEN 与一次性的确认令牌，成功后应从 .env 删除二者。
+  # docker compose -f docker-compose.backend.yml --profile tools run --rm \
+  #   -e ADMIN_BOOTSTRAP_CONFIRM_TOKEN="$ADMIN_BOOTSTRAP_TOKEN" api-admin-bootstrap
+  api-admin-bootstrap:
+    image: ${API_IMAGE:-kaoyan-api:latest}
+    profiles: ["tools"]
+    restart: "no"
+    command: ["node", "scripts/bootstrap-admin.js"]
+    environment:
+      <<: *api-environment
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-}
+      ADMIN_BOOTSTRAP_TOKEN: ${ADMIN_BOOTSTRAP_TOKEN:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
 volumes:
   # MySQL 正式数据。docker compose down 不会删除；严禁在生产运行 down -v。
   mysql-data:

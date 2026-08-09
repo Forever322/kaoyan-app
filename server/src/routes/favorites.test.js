@@ -50,9 +50,11 @@ async function withRouter(router, run) {
 
 test('收藏列表只按当前登录用户读取，并返回院校摘要', async () => {
   let listParams;
+  let listSql;
   const router = createFavoritesRouter({
     database: async () => ({
-      all: async (_sql, params) => {
+      all: async (sql, params) => {
+        listSql = sql;
         listParams = params;
         return [favorite];
       },
@@ -81,6 +83,7 @@ test('收藏列表只按当前登录用户读取，并返回院校摘要', async
     });
   });
   assert.deepEqual(listParams, [42]);
+  assert.match(listSql, /COALESCE\(u\.catalog_status,'active'\)='active'/);
 });
 
 test('按院校名称创建收藏，名称会在服务端解析为唯一院校', async () => {
@@ -91,6 +94,7 @@ test('按院校名称创建收藏，名称会在服务端解析为唯一院校',
       one: async (sql, params) => {
         if (sql.startsWith('SELECT id,name,province')) {
           assert.deepEqual(params, ['清华大学']);
+          assert.match(sql, /COALESCE\(catalog_status,'active'\)='active'/);
           return university;
         }
         if (sql.includes('FROM user_favorites')) return saved ? favorite : null;

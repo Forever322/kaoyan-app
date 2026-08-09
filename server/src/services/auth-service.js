@@ -26,7 +26,15 @@ export function verifyPassword(password, storedHash) {
 }
 
 export function publicUser(user) {
-  return { id: Number(user.id), username: user.username, email: user.email || '', avatarUrl: user.avatar_url || '' };
+  return {
+    id: Number(user.id),
+    username: user.username,
+    email: user.email || '',
+    avatarUrl: user.avatar_url || '',
+    role: user.role || 'user',
+    status: user.status || 'active',
+    lastLoginAt: user.last_login_at || null,
+  };
 }
 
 export async function issueAccessToken(db, userId) {
@@ -77,9 +85,16 @@ export async function requireAuthenticatedUser(req, res, db = null) {
     res.status(401).json({ error: '请先登录后再使用该功能' });
     return null;
   }
-  const user = await database.one('SELECT id,username,email,avatar_url FROM users WHERE id = ?', [userId]);
+  const user = await database.one(
+    'SELECT id,username,email,avatar_url,role,status,last_login_at FROM users WHERE id = ?',
+    [userId],
+  );
   if (!user) {
     res.status(401).json({ error: '登录状态无效，请重新登录' });
+    return null;
+  }
+  if (String(user.status || 'active') !== 'active') {
+    res.status(403).json({ error: '该账号已被停用，请联系管理员' });
     return null;
   }
   return user;
