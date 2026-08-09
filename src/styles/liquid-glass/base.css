@@ -105,20 +105,38 @@ button {
 /* ---------- 方向感知的主屏幕切换过渡 ---------- */
 .app-screen.screen-entering {
   position: relative;
-  z-index: 42;
-  will-change: transform;
+  will-change: opacity, transform;
 }
 
+/* 主页面切换不得覆盖固定底栏；模态层仍使用更高的专用 z-index。 */
+.app-footer { z-index:75 !important; pointer-events:auto; }
+
 .app-screen.screen-enter-forward {
-  animation: screenEnterForward .4s cubic-bezier(.32, .72, .25, 1) both;
+  animation: screenEnterLite .18s ease-out both;
 }
 
 .app-screen.screen-enter-backward {
-  animation: screenEnterBackward .4s cubic-bezier(.32, .72, .25, 1) both;
+  animation: screenEnterLite .18s ease-out both;
 }
 
 .app-screen.screen-enter-cross {
-  animation: screenEnterCross .34s cubic-bezier(.32, .72, .25, 1) both;
+  animation: screenEnterLite .18s ease-out both;
+}
+
+/* 手机端切屏时先降级昂贵绘制效果，动画完成后自动恢复。 */
+body.is-screen-transitioning .app-screen::before,
+body.is-screen-transitioning .app-screen::after { opacity:0 !important; }
+body.is-screen-transitioning .card,
+body.is-screen-transitioning .form-section,
+body.is-screen-transitioning .national-line-section,
+body.is-screen-transitioning .result-card,
+body.is-screen-transitioning .fail-state,
+body.is-screen-transitioning .detail-section,
+body.is-screen-transitioning .app-footer { box-shadow:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
+
+@keyframes screenEnterLite {
+  from { opacity:0; transform:translateY(6px); }
+  to { opacity:1; transform:translateY(0); }
 }
 
 /* 旧屏幕退场：固定定位叠层，保留滚动位置，与新屏幕同屏滑动。 */

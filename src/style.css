@@ -479,20 +479,7 @@ body {
   cursor: pointer;
 }
 
-.result-card.safe {
-  border-left-color: var(--color-success);
-}
-
-.result-card.likely {
-  border-left-color: var(--color-primary);
-}
-
-.result-card.reach {
-  border-left-color: var(--color-warning);
-}
-
 .result-card.unmatched {
-  border-left-color: var(--color-danger);
   opacity: 0.6;
 }
 

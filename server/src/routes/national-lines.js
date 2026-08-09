@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { getDB, save } from '../db/index.js';
+import { getDB } from '../db/index.js';
+import { requireReferenceDataWriteToken } from '../middleware/reference-data-write.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-    const db = getDB();
+router.get('/', async (req, res, next) => {
+  try {
+    const db = await getDB();
     const { year, degree, category } = req.query;
     let sql = 'SELECT * FROM national_lines WHERE 1=1';
     const params = [];
@@ -14,20 +16,20 @@ router.get('/', (req, res) => {
     if (category) { sql += ' AND category = ?'; params.push(category); }
 
     sql += ' ORDER BY year DESC, degree, category, zone';
-    const rows = db.prepare(sql).all(...params);
-    res.json({ total: rows.length, data: rows });
+    const rows = await db.all(sql, params);
+    return res.json({ total: rows.length, data: rows.map((row) => ({ ...row, id: Number(row.id) })) });
+  } catch (error) { return next(error); }
 });
 
-router.post('/', (req, res) => {
-    const db = getDB();
-    const { year, degree, category, zone, score } = req.body;
-    if (!year || !degree || !category || !zone || !score) {
-        return res.status(400).json({ error: 'missing fields' });
-    }
-    db.prepare('INSERT OR REPLACE INTO national_lines (year, degree, category, zone, score) VALUES (?,?,?,?,?)')
-        .run(year, degree, category, zone, score);
-    save();
-    res.status(201).json({ year, degree, category, zone, score });
+router.post('/', requireReferenceDataWriteToken, async (req, res, next) => {
+  try {
+    const db = await getDB();
+    const { year, degree, category, zone, score } = req.body || {};
+    if (!year || !degree || !category || !zone || !score) return res.status(400).json({ error: 'missing fields' });
+    await db.execute(`INSERT INTO national_lines (year, degree, category, zone, score) VALUES (?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE score=VALUES(score)`, [year, degree, category, zone, score]);
+    return res.status(201).json({ year, degree, category, zone, score });
+  } catch (error) { return next(error); }
 });
 
 export default router;

@@ -9,7 +9,7 @@ import { renderPhotos } from './photos.js';
 import { getAllYearLines, hasSubMajors, getSubjectLines } from './data/national-lines.js';
 import { buildScoreTableRows } from './render.js';
 import { escapeHtml } from './utils.js';
-import { addBrowseHistory, isFavorite, toggleFavorite } from './storage.js';
+import { addBrowseHistory, isFavorite } from './storage.js';
 
 let detailCloseTimer;
 
@@ -23,7 +23,7 @@ function applyHeroPhoto(hero, photo) {
 }
 
 /** 打开院校详情页 */
-export function openDetailPage(result, { degree, zone }) {
+export function openDetailPage(result, { degree, zone, favoriteNames = null }) {
   const { university: uni, admissionScores, verdict, verdictClass } = result;
 
   // 记录浏览历史
@@ -101,7 +101,7 @@ export function openDetailPage(result, { degree, zone }) {
   renderRetestLine(allNL, userScore, admissionScores, subjectLines);
 
   // 硬性报考要求
-  renderRequirements(uni.name, subjectLines);
+  renderRequirements(uni.name);
 
   // 优缺点
   document.getElementById('detailPros').innerHTML = (detail.pros || [])
@@ -123,8 +123,9 @@ export function openDetailPage(result, { degree, zone }) {
 
   // 收藏按钮状态
   const favBtn = document.getElementById('detailFavBtn');
-  favBtn.textContent = isFavorite(uni.name) ? '★' : '☆';
-  favBtn.classList.toggle('is-faved', isFavorite(uni.name));
+  const isFaved = Array.isArray(favoriteNames) ? favoriteNames.includes(uni.name) : isFavorite(uni.name);
+  favBtn.textContent = isFaved ? '★' : '☆';
+  favBtn.classList.toggle('is-faved', isFaved);
 }
 
 /** 渲染复试基础线模块（含单科硬性要求） */
@@ -187,7 +188,7 @@ function renderRetestLine(nationalLines, userScore, admissionScores, subjectLine
 }
 
 /** 渲染硬性报考要求 */
-function renderRequirements(uniName, subjectLines) {
+function renderRequirements(uniName) {
   const section = document.getElementById('detailRequirementsSection');
   const grid = document.getElementById('detailRequirementsGrid');
   if (!section || !grid) return;

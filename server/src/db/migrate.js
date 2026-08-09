@@ -1,16 +1,22 @@
-// 数据库迁移 CLI 入口
-// 用法: node src/db/migrate.js [--reset]
+// MySQL migration CLI.
+// Usage: node src/db/migrate.js [--reset]
 
-import { migrate, reset } from './index.js';
+import { closeDB, migrate, reset } from './index.js';
 
 const shouldReset = process.argv.includes('--reset');
 
-if (shouldReset) {
-    console.log('[Migrate] 重置数据库...');
-    reset();
-} else {
-    console.log('[Migrate] 执行迁移...');
-    migrate();
+try {
+  if (shouldReset) {
+    console.log('[Migrate] 重置 MySQL 数据库...');
+    await reset();
+  } else {
+    console.log('[Migrate] 执行 MySQL 迁移...');
+    await migrate();
+  }
+  console.log('[Migrate] 完成');
+} catch (error) {
+  console.error('[Migrate] 失败:', error?.message || error);
+  process.exitCode = 1;
+} finally {
+  await closeDB();
 }
-
-console.log('[Migrate] 完成');

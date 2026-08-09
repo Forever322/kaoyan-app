@@ -6,14 +6,19 @@
     "scripts": {
         "dev": "node --watch src/index.js",
         "start": "node src/index.js",
+        "test": "node --test",
         "db:migrate": "node src/db/migrate.js",
+        "db:migrate:mysql": "node src/db/migrate.js",
         "db:seed": "node src/db/seed.js",
-        "db:reset": "node src/db/migrate.js --reset && node src/db/seed.js"
+        "db:seed:mysql": "node src/db/seed.js",
+        "db:reset": "node src/db/migrate.js --reset && node src/db/seed.js",
+        "db:import:mysql": "node scripts/import-sqljs-to-mysql.js"
     },
     "dependencies": {
         "cors": "^2.8.5",
         "dotenv": "^17.4.2",
         "express": "^5.0.0",
+        "mysql2": "^3.23.2",
         "openai": "^7.4.0",
         "sql.js": "^1.14.1"
     }

@@ -1,8 +1,10 @@
 // 统一数据访问层 — 支持本地静态数据与云端 API 自动切换
-// 策略：优先本地静态导入（零延迟），后台预取云端数据并缓存 IndexedDB
-// 后期只需改 API_BASE 即可切到纯云端模式
+// 策略：优先云端数据库，网络不可用时回退到本地静态数据与 IndexedDB 缓存。
+// 生产环境使用同源 /api（由 Nginx 代理）；开发环境可用 VITE_API_BASE 覆盖。
+// 仍保留本地数据兜底，便于离线阅读与后端临时不可用时继续使用。
 
-const API_BASE = ''; // 改为 'http://localhost:3000' 即可启用云端后端
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
+const USE_REMOTE_API = import.meta.env.VITE_OFFLINE_DATA !== 'true';
 
 // ---------- 内部：IndexedDB 缓存 ----------
 function openCache() {
@@ -48,7 +50,7 @@ async function cacheSet(key, value, ttlMs = 3600000) {
  */
 export async function getUniversities(filters = {}) {
     // 1. 尝试云端
-    if (API_BASE) {
+    if (USE_REMOTE_API) {
         try {
             const params = new URLSearchParams(filters);
             const res = await fetch(`${API_BASE}/api/universities?${params}`);
@@ -80,7 +82,7 @@ export async function getUniversities(filters = {}) {
  * @returns {Promise<Array>}
  */
 export async function getNationalLines(filters = {}) {
-    if (API_BASE) {
+    if (USE_REMOTE_API) {
         try {
             const params = new URLSearchParams(filters);
             const res = await fetch(`${API_BASE}/api/national-lines?${params}`);
@@ -124,7 +126,7 @@ export async function getNationalLines(filters = {}) {
  * @returns {Promise<Object>}
  */
 export async function getMatchResults(params) {
-    if (API_BASE) {
+    if (USE_REMOTE_API) {
         try {
             const qs = new URLSearchParams(params);
             const res = await fetch(`${API_BASE}/api/match?${qs}`);
@@ -133,7 +135,7 @@ export async function getMatchResults(params) {
     }
 
     // 本地匹配
-    const [{ matchUniversities, sortResults, evaluateMatch }, { getUniversitiesByZone }] = await Promise.all([
+    const [{ matchUniversities, sortResults }, { getUniversitiesByZone }] = await Promise.all([
         import('./matcher.js'),
         import('./data/universities.js'),
     ]);
@@ -154,7 +156,7 @@ export async function getMatchResults(params) {
  * 获取院校详情
  */
 export async function getUniversityDetail(name) {
-    if (API_BASE) {
+    if (USE_REMOTE_API) {
         try {
             const res = await fetch(`${API_BASE}/api/universities?keyword=${encodeURIComponent(name)}`);
             if (res.ok) {
@@ -182,7 +184,7 @@ export async function getUniversityDetail(name) {
 
 // 导出标志：是否连接了后端
 export async function isBackendAvailable() {
-    if (!API_BASE) return false;
+    if (!USE_REMOTE_API) return false;
     try {
         const res = await fetch(`${API_BASE}/api/health`);
         return res.ok;

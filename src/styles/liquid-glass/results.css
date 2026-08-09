@@ -201,19 +201,22 @@
     min-height: 112px;
     padding: 14px;
     overflow: hidden;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 112px;
+    /* Android WebView 在触摸停留时会错误裁掉 content-visibility:auto 的卡片。 */
+    content-visibility: visible;
     color: #c7d7e9;
-    border: 1px solid rgba(255, 255, 255, .34);
+    /* 黑色主题中原先的亮边在连续列表左侧会视觉连成一条线。 */
+    border: 1px solid rgba(194, 222, 255, .16);
     border-radius: 26px;
     background: linear-gradient(135deg, rgba(55, 79, 105, .94), rgba(39, 61, 86, .96));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
     cursor: pointer;
 }
 
-.result-card:hover {
-    transform: translateY(-1px);
-    border-color: rgba(255, 255, 255, .55);
+@media (hover: hover) and (pointer: fine) {
+    .result-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, .55);
+    }
 }
 
 /* 卡片级联入场：随批次依次上浮淡入，--card-stagger 控制每张卡的延迟。
@@ -559,7 +562,7 @@
     background: linear-gradient(115deg, rgba(175, 244, 70, .62), rgba(217, 255, 66, .26) 48%, rgba(110, 213, 115, .46));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .43), 0 6px 16px rgba(172, 245, 58, .24);
     transform: translate3d(calc(var(--nav-index) * 100%), 0, 0);
-    transition: transform .38s cubic-bezier(.34, 1.42, .64, 1);
+    transition: transform .42s cubic-bezier(.22, 1.18, .36, 1), box-shadow .28s ease;
     will-change: transform;
     backface-visibility: hidden;
 }
@@ -570,6 +573,17 @@
 
 .app-footer.is-dragging .footer-nav-btn {
     pointer-events: none;
+}
+
+/* 点击 Tab 时只保留选中胶囊的横向滑动，不重新接管触摸拖拽。 */
+.app-footer.is-sliding .footer-active-pill {
+    animation: footerPillSettle .42s cubic-bezier(.22, 1.18, .36, 1);
+}
+
+@keyframes footerPillSettle {
+    0% { box-shadow: inset 0 1px 0 rgba(255,255,255,.43), 0 2px 6px rgba(172,245,58,.08); }
+    55% { box-shadow: inset 0 1px 0 rgba(255,255,255,.52), 0 9px 19px rgba(172,245,58,.34); }
+    100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.43), 0 6px 16px rgba(172,245,58,.24); }
 }
 
 .footer-active-pill::after {
@@ -617,6 +631,10 @@
 
 .footer-nav-btn.active b {
     transform: translateY(-1px) scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .footer-active-pill { transition:none; animation:none !important; }
 }
 
 .footer-export-btn {

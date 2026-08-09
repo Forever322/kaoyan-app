@@ -1,8 +1,11 @@
 .vercel
+# Docker Compose 会从仓库根目录读取 .env；其中包含数据库和模型密钥，绝不提交。
+.env
+.env.*
+!.env.example
 server/.env
 server/.env.*
 !server/.env.example
-.env.local
 
 # Dependencies
 node_modules/
@@ -11,6 +14,9 @@ package-lock.json
 # Build output
 dist/
 *.apk
+# Local deployment artifacts: upload these directly to the server, never GitHub.
+*.tar
+kaoyan-web-*.zip
 android-twa/.gradle/
 android-twa/build/
 android-twa/app/build/

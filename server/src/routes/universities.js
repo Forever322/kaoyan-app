@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { getDB, save } from '../db/index.js';
+import { getDB } from '../db/index.js';
+import { requireReferenceDataWriteToken } from '../middleware/reference-data-write.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-    const db = getDB();
+router.get('/', async (req, res, next) => {
+  try {
+    const db = await getDB();
     const { zone, province, level, keyword } = req.query;
     let sql = 'SELECT * FROM universities WHERE 1=1';
     const params = [];
@@ -15,34 +17,45 @@ router.get('/', (req, res) => {
     if (keyword) { sql += ' AND name LIKE ?'; params.push(`%${keyword}%`); }
 
     sql += ' ORDER BY level DESC, name ASC';
-    const rows = db.prepare(sql).all(...params);
-    res.json({ total: rows.length, data: rows });
+    const rows = await db.all(sql, params);
+    return res.json({ total: rows.length, data: rows.map((row) => ({ ...row, id: Number(row.id) })) });
+  } catch (error) { return next(error); }
 });
 
-router.get('/:id', (req, res) => {
-    const db = getDB();
-    const uni = db.prepare('SELECT * FROM universities WHERE id = ?').get(req.params.id);
-    if (!uni) return res.status(404).json({ error: 'not found' });
+router.get('/:id', async (req, res, next) => {
+  try {
+    const db = await getDB();
+    const university = await db.one('SELECT * FROM universities WHERE id = ?', [req.params.id]);
+    if (!university) return res.status(404).json({ error: 'not found' });
 
-    const detail = db.prepare('SELECT * FROM uni_details WHERE university_id = ?').get(uni.id);
-    const photos = db.prepare('SELECT * FROM uni_photos WHERE university_id = ?').all(uni.id);
-    const scores = db.prepare('SELECT * FROM admission_scores WHERE university_id = ? ORDER BY year DESC').all(uni.id);
-    const reqs = db.prepare('SELECT * FROM uni_requirements WHERE university_id = ?').all(uni.id);
+    const [detail, photos, scores, requirements] = await Promise.all([
+      db.one('SELECT * FROM uni_details WHERE university_id = ?', [university.id]),
+      db.all('SELECT * FROM uni_photos WHERE university_id = ? ORDER BY id ASC', [university.id]),
+      db.all('SELECT * FROM admission_scores WHERE university_id = ? ORDER BY year DESC', [university.id]),
+      db.all('SELECT * FROM uni_requirements WHERE university_id = ? ORDER BY id ASC', [university.id]),
+    ]);
 
-    res.json({ ...uni, detail, photos, scores, requirements: reqs });
+    return res.json({
+      ...university,
+      id: Number(university.id),
+      detail: detail && { ...detail, id: Number(detail.id), university_id: Number(detail.university_id) },
+      photos: photos.map((row) => ({ ...row, id: Number(row.id), university_id: Number(row.university_id) })),
+      scores: scores.map((row) => ({ ...row, id: Number(row.id), university_id: Number(row.university_id) })),
+      requirements: requirements.map((row) => ({ ...row, id: Number(row.id), university_id: Number(row.university_id) })),
+    });
+  } catch (error) { return next(error); }
 });
 
-router.post('/', (req, res) => {
-    const db = getDB();
-    const { name, province, city, zone, level, type } = req.body;
-    if (!name || !province || !zone || !level) {
-        return res.status(400).json({ error: 'missing fields' });
-    }
-    db.prepare('INSERT OR IGNORE INTO universities (name, province, city, zone, level, type) VALUES (?,?,?,?,?,?)')
-        .run(name, province, city || '', zone, level, type || '');
-    save();
-    const u = db.prepare('SELECT id FROM universities WHERE name = ?').get(name);
-    res.status(201).json({ id: u?.id, name, province, city, zone, level, type });
+router.post('/', requireReferenceDataWriteToken, async (req, res, next) => {
+  try {
+    const db = await getDB();
+    const { name, province, city, zone, level, type } = req.body || {};
+    if (!name || !province || !zone || !level) return res.status(400).json({ error: 'missing fields' });
+    await db.execute(`INSERT INTO universities(name, province, city, zone, level, type) VALUES (?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`, [name, province, city || '', zone, level, type || '综合']);
+    const university = await db.one('SELECT id,name,province,city,zone,level,type FROM universities WHERE name = ?', [name]);
+    return res.status(201).json({ ...university, id: Number(university.id) });
+  } catch (error) { return next(error); }
 });
 
 export default router;
