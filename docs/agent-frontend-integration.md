@@ -1,74 +1,244 @@
 # 前端 Agent 接口接入
 
-前端客户端位于 `src/agent-api.js`。它封装了 Agent 提案的生成、查询、确认应用与拒绝；前端不调用 DeepSeek，也不持有模型密钥。
+前端只调用项目后端，不直接调用 DeepSeek/OpenAI 兼容接口，也不保存 `LLM_API_KEY`。所有 Agent 请求均应经由 `src/agent-api.js`，以便统一处理令牌、错误、重试和环境地址。
 
-## 环境变量
+## 1. API 地址与登录态
 
-开发环境在根目录创建 `.env.local`：
+开发环境根目录可创建 `.env.local`：
 
 ```env
 VITE_API_BASE=http://localhost:3000
 ```
 
-同域部署且 Nginx 已将 `/api/` 转发给后端时，可以省略该变量。
+同域生产部署时，建议将 API 基址设为同源地址（例如空字符串或 `/api` 的统一封装），由 Nginx 代理 `/api/`。不要把生产包固定到 `localhost:3000`。
 
-## 开发期身份
+登录成功后，后端返回：
 
-当前后端尚未接入 JWT。客户端临时使用 `X-User-Id` 请求头，调用前需设置已经存在于后端 `users` 表中的用户 ID：
-
-```js
-import { setAgentUserId } from './agent-api.js';
-
-setAgentUserId(1);
+```json
+{
+  "user": { "id": 1, "username": "小研同学", "email": "", "avatarUrl": "" },
+  "accessToken": "opaque-token",
+  "expiresAt": "2026-11-07T00:00:00.000Z"
+}
 ```
 
-这是开发过渡方案。上线时应由登录接口签发 JWT，客户端将 `agentRequest` 的 `X-User-Id` 替换为 `Authorization: Bearer <token>`，后端从令牌解析用户身份。
+将 `accessToken` 交给统一请求层，并为每个受保护请求添加：
 
-## 提案交互
+```http
+Authorization: Bearer <accessToken>
+```
+
+建议的客户端接口形态：
 
 ```js
-import {
-  createAgentProposal,
-  listAgentProposals,
-  applyAgentProposal,
-  rejectAgentProposal,
-  AgentApiError,
-} from './agent-api.js';
+let accessToken = '';
 
-try {
-  const { proposal } = await createAgentProposal({
+export function setAccessToken(token) {
+  accessToken = token || '';
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = new Headers(options.headers);
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  headers.set('Content-Type', 'application/json');
+  return fetch(`${API_BASE}${path}`, { ...options, headers });
+}
+```
+
+移动端优先使用系统安全存储保存令牌；Web 端按项目安全策略保存，至少不能把令牌放入 URL、页面文本、截图、埋点或控制台日志。应用启动时调用 `GET /api/auth/me` 恢复用户；得到 `401` 时清除本地登录态并回到登录页。
+
+`X-User-Id` 仅保留给本地兼容调试，且只应在后端 `ALLOW_DEV_HEADER_AUTH=true` 时使用。生产端 `ALLOW_DEV_HEADER_AUTH=false` 后，前端必须完成 Bearer token 切换。
+
+## 2. 登录接口
+
+```js
+export async function register({ username, password, email = '' }) {
+  return apiRequest('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, email }),
+  });
+}
+
+export async function login({ username, password }) {
+  return apiRequest('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export async function logout() {
+  await apiRequest('/api/auth/logout', { method: 'POST' });
+  setAccessToken('');
+}
+```
+
+- 注册：`POST /api/auth/register`，成功 `201`。
+- 登录：`POST /api/auth/login`，成功 `200`。
+- 当前用户：`GET /api/auth/me`，返回 `{ user }`。
+- 退出：`POST /api/auth/logout`，成功 `204`。
+
+后端限制用户名为 2–32 位中文、字母、数字、下划线或连字符，密码为 8–128 位。错误提示应使用后端的 `error` 字段，但不能展示密码或令牌。
+
+## 3. 学习记录与仪表盘
+
+计时器停止后写入一条学习时段：
+
+```js
+await apiRequest('/api/study/sessions', {
+  method: 'POST',
+  body: JSON.stringify({
+    subject: '数学',
+    content: '高数强化第六章',
+    startedAt: new Date(startMs).toISOString(),
+    endedAt: new Date(endMs).toISOString(),
+    durationS: Math.floor((endMs - startMs) / 1000),
+  }),
+});
+
+const summary = await apiRequest('/api/study/summary?days=7').then(readJson);
+```
+
+`summary` 包含 `durationS`、`sessionCount` 和按学科拆分的 `bySubject`，可直接用于备考主页与 Agent 上下文展示。不要在前端凭累计值推算真实统计，网络恢复后应重新从服务端读取。
+
+### 手动保存计划与版本号
+
+```js
+const { plans } = await apiRequest('/api/plans').then(readJson);
+
+await apiRequest('/api/plans/study', {
+  method: 'PUT',
+  body: JSON.stringify({
+    plan: nextStudyPlan,
+    expectedRevision: plans.study.revision,
+  }),
+}).then(readJson);
+```
+
+`GET /api/plans` 会为学习和报考计划分别返回 `plan`、`revision`、`updatedAt`。手动更新或应用 Agent 提案后 revision 都会递增；遇到 `409` 时重新拉取最新计划并提示用户合并，不能用旧页面数据强行覆盖。
+
+## 4. Agent 对话与记忆
+
+### 获取上下文
+
+```js
+const { context } = await apiRequest('/api/agents/context').then(readJson);
+```
+
+`context` 已含当前计划、近 30 天学习统计和有效记忆。除界面展示外，通常不需要将这份完整数据再随请求发送；后端会重新从当前用户数据构建可信上下文。
+
+### 创建与续接会话
+
+```js
+const { conversation } = await apiRequest('/api/agents/conversations', {
+  method: 'POST',
+  body: JSON.stringify({
+    agentType: 'study-assistant',
+    title: '八月学习安排',
+    context: { entry: 'prep-home' },
+  }),
+}).then(readJson);
+
+const { message } = await apiRequest(
+  `/api/agents/conversations/${conversation.id}/messages`,
+  { method: 'POST', body: JSON.stringify({ message: '我下周怎样复习？' }) },
+).then(readJson);
+```
+
+会话相关接口：
+
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/agents/conversations` | 创建会话，返回 `conversation` |
+| `GET /api/agents/conversations` | 获取会话列表，返回 `data` |
+| `GET /api/agents/conversations/:id` | 获取会话与已持久化消息 |
+| `POST /api/agents/conversations/:id/messages` | 发送消息，返回最新助手 `message` |
+| `DELETE /api/agents/conversations/:id` | 删除当前用户的会话及其消息 |
+
+一次发送期间禁用重复提交按钮，显示“正在分析”。模型异常返回 `502` 时保留用户输入草稿，允许显式重试；不要伪造一条成功的助手消息。
+
+### 长期记忆
+
+```js
+await apiRequest('/api/agents/memories', {
+  method: 'POST',
+  body: JSON.stringify({
+    memoryType: 'preference',
+    content: '英语阅读安排在晚间更容易坚持',
+    metadata: { source: 'user-confirmed' },
+  }),
+});
+```
+
+记忆应可见、可编辑、可删除。只有用户明确确认的信息才建议写入；不要把每句对话、敏感个人信息或未经确认的模型猜测自动保存为长期记忆。
+
+## 5. 提案交互：预览后再写入
+
+创建学习计划提案：
+
+```js
+const { proposal } = await apiRequest('/api/agents/proposals', {
+  method: 'POST',
+  body: JSON.stringify({
     proposalType: 'study',
     question: '依据我本周完成情况，重新安排下周计划。',
     context: {
-      targetSchool: '清华大学',
-      targetMajor: '计算机科学与技术',
-      weeklyHours: 42,
-      taskCompletionRate: 0.76,
-      weakSubjects: ['高数极限', '英语阅读'],
+      weeklyHoursTarget: 42,
+      clientEntry: 'agent-chat',
     },
-  });
+  }),
+}).then(readJson);
 
-  // 在 UI 中展示 proposal.summary、proposal.rationale、proposal.changes。
-  // 不要在这里直接更新本地计划。
-  await applyAgentProposal(proposal.id);
-} catch (error) {
-  if (error instanceof AgentApiError) console.error(error.status, error.message);
-}
+// 跳转到方案确认页，仅渲染 proposal.summary / rationale / changes。
+```
+
+确认页中必须将下列操作分开：
+
+```js
+await apiRequest(`/api/agents/proposals/${proposal.id}/apply`, { method: 'POST' });
+// 成功后重新拉取服务端计划和学习统计。
+
+await apiRequest(`/api/agents/proposals/${proposal.id}/reject`, { method: 'POST' });
 ```
 
 提案状态：
 
-| 状态 | 含义 |
+| 状态 | UI 含义 | 可执行操作 |
+| --- | --- | --- |
+| `pending` | 等待本人确认，尚未改数据 | 应用、拒绝 |
+| `applied` | 已写入后端当前计划 | 查看、刷新当前计划 |
+| `rejected` | 用户拒绝，保留审计记录 | 查看 |
+| `expired` | 已超过提案有效期 | 查看或重新生成 |
+
+后端严格限制每份提案只包含一个操作：学习建议只能是 `replace_study_plan`，报考建议只能是 `replace_admission_plan`。不要在客户端直接执行 `changes`，也不要把模型返回文本直接写到本地业务状态。
+
+## 6. 通用错误处理
+
+```js
+export class AgentApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function readJson(response) {
+  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) throw new AgentApiError(response.status, data?.error || '请求失败');
+  return data;
+}
+```
+
+| HTTP 状态 | 前端行为 |
 | --- | --- |
-| `pending` | 等待用户确认，不修改业务数据 |
-| `applied` | 用户已确认，后端已写入对应计划 |
-| `rejected` | 用户拒绝，保留审计记录 |
-| `expired` | 可在后端定时任务中设置过期 |
+| `400` / `413` | 高亮表单或消息长度问题 |
+| `401` | 清空本地令牌并进入登录页 |
+| `404` | 提示资源不存在或已被删除，并返回列表 |
+| `409` | 提案可能已确认/拒绝，刷新最新状态 |
+| `422` | 模型结果未通过安全校验，可提示“请重新生成” |
+| `502` | 模型服务暂不可用，保留草稿后重试 |
 
-## UI 约束
+## 7. 即将扩展的前端数据模型
 
-1. 建议必须先在“变更预览”中展示，再提供“应用此方案”按钮。
-2. 预览中展示 `summary`、`rationale` 与每项 `changes`。
-3. `applyAgentProposal` 成功后重新拉取计划数据，不要假设模型输出已生效。
-4. 出现 401 时跳转登录；出现 404 时提示提案已失效或用户不存在；出现 5xx 时保留草稿并允许重试。
-5. 在正式 JWT 完成前，不应将该接口直接暴露给公网用户。
+当前计划是 MVP 的整份 JSON 提案。后续接入任务、单词、真题、错题和院校实时数据时，应优先使用后端的规范资源接口（任务 ID、更新时间、来源和版本），不要让 Agent 文本成为唯一数据来源。
+
+涉及招生人数、分数线、专业目录等事实信息时，在界面显示来源链接与更新时间；缺少来源时，应标识为 AI 建议并提示用户核验。完整后端契约与扩展建议见 [Agent 开发与部署手册](agent-development-and-deployment.md)。

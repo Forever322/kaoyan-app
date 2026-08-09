@@ -224,6 +224,17 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 登录令牌：当前使用服务端保存的随机令牌，后续可平滑替换为 JWT / OAuth。
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_auth_token_user ON auth_tokens(user_id, expires_at);
+
 CREATE TABLE IF NOT EXISTS user_favorites (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -279,12 +290,14 @@ CREATE INDEX IF NOT EXISTS idx_agent_memory_user_type ON agent_memories(user_id,
 CREATE TABLE IF NOT EXISTS user_admission_plans (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   plan_json TEXT NOT NULL DEFAULT '{}',
+  revision INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS user_study_plans (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   plan_json TEXT NOT NULL DEFAULT '{}',
+  revision INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -298,8 +311,26 @@ CREATE TABLE IF NOT EXISTS agent_proposals (
   changes_json TEXT NOT NULL DEFAULT '[]',
   source_context_json TEXT NOT NULL DEFAULT '{}',
   previous_state_json TEXT NOT NULL DEFAULT '{}',
+  base_revision INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  model TEXT NOT NULL DEFAULT '',
   applied_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_agent_proposal_user_status ON agent_proposals(user_id, status, created_at DESC);
+
+-- 模型调用审计与额度统计。仅保存长度、耗时和受控错误码，不保存完整提示词或密钥。
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  run_type TEXT NOT NULL CHECK(run_type IN ('proposal', 'conversation')),
+  status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
+  model TEXT NOT NULL DEFAULT '',
+  input_chars INTEGER NOT NULL DEFAULT 0,
+  output_chars INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_user_created ON agent_runs(user_id, created_at DESC);

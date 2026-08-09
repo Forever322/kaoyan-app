@@ -1,28 +1,63 @@
 # 后端 Docker 部署与 Agent 扩展
 
-本项目后端是 Node.js 24、Express 5 和 `sql.js`（SQLite WASM）。生产环境采用单个 API 实例加持久化数据卷；SQLite 文件位于容器内的 `/app/server/data/kaoyan.db`。
+后端位于 `server/`，运行 Node.js、Express 和 `sql.js`。当前部署形态为一个 API 容器配一个持久化 Docker 卷，适合 MVP 单实例；Agent 模型通过服务器环境变量访问 OpenAI 兼容接口（默认 DeepSeek）。
 
-## 1. 部署前提
+## 1. 部署前提与限制
 
-- 一台 Linux 服务器，建议 Ubuntu 22.04+。
-- Docker Engine 24+ 与 Docker Compose v2。
-- 域名和 HTTPS 由 Nginx 或现有网关处理。
-- 仓库必须包含 `server/`、`src/data/`、`server/data/` 与本目录新增的 Docker 文件。
+- Linux 服务器（建议 Ubuntu 22.04+）、Docker Engine 24+、Docker Compose v2。
+- HTTPS 和域名由 Nginx 或现有网关提供。
+- 仓库包含 `server/`、`src/data/`、`server/data/`、`docker-compose.backend.yml` 和 `server/Dockerfile`。
 
-`sql.js` 会将 SQLite 整库载入内存，写入时再导出文件。因此当前版本只支持一个 API 副本，**不能水平扩容，也不应部署到无持久磁盘的 Serverless 平台**。
+`sql.js` 会在进程内加载整库并在写入后导出文件。因此它不适合多个 API 副本同时写入：**当前只能运行一个 `api` 副本，不能直接水平扩容，也不应部署到没有持久磁盘的 Serverless 平台。**
 
-## 2. 首次部署
+## 2. 生产环境变量
+
+在仓库根目录（与 `docker-compose.backend.yml` 同级）创建 `.env`。不要提交该文件，也不要复制开发机的真实密钥。
+
+```env
+NODE_ENV=production
+PORT=3000
+
+# 浏览器正式访问的来源；多个来源用英文逗号分隔
+CORS_ORIGINS=https://app.example.com
+
+# 生产环境必须关闭旧的 X-User-Id 开发兼容方式
+ALLOW_DEV_HEADER_AUTH=false
+AUTH_TOKEN_TTL_DAYS=90
+AGENT_TIMEOUT_MS=30000
+AGENT_MAX_TOKENS=1200
+AGENT_CONTEXT_MAX_BYTES=24000
+AGENT_REQUESTS_PER_MINUTE=8
+AGENT_DAILY_REQUEST_LIMIT=30
+AGENT_PROPOSAL_TTL_DAYS=7
+
+LLM_PROVIDER=deepseek
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_API_KEY=replace-with-a-server-side-secret
+AGENT_MODEL=deepseek-chat
+```
+
+重点：
+
+- `ALLOW_DEV_HEADER_AUTH=false` 是强制项。公网不能接受任意客户端传来的 `X-User-Id`。
+- `CORS_ORIGINS` 必须仅包含受控前端域名，例如 `https://app.example.com,https://admin.example.com`；不要配置 `*`。
+- `LLM_API_KEY` 仅通过部署环境传入容器。绝不能放到 `VITE_*`、前端源码、日志、截图、数据库或 Git。若密钥曾公开，先在供应商控制台吊销再部署。
+- 使用同域 Nginx 代理时，前端仍应使用 `/api`；`CORS_ORIGINS` 保留为显式防线和未来独立前端域名兼容。
+
+环境变量模板见 [`server/.env.example`](../server/.env.example)。
+
+## 3. 首次部署
 
 在仓库根目录执行：
 
 ```bash
-docker compose -f docker-compose.backend.yml build
+docker compose -f docker-compose.backend.yml build api
 docker compose -f docker-compose.backend.yml run --rm api-seed
 docker compose -f docker-compose.backend.yml up -d api
 curl http://127.0.0.1:3000/api/health
 ```
 
-`api-seed` 会将 `src/data` 的院校、国家线、录取分数、详情、校园 CDN 图片和报考要求完整导入持久化卷。首次导入的预期数量：700 所院校、330 条国家线、1038 条录取分数。
+`api-seed` 会将 `src/data/` 中的院校、国家线、录取分数、详情、校园 CDN 图片和报考要求导入持久化卷。只在首次初始化或明确更新静态主数据时运行它；升级 API 镜像时无需重复 seed。
 
 查看日志：
 
@@ -30,19 +65,49 @@ curl http://127.0.0.1:3000/api/health
 docker compose -f docker-compose.backend.yml logs -f api
 ```
 
-更新镜像后：
+更新版本：
 
 ```bash
 git pull
 docker compose -f docker-compose.backend.yml build api
 docker compose -f docker-compose.backend.yml up -d api
+docker compose -f docker-compose.backend.yml ps
 ```
 
-只有在确认静态源数据需要重新覆盖数据库时才运行 `api-seed`。它会通过幂等写入更新主数据，但照片表当前没有唯一约束；需要彻底重建时请先备份，再清空卷后导入。
+启动时后端会执行当前数据库建表逻辑。上线前必须先做备份；未来切换为版本化迁移后，应将迁移作为发布流程的独立步骤并记录版本。
 
-## 3. 数据备份与恢复
+## 4. Nginx 反向代理
 
-SQLite 数据位于 Docker 卷 `kaoyan-data`。每日备份示例：
+Compose 将 API 端口绑定在服务器回环地址，外网只通过 Nginx 暴露：
+
+```nginx
+server {
+  listen 443 ssl http2;
+  server_name app.example.com;
+
+  # SSL 由 Certbot 或已有网关管理
+  location /api/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+  }
+
+  location / {
+    root /var/www/kaoyan-app/dist;
+    try_files $uri $uri/ /index.html;
+  }
+}
+```
+
+生产构建不要把 `localhost:3000` 打进前端。使用同域 `/api` 或统一的 `VITE_API_BASE` 封装；Agent 的 Bearer token 只在 HTTPS 请求头中发送，不能出现在 URL。
+
+## 5. 数据备份与恢复
+
+SQLite 数据卷名为 `kaoyan-data`。每日备份示例：
 
 ```bash
 mkdir -p backups
@@ -63,96 +128,54 @@ docker run --rm \
 docker compose -f docker-compose.backend.yml start api
 ```
 
-不要在 API 运行时直接覆盖 `.db` 文件。
+不要在 API 运行时覆盖数据库文件。每次升级、重新 seed 或修改表结构前都应备份，并定期实际执行恢复演练。
 
-## 4. Nginx 反向代理
+## 6. 上线验收清单
 
-Docker Compose 默认仅将 3000 绑定在服务器回环地址。Nginx 将站点的 `/api/` 转发到该端口：
+- [ ] `.env` 不在 Git 中，且 `LLM_API_KEY` 已通过密钥管理/服务器环境传入。
+- [ ] `ALLOW_DEV_HEADER_AUTH=false`，`CORS_ORIGINS` 为精确域名白名单。
+- [ ] `/api/health` 正常，数据卷可写且存在可恢复备份。
+- [ ] 注册、登录、`GET /api/auth/me`、退出登录均通过 HTTPS 测试。
+- [ ] 未登录调用 `/api/study/*`、`/api/agents/*` 返回 `401`。
+- [ ] 提案的生成与应用是两个独立动作；模型失败或用户取消不会写计划。
+- [ ] 跨用户读取会话、记忆、提案和学习统计均不可访问。
+- [ ] 模型超时/上游错误返回可识别错误并且前端可重试。
+- [ ] 访问日志不记录 `Authorization`、密码、模型密钥或完整私密上下文。
 
-```nginx
-server {
-  listen 443 ssl http2;
-  server_name app.example.com;
+## 7. Agent 运维与扩展
 
-  # SSL 配置由 Certbot 或现有网关管理
-  location /api/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
+当前 Agent 路由包括：
 
-  location / {
-    root /var/www/kaoyan-app/dist;
-    try_files $uri $uri/ /index.html;
-  }
-}
-```
-
-前端应使用同域 `/api`，避免浏览器跨域。上线前请将前端 API 地址改为构建时环境变量，例如 `VITE_API_BASE=/api` 或空字符串加统一的 `/api` 请求封装；不要把本地 `localhost:3000` 写入生产包。
-
-## 5. 安全与运维清单
-
-- POST `/api/universities` 与 `/api/national-lines` 必须在上线前加入管理员鉴权。
-- CORS 必须改为允许的域名白名单，不使用全开放 `cors()`。
-- 增加请求体上限、限流、访问日志和健康检查告警。
-- 将 `server/`、Docker 文件与数据库迁移脚本纳入 Git；不要提交生产数据库备份或密钥。
-- 数据库卷必须有定时备份；升级前先备份，再执行迁移。
-- 生产环境使用 `restart: unless-stopped`，并通过 Nginx 提供 HTTPS。
-
-### Agent 环境变量
-
-在服务器的 Compose 同级 `.env` 中配置，不要提交到 Git：
-
-```env
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_API_KEY=replace-with-deepseek-key
-AGENT_MODEL=deepseek-chat
-```
-
-镜像不会复制 `server/.env`；生产密钥仅通过 Compose 环境变量传给 API 容器。
-
-## 6. 未来 Agent 功能
-
-数据库已预建以下表，当前没有公开 API，不影响择校功能：
-
-| 表 | 用途 |
+| 接口组 | 用途 |
 | --- | --- |
-| `users` / `user_favorites` | 账号与院校收藏同步 |
-| `study_sessions` | 计时器、学习统计、计划调整依据 |
-| `agent_conversations` | Agent 会话及其上下文 |
-| `agent_messages` | 用户、模型、工具消息审计 |
-| `agent_memories` | 长期偏好、目标院校和复习状态 |
+| `/api/auth` | 注册、登录、获取当前用户、退出登录 |
+| `/api/study` | 学习时段写入与按周期统计 |
+| `/api/agents/context` | 当前计划、学习统计和有效记忆 |
+| `/api/agents/memories` | 用户确认的长期偏好/状态 |
+| `/api/agents/conversations` | 顾问会话与消息审计 |
+| `/api/agents/proposals` | 生成、预览、确认或拒绝计划变更 |
 
-建议新增 Agent 时采用独立路由，例如 `/api/agents/study-plan`、`/api/agents/error-analysis`，并遵循：
+模型只能提出提案；只有用户确认调用 `/apply` 后，后端才写入 `user_study_plans` 或 `user_admission_plans`。不允许模型生成 SQL、任意 URL 调用、文件操作或跨用户数据访问。
 
-1. 先校验登录用户，再读取其学习数据与记忆；不可把其他用户数据带入模型上下文。
-2. 模型密钥只放在服务器环境变量，不进入前端和数据库。
-3. 记录请求元数据、模型版本和工具调用结果；敏感内容加密或最小化保存。
-4. 长任务使用队列或后台 Worker；不要让 Express 请求长期占用。
-5. 需要并发扩容、向量检索或高频 Agent 写入时，再迁移到 PostgreSQL + Redis/队列；当前 SQLite 适合 MVP 单实例。
+下一阶段建议：
 
-当前已提供的 MVP 提案接口：
+1. 增加任务、单词、题目、错题、真题和复习规则等规范业务表，让 Agent 基于真实数据提供建议。
+2. 院校和招生信息使用可追溯的真实数据源，保存来源 URL、抓取时间、版本和人工审核状态；结果页面展示更新时间。
+3. 接入按用户/IP 的限流、每日模型配额、请求审计、指标与告警。当前单机内存限流不适合多实例。
+4. 将数据库迁移到 PostgreSQL，使用 Redis 处理限流、缓存和队列；将 OCR、资料抓取、批量错题分析和通知转至 Worker。
+5. 需要流式对话时使用 SSE/WebSocket；流结束后持久化完整消息，计划修改继续保持“提案 → 用户确认 → 应用”的状态机。
 
-| 接口 | 作用 |
-| --- | --- |
-| `POST /api/agents/proposals` | 调用模型生成院校或学习计划提案；不改业务数据 |
-| `GET /api/agents/proposals` | 获取当前用户的提案历史 |
-| `POST /api/agents/proposals/:id/apply` | 用户确认后应用提案 |
-| `POST /api/agents/proposals/:id/reject` | 拒绝待确认提案 |
+完整 API 契约与前端接入方式见 [Agent 开发与部署手册](agent-development-and-deployment.md) 和 [前端 Agent 接口接入](agent-frontend-integration.md)。
 
-当前接口临时以 `X-User-Id` 定位用户，正式上线前必须替换为 JWT 鉴权中间件；未提供身份时接口会拒绝请求。
-
-## 7. 常用命令
+## 8. 常用命令
 
 ```bash
 # 健康检查
 curl https://app.example.com/api/health
 
-# 查看 API 容器
+# 查看容器状态与日志
 docker compose -f docker-compose.backend.yml ps
+docker compose -f docker-compose.backend.yml logs -f api
 
 # 进入容器排查
 docker compose -f docker-compose.backend.yml exec api sh

@@ -1,8 +1,17 @@
 export function myView() {
   return `
     <section id="myScreen" class="app-screen my-screen" aria-label="我的">
-      <header class="my-profile-head"><span>♙</span><div><h1>小研同学</h1><p>2027 · 北邮软件工程</p></div><button id="myEditTargetBtn" type="button" aria-label="设置">⚙</button></header>
+      <header class="my-profile-head"><span id="myProfileAvatar">♙</span><div><h1 id="myProfileName">未登录</h1><p id="myProfileMeta">登录后同步你的备考数据</p></div><button id="myEditTargetBtn" type="button" aria-label="设置">⚙</button></header>
       <main class="study-main my-main">
+        <section id="myAuthCard" class="my-auth-card" aria-label="账号与同步">
+          <div class="my-auth-copy"><span>账号与同步</span><strong id="myAuthTitle">登录后，学习数据不会丢</strong><small id="myAuthDescription">跨设备同步目标院校、学习计划与 AI 建议。</small></div>
+          <button id="myOpenAuthBtn" type="button">登录 / 注册</button>
+          <form id="myAuthForm" class="my-auth-form hidden">
+            <label><span>昵称</span><input id="myAuthNameInput" maxlength="16" placeholder="例如：小研同学" required></label>
+            <label><span>手机号或邮箱</span><input id="myAuthAccountInput" maxlength="64" placeholder="用于后续账号登录" required></label>
+            <button type="submit">创建并登录</button><button id="myCloseAuthBtn" type="button">暂不登录</button>
+          </form>
+        </section>
         <section class="my-target-snapshot" aria-label="模拟目标档案"><div><small>模拟目标档案</small><strong>北京邮电大学 · 软件工程</strong><p><span id="myTargetScore">365</span> 分 <i id="myTargetDegree">学硕</i> · <i id="myTargetCategory">工学</i></p></div><b>083500</b></section>
         <section class="my-week-card"><small>本周学习</small><div><strong>52h 31min</strong><em>日均 7h 30m</em></div><div class="my-bars" aria-label="学习趋势"><i></i><i></i><i></i><i></i><i></i><i class="active"></i><i></i></div></section>
         <section class="my-metric-grid"><span><b>28 天</b><small>连续学习</small></span><span><b>87%</b><small>任务完成率</small></span><span><b>486h</b><small>总学习时长</small></span></section>

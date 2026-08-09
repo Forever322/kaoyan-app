@@ -38,6 +38,16 @@ function bootstrapApp() {
 }
 
 const STUDY_THEME_KEY = 'study_theme';
+const MY_AUTH_KEY = 'my_auth_profile';
+
+function getMyAuthProfile() {
+  try {
+    const profile = JSON.parse(localStorage.getItem(MY_AUTH_KEY) || 'null');
+    return profile && typeof profile.name === 'string' ? profile : null;
+  } catch {
+    return null;
+  }
+}
 
 function initStudyTheme() {
   const theme = localStorage.getItem(STUDY_THEME_KEY) || 'day';
@@ -74,6 +84,7 @@ let _detailReturnScreen = 'home';
 let _filterCloseTimer;
 let _footerOverlayIndex = null;
 let activeAgentProposal = null;
+let _lastProfileNavigationAt = 0;
 
 const fallbackStudyProposal = {
   id: null,
@@ -100,8 +111,16 @@ function setFooterPillPosition(position) {
 function setFooterActiveIndex(index) {
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const safeIndex = Math.max(0, Math.min(buttons.length - 1, index));
+  const previousIndex = buttons.findIndex((button) => button.classList.contains('active'));
   buttons.forEach((button, buttonIndex) => button.classList.toggle('active', buttonIndex === safeIndex));
   setFooterPillPosition(safeIndex);
+  if (previousIndex !== safeIndex) {
+    const footer = document.querySelector('.app-footer');
+    footer?.classList.remove('is-sliding');
+    void footer?.offsetWidth;
+    footer?.classList.add('is-sliding');
+    window.setTimeout(() => footer?.classList.remove('is-sliding'), 430);
+  }
 }
 
 function updateFooterNav(screen) {
@@ -126,117 +145,74 @@ function initializeFooterSlider() {
   const footer = document.querySelector('.app-footer');
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   if (!footer || buttons.length === 0) return;
-
   let drag = null;
-  let suppressNativeClick = false;
+  let suppressNextNativeClick = false;
 
-  const getPosition = (clientX, rect) => {
+  const getPosition = (clientX) => {
+    const rect = footer.getBoundingClientRect();
     const inset = 6;
     const slotWidth = (rect.width - inset * 2) / buttons.length;
-    const rawPosition = (clientX - rect.left - inset - slotWidth / 2) / slotWidth;
-    return Math.max(0, Math.min(buttons.length - 1, rawPosition));
+    return Math.max(0, Math.min(buttons.length - 1, (clientX - rect.left - inset - slotWidth / 2) / slotWidth));
   };
 
-  const releasePointer = (event) => {
-    if (footer.hasPointerCapture?.(event.pointerId)) footer.releasePointerCapture(event.pointerId);
-  };
-
+  // 普通点按继续走各按钮原生 click；只有明确横向拖动才手动切换。
   footer.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    const currentIndex = Number.parseFloat(footer.style.getPropertyValue('--nav-index')) || 0;
-    drag = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      initialIndex: currentIndex,
-      position: currentIndex,
-      rect: footer.getBoundingClientRect(),
-      moved: false,
-    };
-    footer.setPointerCapture?.(event.pointerId);
+    drag = { pointerId: event.pointerId, startX: event.clientX, moved: false };
   });
 
   footer.addEventListener('pointermove', (event) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const travelled = Math.abs(event.clientX - drag.startX);
-    if (travelled < 5 && !drag.moved) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) < 10) return;
     drag.moved = true;
-    drag.position = getPosition(event.clientX, drag.rect);
     footer.classList.add('is-dragging');
-    setFooterPillPosition(drag.position);
-    event.preventDefault();
-  });
+    setFooterPillPosition(getPosition(event.clientX));
+    if (event.cancelable) event.preventDefault();
+  }, { passive: false });
 
   footer.addEventListener('pointerup', (event) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const completedDrag = drag;
+    const completed = drag;
     drag = null;
-    releasePointer(event);
     footer.classList.remove('is-dragging');
+    if (!completed.moved) return;
+    // 阻止 Android 在页面已切换后，把同一次手势补发成点击新页面内容。
+    if (event.cancelable) event.preventDefault();
 
-    if (!completedDrag.moved) {
-      // 简单点击（无拖拽）：setPointerCapture 使原生 click 落在 footer
-      // 而非按钮上，需要手动查找按钮并触发
-      const target = document.elementFromPoint(event.clientX, event.clientY);
-      const btn = target?.closest('.footer-nav-btn');
-      if (btn) {
-        const idx = buttons.indexOf(btn);
-        if (idx >= 0) {
-          setFooterActiveIndex(idx);
-          btn.click();
-          // pointer capture 后仍可能补发原生 click；拦截它以避免一次点击触发两轮导航。
-          suppressNativeClick = true;
-          window.setTimeout(() => { suppressNativeClick = false; }, 350);
-        }
-      }
-      return;
-    }
-
-    const targetIndex = Math.round(completedDrag.position);
-    setFooterActiveIndex(targetIndex);
-    const targetButton = buttons[targetIndex];
-    if (!targetButton) return;
-
-    // 保留原有按钮逻辑；阻止手势结束后浏览器补发的一次原生 click。
-    targetButton.click();
-    suppressNativeClick = true;
-    window.setTimeout(() => { suppressNativeClick = false; }, 350);
+    const button = buttons[Math.round(getPosition(event.clientX))];
+    if (!button) return;
+    setFooterActiveIndex(buttons.indexOf(button));
+    // 不使用 pointer capture；此处只处理真正的拖动，并拦截它随后补发的一次 click。
+    button.click();
+    suppressNextNativeClick = true;
+    window.setTimeout(() => { suppressNextNativeClick = false; }, 400);
   });
 
-  footer.addEventListener('pointercancel', (event) => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const cancelledDrag = drag;
+  footer.addEventListener('pointercancel', () => {
     drag = null;
-    releasePointer(event);
     footer.classList.remove('is-dragging');
-    // 未移动时触发点击（修复移动端 pointercancel 导致 tap 丢失）
-    if (!cancelledDrag.moved) {
-      const target = document.elementFromPoint(cancelledDrag.startX, cancelledDrag.startY);
-      const btn = target?.closest('.footer-nav-btn');
-      if (btn) {
-        const idx = buttons.indexOf(btn);
-        if (idx >= 0) {
-          setFooterActiveIndex(idx);
-          btn.click();
-          suppressNativeClick = true;
-          window.setTimeout(() => { suppressNativeClick = false; }, 350);
-        }
-      }
-    } else {
-      setFooterActiveIndex(Math.round(cancelledDrag.initialIndex));
-    }
+    updateFooterNav(_activeScreen);
   });
 
-  footer.addEventListener('click', (event) => {
-    if (!suppressNativeClick) return;
+  // 兼容部分 Android WebView：补发的 click 可能已不在 footer 内，而是落到
+  // 新页面刚渲染的首张院校卡片，因此必须在 document 捕获阶段拦截。
+  document.addEventListener('click', (event) => {
+    if (!suppressNextNativeClick) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    suppressNativeClick = false;
+    suppressNextNativeClick = false;
   }, true);
+
+  footer.addEventListener('click', (event) => {
+    const button = event.target.closest('.footer-nav-btn');
+    const index = buttons.indexOf(button);
+    if (index >= 0) setFooterActiveIndex(index);
+  });
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
 const SCREEN_DEPTH = { home: 0, prep: 0, practice: 0, my: 0, results: 1, fail: 1, agentChat: 1, agentProposal: 2 };
-const SCREEN_TRANSITION_MS = 400;
+const SCREEN_TRANSITION_MS = 180;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
 const EXIT_CLASSES = ['screen-exiting', 'screen-exit-forward', 'screen-exit-backward', 'screen-exit-cross'];
@@ -272,12 +248,20 @@ function setActiveScreen(screen) {
   const current = document.querySelector('.app-screen.is-active:not(.screen-exiting)');
   if (!target) return;
 
+  // 任何情况下都只能保留一个活动主页面。旧版本动画被中断时可能遗留多个
+  // is-active，导致后插入的“我的”页面盖住后续目标页面。
+  document.querySelectorAll('.app-screen').forEach((page) => {
+    if (page === target) return;
+    page.classList.remove('is-active', ...ENTER_CLASSES, ...EXIT_CLASSES);
+  });
+
   if (current && current !== target) {
-    const from = SCREEN_DEPTH[_activeScreen] ?? 0;
-    const to = SCREEN_DEPTH[screen] ?? 0;
-    const direction = to > from ? 'forward' : to < from ? 'backward' : 'cross';
-    exitScreen(current, direction);
-    showScreen(target, direction);
+    // 移动端 WebView 中“双页面同时滑动 + 毛玻璃”会显著掉帧。
+    // 旧页立即卸载，只对新页做短暂轻量淡入。
+    current.classList.remove('is-active', ...ENTER_CLASSES, ...EXIT_CLASSES);
+    showScreen(target, 'cross');
+    document.body.classList.add('is-screen-transitioning');
+    window.setTimeout(() => document.body.classList.remove('is-screen-transitioning'), 220);
   } else {
     target.classList.add('is-active');
   }
@@ -292,6 +276,20 @@ function navigateTo(screen, { push = true } = {}) {
   closeFilterSheet();
   setActiveScreen(screen);
   if (push) history.pushState({ view: screen }, '');
+}
+
+function openMyScreen() {
+  const now = performance.now();
+  // Android WebView 常在 pointerup 后补发 click；只接受其中第一次，避免双重导航。
+  if (now - _lastProfileNavigationAt < 420) return;
+  _lastProfileNavigationAt = now;
+  navigateTo('my');
+  // 先完成导航。即使旧版本写入的本地数据异常，也不能阻断进入“我的”页。
+  try {
+    renderMyPage();
+  } catch (error) {
+    console.warn('[My] 数据渲染失败，已展示静态页面：', error);
+  }
 }
 
 function proposalItems(proposal) {
@@ -685,10 +683,13 @@ function bindEvents() {
   });
   document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
   document.getElementById('practiceNavBtn').addEventListener('click', () => navigateTo('practice'));
-  document.getElementById('profileNavBtn').addEventListener('click', () => {
-    renderMyPage();
-    navigateTo('my');
+  const profileNavButton = document.getElementById('profileNavBtn');
+  profileNavButton.addEventListener('pointerup', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    openMyScreen();
   });
+  profileNavButton.addEventListener('click', openMyScreen);
   document.querySelectorAll('#prepTaskList .prep-task').forEach((task) => {
     task.addEventListener('click', () => {
       task.classList.toggle('is-complete');
@@ -747,6 +748,23 @@ function bindEvents() {
     }
   });
   document.getElementById('themeToggleBtn').addEventListener('click', toggleStudyTheme);
+  document.getElementById('myOpenAuthBtn').addEventListener('click', () => {
+    document.getElementById('myAuthForm').classList.remove('hidden');
+    document.getElementById('myOpenAuthBtn').hidden = true;
+    document.getElementById('myAuthNameInput').focus();
+  });
+  document.getElementById('myCloseAuthBtn').addEventListener('click', () => {
+    document.getElementById('myAuthForm').classList.add('hidden');
+    document.getElementById('myOpenAuthBtn').hidden = false;
+  });
+  document.getElementById('myAuthForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = document.getElementById('myAuthNameInput').value.trim();
+    const account = document.getElementById('myAuthAccountInput').value.trim();
+    if (!name || !account) return;
+    localStorage.setItem(MY_AUTH_KEY, JSON.stringify({ name, account, createdAt: new Date().toISOString() }));
+    renderMyPage();
+  });
   document.querySelectorAll('[data-practice-action], #resumePracticeBtn, #allWrongBtn, #wrongAnalysisBtn').forEach((button) => {
     button.addEventListener('click', () => alert(`${button.dataset.practiceAction || '题库功能'}正在准备中，学习记录会同步到这里。`));
   });
@@ -1418,14 +1436,36 @@ function applyFilterSheet() {
 // ==================== 我的页 ====================
 
 function renderMyPage() {
+  const auth = getMyAuthProfile();
+  const profileName = document.getElementById('myProfileName');
+  const profileMeta = document.getElementById('myProfileMeta');
+  const authTitle = document.getElementById('myAuthTitle');
+  const authDescription = document.getElementById('myAuthDescription');
+  const authButton = document.getElementById('myOpenAuthBtn');
+  if (auth) {
+    profileName.textContent = auth.name;
+    profileMeta.textContent = '已登录 · 本机数据待同步';
+    authTitle.textContent = '账号已登录';
+    authDescription.textContent = '登录状态已保存在本机，服务端部署后可开启跨设备同步。';
+    authButton.textContent = '已登录';
+    authButton.disabled = true;
+  } else {
+    profileName.textContent = '未登录';
+    profileMeta.textContent = '登录后同步你的备考数据';
+    authTitle.textContent = '登录后，学习数据不会丢';
+    authDescription.textContent = '跨设备同步目标院校、学习计划与 AI 建议。';
+    authButton.textContent = '登录 / 注册';
+    authButton.disabled = false;
+  }
   // 目标分数
-  const target = getTargetScore();
+  const target = getTargetScore() || {};
   document.getElementById('myTargetScore').textContent = target.score || '365';
   document.getElementById('myTargetDegree').textContent = target.score ? (target.degree === 'xueshuo' ? '学硕' : '专硕') : '学硕';
   document.getElementById('myTargetCategory').textContent = target.category || '工学';
 
   // 收藏院校
-  const favs = getFavorites();
+  const favorites = getFavorites();
+  const favs = Array.isArray(favorites) ? favorites : [];
   document.getElementById('myFavCount').textContent = favs.length;
   const favList = document.getElementById('myFavList');
   const favEmpty = document.getElementById('myFavEmpty');
@@ -1450,7 +1490,8 @@ function renderMyPage() {
   }
 
   // 浏览历史
-  const hist = getBrowseHistory();
+  const history = getBrowseHistory();
+  const hist = Array.isArray(history) ? history : [];
   const histList = document.getElementById('myHistoryList');
   const histEmpty = document.getElementById('myHistoryEmpty');
   if (hist.length === 0) {

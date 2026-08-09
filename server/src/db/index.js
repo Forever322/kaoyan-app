@@ -1,11 +1,15 @@
 import initSqlJs from 'sql.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', '..', 'data');
-const DB_PATH = join(DATA_DIR, 'kaoyan.db');
+const DEFAULT_DATA_DIR = join(__dirname, '..', '..', 'data');
+// 支持测试或运维把数据库放到指定位置；未配置时仍兼容原有 server/data/kaoyan.db。
+const DB_PATH = process.env.KAOYAN_DB_PATH
+    ? resolve(process.env.KAOYAN_DB_PATH)
+    : join(DEFAULT_DATA_DIR, 'kaoyan.db');
+const DATA_DIR = dirname(DB_PATH);
 
 // 顶层 await：整个模块加载时完成 WASM 初始化，
 // 后续所有 getDB() / migrate() 调用都是同步的
@@ -16,6 +20,40 @@ let _db = null; // { raw, prepare, exec, transaction }
 function saveRawDB(raw) {
     if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
     writeFileSync(DB_PATH, Buffer.from(raw.export()));
+}
+
+function columnNames(db, table) {
+    return new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+}
+
+function ensureColumn(db, table, name, definition) {
+    if (!columnNames(db, table).has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+}
+
+const APP_MIGRATIONS = [
+    {
+        version: '2026-08-09-agent-plan-revision-and-audit',
+        up(db) {
+            // 老库的 CREATE TABLE IF NOT EXISTS 不会补字段，因此在这里显式升级。
+            ensureColumn(db, 'user_admission_plans', 'revision', 'INTEGER NOT NULL DEFAULT 0');
+            ensureColumn(db, 'user_study_plans', 'revision', 'INTEGER NOT NULL DEFAULT 0');
+            ensureColumn(db, 'agent_proposals', 'base_revision', 'INTEGER NOT NULL DEFAULT 0');
+            ensureColumn(db, 'agent_proposals', 'expires_at', 'TEXT');
+            ensureColumn(db, 'agent_proposals', 'model', "TEXT NOT NULL DEFAULT ''");
+        },
+    },
+];
+
+function runAppMigrations(db) {
+    for (const migration of APP_MIGRATIONS) {
+        const applied = db.prepare('SELECT version FROM schema_migrations WHERE version=?').get(migration.version);
+        if (applied) continue;
+        db.transaction(() => {
+            migration.up(db);
+            db.prepare('INSERT INTO schema_migrations(version) VALUES(?)').run(migration.version);
+        })();
+        console.log(`[DB] 已应用迁移 ${migration.version}`);
+    }
 }
 
 export function getDB() {
@@ -65,6 +103,7 @@ export function migrate() {
     const db = getDB();
     const sql = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(sql);
+    runAppMigrations(db);
     saveRawDB(db.raw);
     console.log('[DB] 迁移完成');
     return db;
@@ -72,6 +111,8 @@ export function migrate() {
 
 export function reset() {
     const db = getDB();
+    db.exec('DROP TABLE IF EXISTS auth_tokens');
+    db.exec('DROP TABLE IF EXISTS agent_runs');
     db.exec('DROP TABLE IF EXISTS agent_proposals');
     db.exec('DROP TABLE IF EXISTS user_study_plans');
     db.exec('DROP TABLE IF EXISTS user_admission_plans');

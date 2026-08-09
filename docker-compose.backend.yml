@@ -8,6 +8,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # 生产环境只接受此白名单中的浏览器来源；不要配置为 *。
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to your HTTPS frontend origin}
+      # 禁用仅用于本地联调的 X-User-Id 兼容认证。
+      ALLOW_DEV_HEADER_AUTH: "false"
+      AUTH_TOKEN_TTL_DAYS: ${AUTH_TOKEN_TTL_DAYS:-90}
+      AGENT_TIMEOUT_MS: ${AGENT_TIMEOUT_MS:-30000}
+      AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-1200}
+      AGENT_CONTEXT_MAX_BYTES: ${AGENT_CONTEXT_MAX_BYTES:-24000}
+      AGENT_REQUESTS_PER_MINUTE: ${AGENT_REQUESTS_PER_MINUTE:-8}
+      AGENT_DAILY_REQUEST_LIMIT: ${AGENT_DAILY_REQUEST_LIMIT:-30}
+      AGENT_PROPOSAL_TTL_DAYS: ${AGENT_PROPOSAL_TTL_DAYS:-7}
+      AUTH_REQUESTS_PER_15_MIN: ${AUTH_REQUESTS_PER_15_MIN:-30}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
       LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in the deployment environment}
       AGENT_MODEL: ${AGENT_MODEL:-deepseek-chat}
