@@ -259,3 +259,28 @@ body[data-study-theme='day'] .my-screen .my-subject-list p { color:#18201c !impo
 body[data-study-theme='day'] .my-screen .my-target-snapshot p span,
 body[data-study-theme='day'] .my-screen .my-target-snapshot>b,
 body[data-study-theme='day'] .my-screen .my-profile-head>span { color:#1f5a41 !important; }
+
+/* 账号卡使用深绿承载白字；避免全局白天主题的次级文字规则降低对比度。 */
+body[data-study-theme='day'] .my-screen .my-auth-card {
+  color:#fff;
+  border-color:rgba(31,90,65,.14);
+  background:radial-gradient(circle at 100% 0%,rgba(217,244,106,.27),transparent 37%),linear-gradient(135deg,#1b4636 0%,#2f6b50 60%,#255940 100%);
+  box-shadow:0 10px 24px rgba(31,90,65,.13),inset 0 1px 0 rgba(255,255,255,.13);
+}
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-copy strong,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-mode-title { color:#fff !important; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-copy small,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-status,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-field-hint { color:#dcefe2 !important; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-eyebrow,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-form-kicker,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-field-label { color:#edf8f0 !important; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-field-label em { color:#d8efde !important; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-form input { color:#14231a; border-color:rgba(255,255,255,.52); background:#fff; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-form input::placeholder { color:#718078; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-error { color:#ffe8e3 !important; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-open-btn,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-submit-btn { color:#173625; background:#d9f46a; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-logout-btn,
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-switch-btn { color:#fff; }
+body[data-study-theme='day'] .my-screen .my-auth-card .my-auth-close-btn { color:#d8efde; }

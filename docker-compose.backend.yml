@@ -1,42 +1,121 @@
+name: kaoyan-app
+
+# API 与一次性数据库工具共用的运行环境。MySQL 只在 Compose 内部网络中可见，
+# 不要在 mysql 服务上添加 ports，也不要把 MYSQL_ROOT_PASSWORD 传给 API。
+x-api-environment: &api-environment
+  NODE_ENV: production
+  PORT: 3000
+  DB_DRIVER: ${DB_DRIVER:-mysql}
+  # API 只校验连接；DDL 必须由 api-migrate 一次性任务显式执行。
+  RUN_MIGRATIONS_ON_START: "false"
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in the deployment environment}
+  MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in the deployment environment}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in the deployment environment}
+  MYSQL_CONNECTION_LIMIT: ${MYSQL_CONNECTION_LIMIT:-10}
+  MYSQL_CONNECT_RETRIES: ${MYSQL_CONNECT_RETRIES:-12}
+  MYSQL_CONNECT_RETRY_MS: ${MYSQL_CONNECT_RETRY_MS:-1000}
+  MYSQL_CONNECT_TIMEOUT_MS: ${MYSQL_CONNECT_TIMEOUT_MS:-10000}
+  MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS: ${MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS:-60}
+  # 生产环境只接受此白名单中的浏览器来源；不要配置为 *。
+  CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to your HTTPS frontend origin}
+  # 禁用仅用于本地联调的 X-User-Id 兼容认证。
+  ALLOW_DEV_HEADER_AUTH: "false"
+  AUTH_TOKEN_TTL_DAYS: ${AUTH_TOKEN_TTL_DAYS:-90}
+  AGENT_TIMEOUT_MS: ${AGENT_TIMEOUT_MS:-30000}
+  AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-1200}
+  AGENT_CONTEXT_MAX_BYTES: ${AGENT_CONTEXT_MAX_BYTES:-24000}
+  AGENT_REQUESTS_PER_MINUTE: ${AGENT_REQUESTS_PER_MINUTE:-8}
+  AGENT_DAILY_REQUEST_LIMIT: ${AGENT_DAILY_REQUEST_LIMIT:-30}
+  AGENT_PROPOSAL_TTL_DAYS: ${AGENT_PROPOSAL_TTL_DAYS:-7}
+  AUTH_REQUESTS_PER_15_MIN: ${AUTH_REQUESTS_PER_15_MIN:-30}
+  # 为空时公开参考数据写接口保持关闭。
+  DATA_ADMIN_TOKEN: ${DATA_ADMIN_TOKEN:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+  LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in the deployment environment}
+  AGENT_MODEL: ${AGENT_MODEL:-deepseek-chat}
+
 services:
+  # 仅供 API 和运维工具访问；不映射 3306 到宿主机或公网。
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in the deployment environment}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in the deployment environment}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in the deployment environment}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the deployment environment}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --skip-name-resolve
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot --password=\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    stop_grace_period: 45s
+
   api:
     build:
       context: .
       dockerfile: server/Dockerfile
-    image: kaoyan-api:latest
+    image: ${API_IMAGE:-kaoyan-api:latest}
     restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      # 生产环境只接受此白名单中的浏览器来源；不要配置为 *。
-      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to your HTTPS frontend origin}
-      # 禁用仅用于本地联调的 X-User-Id 兼容认证。
-      ALLOW_DEV_HEADER_AUTH: "false"
-      AUTH_TOKEN_TTL_DAYS: ${AUTH_TOKEN_TTL_DAYS:-90}
-      AGENT_TIMEOUT_MS: ${AGENT_TIMEOUT_MS:-30000}
-      AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-1200}
-      AGENT_CONTEXT_MAX_BYTES: ${AGENT_CONTEXT_MAX_BYTES:-24000}
-      AGENT_REQUESTS_PER_MINUTE: ${AGENT_REQUESTS_PER_MINUTE:-8}
-      AGENT_DAILY_REQUEST_LIMIT: ${AGENT_DAILY_REQUEST_LIMIT:-30}
-      AGENT_PROPOSAL_TTL_DAYS: ${AGENT_PROPOSAL_TTL_DAYS:-7}
-      AUTH_REQUESTS_PER_15_MIN: ${AUTH_REQUESTS_PER_15_MIN:-30}
-      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
-      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
-      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in the deployment environment}
-      AGENT_MODEL: ${AGENT_MODEL:-deepseek-chat}
+    environment: *api-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
-    volumes:
-      - kaoyan-data:/app/server/data
 
-  # 仅在初始化或明确更新静态数据时运行：
+  # 版本化建表工具。上线/升级时显式运行，避免多 API 副本同时迁移。
+  # docker compose -f docker-compose.backend.yml run --rm api-migrate
+  api-migrate:
+    image: ${API_IMAGE:-kaoyan-api:latest}
+    profiles: ["tools"]
+    restart: "no"
+    command: ["pnpm", "db:migrate"]
+    environment: *api-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # 仅在新库初始化或明确更新静态参考数据时运行；不得作为每次启动动作。
   # docker compose -f docker-compose.backend.yml run --rm api-seed
   api-seed:
-    image: kaoyan-api:latest
+    image: ${API_IMAGE:-kaoyan-api:latest}
     profiles: ["tools"]
-    command: ["node", "src/db/seed.js"]
+    restart: "no"
+    command: ["pnpm", "db:seed"]
+    environment: *api-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # 一次性将旧 sql.js 卷导入 MySQL。此服务带 --apply，运行前请先按文档做预览与备份。
+  # docker compose -f docker-compose.backend.yml run --rm api-import-sqljs
+  api-import-sqljs:
+    image: ${API_IMAGE:-kaoyan-api:latest}
+    profiles: ["tools"]
+    restart: "no"
+    command: ["node", "scripts/import-sqljs-to-mysql.js", "--source", "/legacy/kaoyan.db", "--apply"]
+    environment: *api-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
     volumes:
-      - kaoyan-data:/app/server/data
+      - kaoyan-data:/legacy:ro
 
 volumes:
+  # MySQL 正式数据。docker compose down 不会删除；严禁在生产运行 down -v。
+  mysql-data:
+    name: ${MYSQL_VOLUME_NAME:-kaoyan-app_mysql-data}
+  # 旧 sql.js 数据仅用于一次性迁移和回滚保留，API 不再挂载此卷。
   kaoyan-data:
+    name: ${LEGACY_SQLJS_VOLUME:-kaoyan-app_kaoyan-data}

@@ -1,4 +1,7 @@
 -- ============================================================
+-- 历史 sql.js / SQLite schema 快照，仅用于理解旧库或一次性导入。
+-- 运行时 MySQL schema 由 migrations/*.sql 管理；不要再执行本文件。
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version TEXT PRIMARY KEY,

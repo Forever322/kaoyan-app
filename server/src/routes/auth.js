@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDB, save } from '../db/index.js';
+import { getDB } from '../db/index.js';
 import { hashPassword, issueAccessToken, publicUser, requireAuthenticatedUser, revokeAccessToken, verifyPassword } from '../services/auth-service.js';
 
 const router = Router();
@@ -12,42 +12,79 @@ function validateCredentials({ username, password, email = '' }) {
   return null;
 }
 
-router.post('/register', (req, res) => {
-  const { username = '', password = '', email = '' } = req.body || {};
-  const error = validateCredentials({ username, password, email });
-  if (error) return res.status(400).json({ error });
-  const db = getDB();
-  if (db.prepare('SELECT id FROM users WHERE username=?').get(username.trim())) {
-    return res.status(409).json({ error: '该昵称已被注册' });
+router.post('/register', async (req, res, next) => {
+  try {
+    const { username = '', password = '', email = '' } = req.body || {};
+    const error = validateCredentials({ username, password, email });
+    if (error) return res.status(400).json({ error });
+
+    const db = await getDB();
+    const normalizedUsername = username.trim();
+    if (await db.one('SELECT id FROM users WHERE username=?', [normalizedUsername])) {
+      return res.status(409).json({ error: '该昵称已被注册' });
+    }
+
+    let result;
+    try {
+      result = await db.execute('INSERT INTO users(username,password_hash,email) VALUES(?,?,?)', [
+        normalizedUsername,
+        hashPassword(password),
+        String(email).trim(),
+      ]);
+    } catch (insertError) {
+      // The preflight lookup is user-friendly, while this preserves the same
+      // conflict response when two requests register the same name concurrently.
+      if (insertError?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: '该昵称已被注册' });
+      }
+      throw insertError;
+    }
+    const user = await db.one('SELECT id,username,email,avatar_url FROM users WHERE id=?', [result.insertId]);
+    const token = await issueAccessToken(db, user.id);
+    return res.status(201).json({ user: publicUser(user), ...token });
+  } catch (error) {
+    next(error);
   }
-  db.prepare('INSERT INTO users(username,password_hash,email) VALUES(?,?,?)').run(username.trim(), hashPassword(password), String(email).trim());
-  const user = db.prepare('SELECT id,username,email,avatar_url FROM users WHERE id=last_insert_rowid()').get();
-  const token = issueAccessToken(user.id);
-  save();
-  return res.status(201).json({ user: publicUser(user), ...token });
 });
 
-router.post('/login', (req, res) => {
-  const { username = '', password = '' } = req.body || {};
-  if (!String(username).trim() || String(username).length > 32 || !String(password) || String(password).length > 128) {
-    return res.status(400).json({ error: '昵称或密码格式不正确' });
+router.post('/login', async (req, res, next) => {
+  try {
+    const { username = '', password = '' } = req.body || {};
+    if (!String(username).trim() || String(username).length > 32 || !String(password) || String(password).length > 128) {
+      return res.status(400).json({ error: '昵称或密码格式不正确' });
+    }
+    const db = await getDB();
+    const user = await db.one('SELECT id,username,email,avatar_url,password_hash FROM users WHERE username=?', [String(username).trim()]);
+    if (!user || !verifyPassword(password, user.password_hash)) return res.status(401).json({ error: '昵称或密码错误' });
+    const token = await issueAccessToken(db, user.id);
+    return res.json({ user: publicUser(user), ...token });
+  } catch (error) {
+    next(error);
   }
-  const user = getDB().prepare('SELECT id,username,email,avatar_url,password_hash FROM users WHERE username=?').get(String(username).trim());
-  if (!user || !verifyPassword(password, user.password_hash)) return res.status(401).json({ error: '昵称或密码错误' });
-  const token = issueAccessToken(user.id);
-  return res.json({ user: publicUser(user), ...token });
 });
 
-router.get('/me', (req, res) => {
-  const user = requireAuthenticatedUser(req, res);
-  if (!user) return;
-  return res.json({ user: publicUser(user) });
+router.get('/me', async (req, res, next) => {
+  try {
+    const db = await getDB();
+    const user = await requireAuthenticatedUser(req, res, db);
+    if (!user) return;
+    return res.json({ user: publicUser(user) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/logout', (req, res) => {
-  const token = String(req.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (token) revokeAccessToken(token);
-  return res.status(204).end();
+router.post('/logout', async (req, res, next) => {
+  try {
+    const token = String(req.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    if (token) {
+      const db = await getDB();
+      await revokeAccessToken(token, db);
+    }
+    return res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

@@ -1,7 +1,7 @@
 // 考研择校助手 - 主应用逻辑
 
 import { matchUniversities, sortResults, evaluateMatch } from './matcher.js';
-import { initStorage, saveLastSearch, getLastSearch, exportAllData, getFavorites, toggleFavorite, isFavorite, getBrowseHistory, addBrowseHistory, clearBrowseHistory, getTargetScore, saveTargetScore } from './storage.js';
+import { initStorage, saveLastSearch, getLastSearch, exportAllData, getFavorites, toggleFavorite, getBrowseHistory, clearBrowseHistory, getTargetScore, saveTargetScore } from './storage.js';
 import { UNIVERSITIES, findUniversity } from './data/universities.js';
 import { getAdmissionScores } from './data/admission-scores.js';
 import { getCategories, hasSubMajors, getMajorsForCategory } from './data/national-lines.js';
@@ -18,34 +18,190 @@ import {
 } from './modal.js';
 import { openDetailPage as showDetail, closeDetailPage as hideDetail } from './detail.js';
 import { checkAndSeed } from './seed.js';
-import { AgentApiError, applyAgentProposal, createAgentProposal } from './agent-api.js';
+import {
+  AgentApiError,
+  applyAgentProposal,
+  createAgentConversation,
+  createAgentProposal,
+  getAgentContext,
+  getAgentConversation,
+  listAgentConversations,
+  listAgentProposals,
+  sendAgentConversationMessage,
+} from './agent-api.js';
+import {
+  getAuthenticatedUser,
+  login,
+  logout,
+  register,
+  restoreAuthSession,
+} from './auth-api.js';
+import {
+  StudyApiError,
+  createStudySession,
+  getStudySummary,
+  getUserPlans,
+  updateUserPlan,
+} from './study-api.js';
+import {
+  FavoriteApiError,
+  addFavoriteByName,
+  listFavoriteUniversities,
+  removeFavoriteById,
+} from './favorites-api.js';
 
 function bootstrapApp() {
   initStudyTheme();
   // 匹配与详情直接读取静态数据；先完成可交互页面，IndexedDB 在后台做本地离线备份。
   initStorage();
   initUI();
+  capturePrepTaskTemplate();
+  updatePrepTaskMetrics();
   bindEvents();
   restoreLastSearch();
   normalizeSearchState();
   initHistoryNav();
   updateHomeDashboard();
+  renderMyPage();
+  renderPrepStudyData();
+  renderPrepPlanMeta();
+  renderAgentStudyOverview();
 
   initializeLocalDatabase();
+  restoreAuthenticatedExperience();
 
   // 后台检查更新（不阻塞启动）
   checkForUpdate();
 }
 
 const STUDY_THEME_KEY = 'study_theme';
-const MY_AUTH_KEY = 'my_auth_profile';
-
 function getMyAuthProfile() {
+  return getAuthenticatedUser();
+}
+
+function resetCloudFavoritesState() {
+  cloudFavoritesState = { userId: null, records: [], loaded: false, loading: false, error: null };
+  favoriteMutations.clear();
+}
+
+function cloudFavoritesForCurrentUser() {
+  const user = getMyAuthProfile();
+  if (!user || cloudFavoritesState.userId !== user.id) return null;
+  return cloudFavoritesState;
+}
+
+function favoriteRecordsForView() {
+  const user = getMyAuthProfile();
+  const cloud = cloudFavoritesForCurrentUser();
+  if (user) return cloud?.records || [];
+  return getFavorites().map((universityName) => {
+    const university = findUniversity(universityName);
+    return {
+      universityName,
+      universityId: null,
+      province: university?.province || '',
+      city: university?.city || '',
+      zone: university?.zone || '',
+      level: university?.level || '',
+      type: university?.type || '',
+    };
+  });
+}
+
+function favoriteNamesForCurrentView() {
+  return favoriteRecordsForView().map((item) => item.universityName);
+}
+
+function updateDetailFavoriteButton(universityName, isFavorite) {
+  const detailName = document.getElementById('detailName')?.textContent?.trim();
+  if (detailName !== universityName) return;
+  const button = document.getElementById('detailFavBtn');
+  if (!button) return;
+  button.textContent = isFavorite ? '★' : '☆';
+  button.classList.toggle('is-faved', isFavorite);
+}
+
+async function refreshCloudFavorites({ render = true } = {}) {
+  const user = getMyAuthProfile();
+  if (!user) {
+    resetCloudFavoritesState();
+    if (render) renderMyPage();
+    return [];
+  }
+  const userId = user.id;
+  cloudFavoritesState = {
+    userId,
+    records: cloudFavoritesState.userId === userId ? cloudFavoritesState.records : [],
+    loaded: false,
+    loading: true,
+    error: null,
+  };
+  if (render) renderMyPage();
   try {
-    const profile = JSON.parse(localStorage.getItem(MY_AUTH_KEY) || 'null');
-    return profile && typeof profile.name === 'string' ? profile : null;
-  } catch {
-    return null;
+    const records = await listFavoriteUniversities();
+    if (getMyAuthProfile()?.id !== userId) return [];
+    cloudFavoritesState = { userId, records, loaded: true, loading: false, error: null };
+    if (render) renderMyPage();
+    return records;
+  } catch (error) {
+    if (getMyAuthProfile()?.id !== userId) return [];
+    cloudFavoritesState = { userId, records: [], loaded: false, loading: false, error };
+    if (render) renderMyPage();
+    return [];
+  }
+}
+
+async function toggleUniversityFavorite(universityName) {
+  const name = String(universityName || '').trim();
+  if (!name || favoriteMutations.has(name)) return false;
+  const user = getMyAuthProfile();
+
+  // 未登录时维持原有离线收藏体验；登录后只以当前账号的云端数据为准。
+  if (!user) {
+    const isFavorite = toggleFavorite(name);
+    updateDetailFavoriteButton(name, isFavorite);
+    renderMyPage();
+    return isFavorite;
+  }
+
+  if (cloudFavoritesState.userId !== user.id || !cloudFavoritesState.loaded) {
+    await refreshCloudFavorites({ render: false });
+    if (cloudFavoritesState.userId !== user.id || !cloudFavoritesState.loaded) {
+      alert('收藏数据暂时无法同步，请检查网络后重试。');
+      return false;
+    }
+  }
+
+  favoriteMutations.add(name);
+  try {
+    const current = cloudFavoritesState.records.find((item) => item.universityName === name);
+    let isFavorite;
+    if (current) {
+      await removeFavoriteById(current.universityId);
+      cloudFavoritesState = {
+        ...cloudFavoritesState,
+        records: cloudFavoritesState.records.filter((item) => item.universityName !== name),
+      };
+      isFavorite = false;
+    } else {
+      const favorite = await addFavoriteByName(name);
+      cloudFavoritesState = {
+        ...cloudFavoritesState,
+        records: [...cloudFavoritesState.records, favorite],
+      };
+      isFavorite = true;
+    }
+    updateDetailFavoriteButton(name, isFavorite);
+    renderMyPage();
+    return isFavorite;
+  } catch (error) {
+    const message = error instanceof FavoriteApiError
+      ? error.message
+      : '收藏同步失败，请稍后重试。';
+    alert(message);
+    return false;
+  } finally {
+    favoriteMutations.delete(name);
   }
 }
 
@@ -62,6 +218,33 @@ function toggleStudyTheme() {
   localStorage.setItem(STUDY_THEME_KEY, next);
   const button = document.getElementById('themeToggleBtn');
   if (button) button.textContent = next === 'day' ? '☾ 夜间' : '☀ 白天';
+}
+
+function planText(plan, keys) {
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return '';
+  for (const key of keys) {
+    const value = plan[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
+function renderPrepPlanMeta() {
+  const user = getMyAuthProfile();
+  const plan = studyPlanState.plan;
+  const configuredYear = Number(planText(admissionPlanState.plan, ['examYear', 'targetYear', '考试年份', '目标考试年份']));
+  const now = new Date();
+  let examYear = Number.isInteger(configuredYear) && configuredYear >= now.getFullYear() ? configuredYear : now.getFullYear() + 1;
+  let examDate = new Date(examYear - 1, 11, 25);
+  if (examDate.getTime() < now.getTime() && !configuredYear) {
+    examYear += 1;
+    examDate = new Date(examYear - 1, 11, 25);
+  }
+  const days = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / 86_400_000));
+  setText('prepExamYear', String(examYear));
+  setText('prepDaysLeft', String(days));
+  setText('prepStage', planText(plan, ['stage', 'phase', 'currentPhase', '阶段']) || (user ? '待确认计划' : '本机示例'));
+  setText('prepNextMilestone', planText(plan, ['nextMilestone', 'milestone', 'nextNode', '近期节点']) || (user ? '创建或应用计划后同步节点' : '登录后根据计划同步节点'));
 }
 
 async function initializeLocalDatabase() {
@@ -84,17 +267,35 @@ let _detailReturnScreen = 'home';
 let _filterCloseTimer;
 let _footerOverlayIndex = null;
 let activeAgentProposal = null;
+let activeAgentConversationId = null;
+let activeAgentConversationUserId = null;
+let activeAgentProposalType = 'study';
+let activeAgentQuestions = { study: '', admission: '' };
+// The backend keeps this as a small allow-list.  Keeping the type explicit in
+// the UI means a newly opened chat always receives the reviewed coach policy,
+// while earlier study-assistant conversations remain intact in the database.
+const KAOYAN_COACH_AGENT_TYPE = 'kaoyan-coach';
+let studyPlanState = { plan: {}, revision: 0, updatedAt: null };
+let admissionPlanState = { plan: {}, revision: 0, updatedAt: null };
+let studyTimerStartedAt = null;
+let studySummaryState = { today: null, week: null };
+let agentChatLoading = false;
+let studyPlanSaving = false;
+let admissionPlanSaving = false;
+let authenticatedDataLoadVersion = 0;
+let authenticatedUserId = null;
 let _lastProfileNavigationAt = 0;
+let offlinePrepTaskMarkup = '';
+let cloudFavoritesState = { userId: null, records: [], loaded: false, loading: false, error: null };
+const favoriteMutations = new Set();
 
 const fallbackStudyProposal = {
   id: null,
-  summary: '为你生成了一份聚焦数学薄弱项的下周计划。',
-  rationale: '数学安排在每日精力最好的时段，英语阅读保持稳定训练。',
-  changes: [{ operation: 'replace_study_plan', data: { items: [
-    { subject: '数学', title: '极限专项 + 真题', hours: '16h', note: '优先补弱' },
-    { subject: '英语', title: '阅读精练 + 单词复习', hours: '14h', note: '保持节奏' },
-    { subject: '政治', title: '肖 1000 与错题回顾', hours: '8h', note: '巩固提升' },
-  ] } }],
+  proposalType: 'study',
+  status: 'empty',
+  summary: '还没有待确认的云端计划。',
+  rationale: '先和 AI 顾问聊聊，再主动生成一份可确认、可同步的计划。',
+  changes: [{ operation: 'replace_study_plan', data: { items: [] } }],
 };
 
 if (document.readyState === 'loading') {
@@ -120,6 +321,373 @@ function setFooterActiveIndex(index) {
     void footer?.offsetWidth;
     footer?.classList.add('is-sliding');
     window.setTimeout(() => footer?.classList.remove('is-sliding'), 430);
+  }
+}
+
+function formatDuration(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function normalizedStudyItems(plan) {
+  const items = Array.isArray(plan?.items) ? plan.items : [];
+  return items.map((item, index) => ({
+    id: String(item?.id || item?.taskId || index),
+    subject: String(item?.subject || '学习'),
+    title: String(item?.title || item?.task || item?.name || '专项复习'),
+    duration: String(item?.duration || item?.hours || item?.note || '按计划完成'),
+    note: String(item?.note || item?.description || ''),
+    completed: item?.completed === true || item?.status === 'completed',
+  }));
+}
+
+function normalizedAdmissionPlan(plan) {
+  const source = plan && typeof plan === 'object' && !Array.isArray(plan) ? plan : {};
+  const read = (...keys) => {
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+    }
+    return '';
+  };
+  const scoreRaw = read('targetScore', 'target_score', 'score', 'expectedScore', '目标分数', '分数');
+  const numericScore = Number(scoreRaw);
+  return {
+    university: read('university', 'school', 'targetUniversity', 'targetSchool', 'universityName', '院校', '学校', '目标院校', '院校名称'),
+    major: read('major', 'targetMajor', 'majorName', '专业', '目标专业', '专业名称'),
+    majorCode: read('majorCode', 'major_code', 'code', '专业代码'),
+    degree: read('degree', 'degreeType', 'targetDegree', '学位类型', '学硕专硕'),
+    category: read('category', 'discipline', 'subjectCategory', 'targetCategory', '学科门类'),
+    score: Number.isFinite(numericScore) && numericScore > 0 ? String(Math.round(numericScore)) : scoreRaw,
+  };
+}
+
+function visibleStudyPlan() {
+  const list = document.getElementById('prepTaskList');
+  if (!list) return { items: [] };
+  return {
+    ...(studyPlanState?.plan && typeof studyPlanState.plan === 'object' ? studyPlanState.plan : {}),
+    items: [...list.querySelectorAll('.prep-task')].map((task, index) => ({
+      id: task.dataset.planItemId || task.dataset.taskId || String(index),
+      subject: task.querySelector('small')?.textContent?.trim() || '学习',
+      title: task.querySelector('strong')?.textContent?.trim() || '专项复习',
+      duration: task.querySelector('em')?.textContent?.trim() || '',
+      completed: task.classList.contains('is-complete'),
+    })),
+  };
+}
+
+function updatePrepTaskMetrics() {
+  const tasks = [...document.querySelectorAll('#prepTaskList .prep-task')];
+  if (!tasks.length) return;
+  const completed = tasks.filter((task) => task.classList.contains('is-complete')).length;
+  const total = tasks.length;
+  const rate = Math.round((completed / total) * 100);
+  setText('prepTaskProgress', `${completed} / ${total} 项`);
+  setText('prepCompletionRate', `${rate}%`);
+  setText('prepWeekProgress', `${completed} / ${total}`);
+  tasks.forEach((task) => {
+    const check = task.querySelector('.prep-task-check');
+    if (check) check.textContent = task.classList.contains('is-complete') ? '✓' : '';
+  });
+}
+
+function capturePrepTaskTemplate() {
+  const list = document.getElementById('prepTaskList');
+  if (list && !offlinePrepTaskMarkup) offlinePrepTaskMarkup = list.innerHTML;
+}
+
+function renderOfflinePrepTasks() {
+  const list = document.getElementById('prepTaskList');
+  if (list && offlinePrepTaskMarkup) list.innerHTML = offlinePrepTaskMarkup;
+  updatePrepTaskMetrics();
+}
+
+function renderStudyPlan(plan) {
+  const items = normalizedStudyItems(plan);
+  const list = document.getElementById('prepTaskList');
+  if (!items.length) {
+    if (getMyAuthProfile() && list) {
+      list.innerHTML = '<div class="prep-plan-empty"><strong>还没有云端学习计划</strong><small>可以先和 AI 学习顾问聊聊，再确认并应用一份计划。</small><button type="button" data-open-agent-chat>生成学习计划</button></div>';
+      setText('prepTaskProgress', '0 / 0 项');
+      setText('prepCompletionRate', '—');
+      setText('prepWeekProgress', '0 / 0');
+      return;
+    }
+    updatePrepTaskMetrics();
+    return;
+  }
+  if (!list) return;
+  list.innerHTML = items.map((item) => `
+    <button class="prep-task${item.completed ? ' is-complete' : ''}" type="button" data-plan-item-id="${escapeHtml(item.id)}">
+      <span class="prep-task-check">${item.completed ? '✓' : ''}</span>
+      <span><small>${escapeHtml(item.subject)}</small><strong>${escapeHtml(item.title)}</strong></span>
+      <em>${escapeHtml(item.duration)}</em>
+    </button>
+  `).join('');
+  updatePrepTaskMetrics();
+}
+
+function renderMyStudyData() {
+  const user = getMyAuthProfile();
+  const week = studySummaryState.week;
+  const today = studySummaryState.today;
+  const subjectList = document.getElementById('mySubjectList');
+  if (!user) {
+    setText('myWeekStudyTime', '—');
+    setText('myWeekDailyAverage', '登录后同步');
+    setText('myWeekSessionCount', '—');
+    setText('myPlanSyncStatus', '未同步');
+    setText('myTodayStudyTime', '—');
+    setText('myDataSourceTitle', '云端数据待连接');
+    setText('myDataSourceText', '登录后，学习记录、计划与 AI 建议会同步到你的账号。');
+    if (subjectList) subjectList.innerHTML = '<p><span>登录后</span><i><b style="width:0%"></b></i><em>—</em></p>';
+    return;
+  }
+
+  const weekSeconds = Number(week?.durationS || 0);
+  const todaySeconds = Number(today?.durationS || 0);
+  const dayAverage = weekSeconds ? formatDuration(Math.round(weekSeconds / 7)) : '0m';
+  setText('myWeekStudyTime', formatDuration(weekSeconds));
+  setText('myWeekDailyAverage', `日均 ${dayAverage}`);
+  setText('myWeekSessionCount', `${Number(week?.sessionCount || 0)} 条`);
+  setText('myPlanSyncStatus', studyPlanState?.updatedAt ? '已同步' : '待设置');
+  setText('myTodayStudyTime', formatDuration(todaySeconds));
+  setText('myDataSourceTitle', '云端同步已开启');
+  setText('myDataSourceText', '学习记录、计划与 AI 建议均会保存到当前账号。');
+
+  if (!subjectList) return;
+  const subjects = Array.isArray(week?.bySubject) ? week.bySubject : [];
+  const max = Math.max(1, ...subjects.map((item) => Number(item.durationS || 0)));
+  subjectList.innerHTML = subjects.length
+    ? subjects.slice(0, 4).map((item) => {
+      const width = Math.max(6, Math.round((Number(item.durationS || 0) / max) * 100));
+      return `<p><span>${escapeHtml(item.subject)}</span><i><b style="width:${width}%"></b></i><em>${formatDuration(item.durationS)}</em></p>`;
+    }).join('')
+    : '<p><span>尚无记录</span><i><b style="width:0%"></b></i><em>0m</em></p>';
+}
+
+function renderPrepStudyData() {
+  const user = getMyAuthProfile();
+  const todaySeconds = Number(studySummaryState.today?.durationS || 0);
+  if (!user) {
+    setText('prepStudyTime', '登录后同步 / 8h');
+    return;
+  }
+  setText('prepStudyTime', `${formatDuration(todaySeconds)} / 8h`);
+}
+
+function renderAgentStudyOverview() {
+  const user = getMyAuthProfile();
+  const week = studySummaryState.week;
+  const weekSeconds = Number(week?.durationS || 0);
+  const sessions = Number(week?.sessionCount || 0);
+  const topSubject = week?.bySubject?.[0]?.subject || '暂无';
+  const hasStudyData = weekSeconds > 0 || sessions > 0;
+  setText('agentStatus', user ? (hasStudyData ? '✦ 已同步' : '✦ 待记录') : '✦ 待登录');
+  setText('agentChatStatus', user ? '已登录 · 等待同步最新数据' : '登录后同步云端学习数据');
+
+  setText('agentWeekHeadline', user
+    ? (hasStudyData ? '已根据你的真实学习记录生成概览' : '先记录一次学习，再生成个性化建议')
+    : '登录后生成个性化建议');
+  setText('agentWeekRange', user ? '最近 7 天' : '等待登录');
+  setText('agentWeekStudyTime', user ? formatDuration(weekSeconds) : '—');
+  setText('agentWeekStudyMeta', user ? '近 7 天累计' : '登录后同步');
+  setText('agentWeekSessionCount', user ? String(sessions) : '—');
+  setText('agentWeekSessionMeta', user ? '条学习记录' : '等待同步');
+  setText('agentWeekPriority', user ? topSubject : '—');
+  setText('agentWeekPriorityMeta', user ? (hasStudyData ? '投入时长最高' : '暂无学习数据') : '暂无数据');
+}
+
+async function refreshAuthenticatedData() {
+  const loadVersion = ++authenticatedDataLoadVersion;
+  const user = getMyAuthProfile();
+  if (!user) {
+    resetAuthenticatedUiState();
+    renderOfflinePrepTasks();
+    renderMyStudyData();
+    renderPrepStudyData();
+    renderPrepPlanMeta();
+    renderAgentStudyOverview();
+    renderMyPage();
+    return;
+  }
+  const requestUserId = user.id;
+  const [todayResult, weekResult, planResult] = await Promise.allSettled([
+    getStudySummary(1),
+    getStudySummary(7),
+    getUserPlans(),
+  ]);
+  // 登录切换或退出期间返回的旧请求不能覆盖新账号的界面。
+  if (loadVersion !== authenticatedDataLoadVersion || getMyAuthProfile()?.id !== requestUserId) return;
+  if (todayResult.status === 'fulfilled') studySummaryState.today = todayResult.value;
+  if (weekResult.status === 'fulfilled') studySummaryState.week = weekResult.value;
+  if (planResult.status === 'fulfilled') {
+    const plans = planResult.value?.plans || {};
+    const studyState = plans.study;
+    const admissionState = plans.admission;
+    if (studyState) {
+      studyPlanState = studyState;
+      renderStudyPlan(studyState.plan);
+    }
+    if (admissionState) admissionPlanState = admissionState;
+  }
+  await refreshCloudFavorites({ render: false });
+  if (loadVersion !== authenticatedDataLoadVersion || getMyAuthProfile()?.id !== requestUserId) return;
+  renderMyStudyData();
+  renderPrepStudyData();
+  renderPrepPlanMeta();
+  renderAgentStudyOverview();
+  renderMyPage();
+}
+
+function resetAuthenticatedUiState() {
+  studySummaryState = { today: null, week: null };
+  studyPlanState = { plan: {}, revision: 0, updatedAt: null };
+  admissionPlanState = { plan: {}, revision: 0, updatedAt: null };
+  activeAgentConversationId = null;
+  activeAgentConversationUserId = null;
+  activeAgentProposal = null;
+  activeAgentQuestions = { study: '', admission: '' };
+  studyTimerStartedAt = null;
+  agentChatLoading = false;
+  resetCloudFavoritesState();
+}
+
+async function restoreAuthenticatedExperience() {
+  try {
+    const session = await restoreAuthSession();
+    if (session) {
+      localStorage.removeItem('my_auth_profile');
+      await refreshAuthenticatedData();
+    }
+  } catch (error) {
+    // 网络短暂不可用时保留本地登录态；界面会在下次请求时重新验证。
+    console.warn('[Auth] 恢复登录态失败：', error);
+  }
+  renderMyPage();
+}
+
+async function persistVisibleStudyPlan() {
+  if (!getMyAuthProfile() || studyPlanSaving) return;
+  studyPlanSaving = true;
+  const nextPlan = visibleStudyPlan();
+  try {
+    const response = await updateUserPlan('study', nextPlan, studyPlanState.revision);
+    studyPlanState = {
+      plan: response?.plan || nextPlan,
+      revision: Number(response?.revision ?? studyPlanState.revision),
+      updatedAt: response?.updatedAt || studyPlanState.updatedAt,
+    };
+    renderMyStudyData();
+  } catch (error) {
+    if (error instanceof StudyApiError && error.status === 409) {
+      await refreshAuthenticatedData();
+      alert('你的计划已在其他设备更新，页面已刷新为最新版本。');
+    } else {
+      alert(error instanceof Error ? `计划同步失败：${error.message}` : '计划同步失败，请稍后重试。');
+    }
+  } finally {
+    studyPlanSaving = false;
+  }
+}
+
+async function handlePrepTaskClick(event) {
+  if (event.target.closest('[data-open-agent-chat]')) {
+    openAgentChat();
+    return;
+  }
+  const task = event.target.closest('.prep-task');
+  if (!task || studyPlanSaving) return;
+  task.classList.toggle('is-complete');
+  updatePrepTaskMetrics();
+  if (getMyAuthProfile()) await persistVisibleStudyPlan();
+}
+
+function showAuthError(message) {
+  const element = document.getElementById('myAuthError');
+  if (!element) return;
+  const text = String(message || '').trim();
+  element.hidden = !text;
+  element.textContent = text;
+}
+
+function setAuthFormMode(mode) {
+  const form = document.getElementById('myAuthForm');
+  if (!form) return;
+  const isLogin = mode === 'login';
+  form.dataset.mode = isLogin ? 'login' : 'register';
+  const emailRow = document.getElementById('myAuthEmailRow');
+  const password = document.getElementById('myAuthPasswordInput');
+  const submit = document.getElementById('myAuthSubmitBtn');
+  const switchButton = document.getElementById('myAuthSwitchBtn');
+  const status = document.getElementById('myAuthStatus');
+  if (emailRow) emailRow.hidden = isLogin;
+  if (password) password.autocomplete = isLogin ? 'current-password' : 'new-password';
+  if (submit) submit.textContent = isLogin ? '登录' : '注册并登录';
+  if (switchButton) switchButton.textContent = isLogin ? '没有账号，去注册' : '已有账号，去登录';
+  if (status) status.textContent = isLogin
+    ? '输入已注册的昵称和密码，即可继续同步。'
+    : '注册后将创建一个可跨设备同步的备考账号。';
+  showAuthError('');
+}
+
+async function toggleStudyTimer() {
+  if (!getMyAuthProfile()) {
+    alert('登录后即可把学习时长同步到云端。');
+    openMyScreen();
+    return;
+  }
+  const buttons = ['startStudyBtn', 'openTimerBtn'].map((id) => document.getElementById(id)).filter(Boolean);
+  if (!studyTimerStartedAt) {
+    studyTimerStartedAt = Date.now();
+    setText('prepStudyTime', '正在计时');
+    buttons.forEach((button) => {
+      button.classList.add('is-running');
+      button.textContent = 'Ⅱ 正在专注';
+    });
+    return;
+  }
+
+  const startedAt = studyTimerStartedAt;
+  const endedAt = Date.now();
+  const durationS = Math.max(0, Math.floor((endedAt - startedAt) / 1000));
+  studyTimerStartedAt = null;
+  const activeTask = document.querySelector('#prepTaskList .prep-task:not(.is-complete)') || document.querySelector('#prepTaskList .prep-task');
+  const subject = activeTask?.querySelector('small')?.textContent?.trim() || '自习';
+  const content = activeTask?.querySelector('strong')?.textContent?.trim() || '专注学习';
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.textContent = '正在同步…';
+  });
+  try {
+    await createStudySession({
+      subject,
+      content,
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      durationS,
+    });
+    await refreshAuthenticatedData();
+    buttons.forEach((button) => { button.textContent = `✓ 已记录 ${formatDuration(durationS)}`; });
+  } catch (error) {
+    buttons.forEach((button) => { button.textContent = '▷ 开始学习'; });
+    renderPrepStudyData();
+    alert(error instanceof Error ? `学习记录同步失败：${error.message}` : '学习记录同步失败，请稍后重试。');
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.classList.remove('is-running');
+    });
   }
 }
 
@@ -211,7 +779,6 @@ function initializeFooterSlider() {
 }
 
 // 屏幕层级：home 为基础层，results / fail 为下钻层，用于推导过渡方向。
-const SCREEN_DEPTH = { home: 0, prep: 0, practice: 0, my: 0, results: 1, fail: 1, agentChat: 1, agentProposal: 2 };
 const SCREEN_TRANSITION_MS = 180;
 
 const ENTER_CLASSES = ['screen-entering', 'screen-enter-forward', 'screen-enter-backward', 'screen-enter-cross'];
@@ -226,20 +793,6 @@ function showScreen(target, direction = 'cross') {
     // 只响应屏幕自身的动画，避免子元素动画冒泡误清状态。
     if (event.target === target && event.animationName.startsWith('screenEnter')) cleanup();
   });
-  window.setTimeout(cleanup, SCREEN_TRANSITION_MS + 150);
-}
-
-/** 旧屏幕退出：转为固定层保留滚动位置，与新屏幕同屏完成方向性退场。 */
-function exitScreen(el, direction) {
-  const scrollY = window.scrollY;
-  el.classList.remove('is-active', ...ENTER_CLASSES, ...EXIT_CLASSES);
-  void el.offsetWidth;
-  el.classList.add('screen-exiting', `screen-exit-${direction}`);
-  if (scrollY > 0) el.scrollTop = scrollY;
-  const cleanup = () => el.classList.remove(...EXIT_CLASSES);
-  el.addEventListener('animationend', (event) => {
-    if (event.target === el && event.animationName.startsWith('screenExit')) cleanup();
-  }, { once: true });
   window.setTimeout(cleanup, SCREEN_TRANSITION_MS + 150);
 }
 
@@ -294,14 +847,25 @@ function openMyScreen() {
 
 function proposalItems(proposal) {
   const data = proposal?.changes?.[0]?.data || {};
-  const items = Array.isArray(data.items) ? data.items : fallbackStudyProposal.changes[0].data.items;
+  const items = Array.isArray(data.items) ? data.items : [];
   const icons = { 数学: '∑', 英语: 'A', 政治: '政', 专业课: '专' };
-  return items.slice(0, 4).map((item, index) => ({
-    subject: item.subject || ['数学', '英语', '政治'][index] || '学习',
-    title: item.title || item.task || item.name || '专项复习',
-    hours: item.hours || item.duration || '8h',
-    note: item.note || item.description || '按计划完成',
-    icon: icons[item.subject] || '✦',
+  if (items.length) {
+    return items.slice(0, 4).map((item, index) => ({
+      subject: item.subject || ['数学', '英语', '政治'][index] || '学习',
+      title: item.title || item.task || item.name || '专项复习',
+      hours: item.hours || item.duration || '—',
+      note: item.note || item.description || '按计划完成',
+      icon: icons[item.subject] || '✦',
+    }));
+  }
+
+  // 报考方案没有固定 items 结构；以安全的键值预览展示模型已校验过的 JSON。
+  return Object.entries(data).slice(0, 4).map(([key, value]) => ({
+    subject: '方案',
+    title: key,
+    hours: '',
+    note: typeof value === 'string' ? value : JSON.stringify(value),
+    icon: '⌁',
   }));
 }
 
@@ -309,48 +873,268 @@ function renderAgentProposal(proposal = activeAgentProposal || fallbackStudyProp
   activeAgentProposal = proposal;
   const list = document.getElementById('agentPlanItems');
   if (!list) return;
-  list.innerHTML = proposalItems(proposal).map((item) => `
+  const proposalType = proposal.proposalType || activeAgentProposalType || 'study';
+  const items = proposalItems(proposal);
+  const isPending = proposal?.status === 'pending';
+  const title = proposalType === 'admission' ? '报考方案建议' : '下周学习计划';
+  const titleEl = document.getElementById('agentProposalTitle');
+  const metaEl = document.getElementById('agentProposalMeta');
+  const badgeEl = document.getElementById('agentProposalBadge');
+  const rationaleEl = document.getElementById('agentProposalRationale');
+  const applyButton = document.getElementById('agentApplyProposalBtn');
+  if (titleEl) titleEl.textContent = title;
+  if (metaEl) metaEl.textContent = proposal?.createdAt ? '已根据当前云端数据生成' : '生成后会先等待你的确认';
+  if (badgeEl) badgeEl.textContent = isPending ? '待确认' : proposal?.status === 'applied' ? '已应用' : '待生成';
+  if (rationaleEl) rationaleEl.textContent = proposal?.rationale || proposal?.summary || fallbackStudyProposal.rationale;
+  if (applyButton) {
+    applyButton.disabled = !isPending;
+    applyButton.textContent = isPending ? '✓ 应用这份计划' : proposal?.status === 'applied' ? '✓ 已应用到云端' : '先在对话中生成计划';
+  }
+  list.innerHTML = items.length ? items.map((item) => `
     <article class="agent-plan-item"><i>${escapeHtml(item.icon)}</i><span><strong>${escapeHtml(item.subject)} · ${escapeHtml(item.title)}</strong><small>${escapeHtml(item.note)}</small></span><b>${escapeHtml(String(item.hours))}</b></article>
-  `).join('');
+  `).join('') : '<p class="agent-plan-empty">暂无待确认的方案。先发起对话，再选择生成计划。</p>';
 }
 
-function appendAgentMessage(text, type = 'user') {
+function coachIntakeQuestions(metadata) {
+  const questions = metadata?.coach?.questions;
+  if (!Array.isArray(questions)) return [];
+  return questions
+    .filter((question) => typeof question === 'string' && question.trim())
+    .slice(0, 6)
+    .map((question) => question.trim().slice(0, 120));
+}
+
+function appendAgentMessage(text, type = 'user', { canCreateProposal = false, questions = [] } = {}) {
   const list = document.getElementById('agentMessages');
-  if (!list) return;
+  if (!list) return null;
   const article = document.createElement('article');
   article.className = `agent-message is-${type}`;
+  const intakeList = type === 'assistant' && questions.length
+    ? `<ol class="agent-intake-questions">${questions.map((question) => `<li>${escapeHtml(question)}</li>`).join('')}</ol>`
+    : '';
   article.innerHTML = type === 'assistant'
-    ? `<i>✦</i><p>${escapeHtml(text)}</p>`
+    ? `<i>✦</i><div><p>${escapeHtml(text)}</p>${intakeList}${canCreateProposal ? '<button type="button" data-create-agent-proposal>生成待确认计划 ↗</button>' : ''}</div>`
     : `<p>${escapeHtml(text)}</p>`;
   list.append(article);
   article.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  return article;
 }
 
-async function askAgent(question) {
+function renderAgentConversation(messages = []) {
+  const list = document.getElementById('agentMessages');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!messages.length) {
+    appendAgentMessage('你好，我是你的考研复习规划教练。我会先结合云端学习、计划与收藏院校了解你的情况；信息不足时会用几个关键问题补齐，再给你可执行的方案。', 'assistant');
+    return;
+  }
+  messages.forEach((message) => {
+    appendAgentMessage(message.content || '', message.role === 'assistant' ? 'assistant' : 'user', {
+      canCreateProposal: Boolean(message.metadata?.canCreateProposal),
+      questions: coachIntakeQuestions(message.metadata),
+    });
+  });
+}
+
+function updateAgentContext(context) {
+  const section = document.querySelector('.agent-context');
+  if (!section) return;
+  const totalSeconds = Number(context?.study30d?.duration_s || 0);
+  const sessions = Number(context?.study30d?.session_count || 0);
+  const topSubject = context?.study30d?.bySubject?.[0]?.subject || '暂未记录';
+  const title = section.querySelector('b');
+  const updated = section.querySelector('small');
+  const chips = section.querySelectorAll('p span');
+  if (title) title.textContent = '教练正在结合你的云端数据给建议';
+  if (updated) updated.textContent = '刚刚同步';
+  if (chips[0]) chips[0].textContent = `近 30 天 ${formatDuration(totalSeconds)}`;
+  if (chips[1]) chips[1].textContent = `${sessions} 条学习记录`;
+  if (chips[2]) chips[2].textContent = `${topSubject}投入最多`;
+}
+
+async function ensureAgentConversation() {
+  const user = getMyAuthProfile();
+  if (!user) throw new AgentApiError('请先登录后再使用 AI 学习顾问', 401);
+  if (activeAgentConversationUserId !== user.id) {
+    activeAgentConversationId = null;
+    activeAgentConversationUserId = user.id;
+  }
+  if (activeAgentConversationId) {
+    try {
+      return await getAgentConversation(activeAgentConversationId);
+    } catch (error) {
+      // 会话可能已在其他设备删除。仅在 404 时重建，其他错误应由调用方显示。
+      if (!(error instanceof AgentApiError) || error.status !== 404) throw error;
+      activeAgentConversationId = null;
+    }
+  }
+  const conversations = await listAgentConversations();
+  const existing = (conversations?.data || []).find((item) => item.agentType === KAOYAN_COACH_AGENT_TYPE);
+  if (existing?.id) {
+    activeAgentConversationId = existing.id;
+    activeAgentConversationUserId = user.id;
+    return getAgentConversation(existing.id);
+  }
+  const created = await createAgentConversation({
+    agentType: KAOYAN_COACH_AGENT_TYPE,
+    title: '',
+    context: { entry: 'prep', experience: 'kaoyan-coach' },
+  });
+  const createdId = created?.conversation?.id;
+  if (!createdId) throw new AgentApiError('创建 AI 对话失败，请稍后重试', 502, created || null);
+  activeAgentConversationId = createdId;
+  activeAgentConversationUserId = user.id;
+  return { conversation: created?.conversation, messages: [] };
+}
+
+function promptAgentLogin() {
+  alert('登录后即可保存考研规划对话、同步学习数据并应用待确认计划。');
+  openMyScreen();
+  document.getElementById('myAuthForm')?.classList.remove('hidden');
+  document.getElementById('myOpenAuthBtn').hidden = true;
+  document.getElementById('myAuthNameInput')?.focus();
+}
+
+async function openAgentChat() {
+  if (!getMyAuthProfile()) {
+    promptAgentLogin();
+    return;
+  }
+  navigateTo('agentChat');
+  setText('agentStatus', '✦ 同步中');
+  setText('agentChatStatus', '正在同步对话与学习数据');
+  const list = document.getElementById('agentMessages');
+  if (list) list.innerHTML = '<article class="agent-message is-assistant"><i>✦</i><p>正在同步对话与学习数据…</p></article>';
+  try {
+    const [conversation, context] = await Promise.all([ensureAgentConversation(), getAgentContext()]);
+    renderAgentConversation(conversation?.messages || []);
+    updateAgentContext(context?.context);
+    setText('agentStatus', '✦ 已同步');
+    setText('agentChatStatus', '已同步 · 当前对话保存到云端');
+  } catch (error) {
+    setText('agentStatus', '✦ 未同步');
+    setText('agentChatStatus', '暂时无法连接云端服务');
+    const section = document.querySelector('.agent-context');
+    if (section) {
+      const title = section.querySelector('b');
+      const updated = section.querySelector('small');
+      if (title) title.textContent = '云端数据暂未同步';
+      if (updated) updated.textContent = '请稍后重试';
+      section.querySelectorAll('p span').forEach((chip) => { chip.textContent = '—'; });
+    }
+    renderAgentConversation([]);
+    appendAgentMessage(`暂时无法同步对话：${error instanceof Error ? error.message : '请稍后重试'}`, 'assistant');
+  }
+}
+
+async function askAgent(question, proposalType = activeAgentProposalType) {
   const text = String(question || '').trim();
   if (!text) return;
+  if (!getMyAuthProfile()) {
+    promptAgentLogin();
+    return;
+  }
+  if (agentChatLoading) return;
+  activeAgentProposalType = proposalType === 'admission' ? 'admission' : 'study';
+  activeAgentQuestions[activeAgentProposalType] = text;
+  agentChatLoading = true;
   appendAgentMessage(text, 'user');
   const input = document.getElementById('agentChatInput');
   if (input) input.value = '';
-  appendAgentMessage('正在根据你的学习数据生成建议…', 'assistant');
-  const pending = document.querySelector('#agentMessages .agent-message:last-child p');
+  const submit = document.querySelector('#agentChatForm button[type="submit"]');
+  if (submit) submit.disabled = true;
+  const pending = appendAgentMessage('正在结合你的学习、计划和收藏院校整理建议…', 'assistant');
   try {
-    const response = await createAgentProposal({ proposalType: 'study', question: text, context: { weeklyStudyHours: 42, completionRate: 76, mathAccuracy: 62, readingAccuracy: 60 } });
-    activeAgentProposal = response.proposal;
-    if (pending) pending.textContent = activeAgentProposal.summary || '已生成新的学习计划提案。';
+    const conversation = await ensureAgentConversation();
+    const conversationId = conversation?.conversation?.id || activeAgentConversationId;
+    const response = await sendAgentConversationMessage(conversationId, text);
+    pending?.remove();
+    appendAgentMessage(response?.message?.content || '我暂时没有生成有效回复，请重试。', 'assistant', {
+      canCreateProposal: response?.message?.metadata?.canCreateProposal === true,
+      questions: coachIntakeQuestions(response?.message?.metadata),
+    });
   } catch (error) {
-    // 后端尚未部署或用户未登录时，仍提供可体验的本地提案；不会写入任何数据。
-    activeAgentProposal = fallbackStudyProposal;
-    if (pending) pending.textContent = error instanceof AgentApiError
-      ? '已生成本地演示建议。部署并登录后，可获得基于个人数据的正式提案。'
-      : fallbackStudyProposal.summary;
+    const message = error instanceof Error ? error.message : 'AI 服务暂时不可用，请稍后重试。';
+    const textEl = pending?.querySelector('p');
+    if (textEl) textEl.textContent = `未能生成回复：${message}`;
+  } finally {
+    agentChatLoading = false;
+    if (submit) submit.disabled = false;
+  }
+}
+
+async function generateAgentProposal(proposalType = activeAgentProposalType) {
+  if (!getMyAuthProfile()) {
+    promptAgentLogin();
+    return;
+  }
+  const type = proposalType === 'admission' ? 'admission' : 'study';
+  activeAgentProposalType = type;
+  const question = activeAgentQuestions[type] || (type === 'admission'
+    ? '请基于我的当前报考信息，给出一份可确认的择校方案。'
+    : '请基于我的当前学习记录，生成一份下周可执行的学习计划。');
+  activeAgentProposal = {
+    ...fallbackStudyProposal,
+    proposalType: type,
+    status: 'generating',
+    summary: '正在生成待确认的云端计划，请稍候…',
+    rationale: '模型建议不会直接修改任何数据，生成后仍需由你确认。',
+  };
+  renderAgentProposal(activeAgentProposal);
+  navigateTo('agentProposal');
+  try {
+    const response = await createAgentProposal({
+      proposalType: type,
+      question,
+      agentType: KAOYAN_COACH_AGENT_TYPE,
+      context: { clientEntry: 'agent-chat' },
+    });
+    activeAgentProposal = response?.proposal || fallbackStudyProposal;
+  } catch (error) {
+    activeAgentProposal = {
+      ...fallbackStudyProposal,
+      proposalType: type,
+      status: 'failed',
+      summary: `计划生成失败：${error instanceof Error ? error.message : '请稍后重试'}`,
+      rationale: '你的现有学习计划没有被修改。',
+    };
   }
   renderAgentProposal(activeAgentProposal);
 }
 
+async function loadLatestAgentProposal() {
+  if (!getMyAuthProfile()) return fallbackStudyProposal;
+  const response = await listAgentProposals();
+  const pending = (response?.data || []).find((proposal) => proposal.status === 'pending');
+  activeAgentProposal = pending || fallbackStudyProposal;
+  if (pending?.proposalType) activeAgentProposalType = pending.proposalType;
+  return activeAgentProposal;
+}
+
+async function openAgentProposal() {
+  if (!getMyAuthProfile()) {
+    promptAgentLogin();
+    return;
+  }
+  navigateTo('agentProposal');
+  try {
+    renderAgentProposal(await loadLatestAgentProposal());
+  } catch (error) {
+    renderAgentProposal({
+      ...fallbackStudyProposal,
+      status: 'failed',
+      summary: `暂时无法读取计划：${error instanceof Error ? error.message : '请稍后重试'}`,
+    });
+  }
+}
+
 function openDetailPage(result) {
   _detailReturnScreen = _activeScreen;
-  showDetail(result, { degree: currentDegree, zone: currentZone });
+  showDetail(result, {
+    degree: currentDegree,
+    zone: currentZone,
+    favoriteNames: favoriteNamesForCurrentView(),
+  });
   history.pushState({ view: 'detail', returnScreen: _detailReturnScreen }, '');
 }
 
@@ -690,60 +1474,56 @@ function bindEvents() {
     openMyScreen();
   });
   profileNavButton.addEventListener('click', openMyScreen);
-  document.querySelectorAll('#prepTaskList .prep-task').forEach((task) => {
-    task.addEventListener('click', () => {
-      task.classList.toggle('is-complete');
-      const completed = document.querySelectorAll('#prepTaskList .prep-task.is-complete').length;
-      document.getElementById('prepTaskProgress').textContent = `${completed + 3} / 7 项`;
-      document.getElementById('prepCompletionRate').textContent = `${Math.round((completed + 3) / 7 * 100)}%`;
-      const check = task.querySelector('.prep-task-check');
-      check.textContent = task.classList.contains('is-complete') ? '✓' : '';
-    });
-  });
-  document.getElementById('startStudyBtn').addEventListener('click', () => {
-    const button = document.getElementById('startStudyBtn');
-    const running = button.classList.toggle('is-running');
-    button.textContent = running ? 'Ⅱ 正在专注' : '▷ 开始学习';
-  });
+  document.getElementById('prepTaskList').addEventListener('click', handlePrepTaskClick);
+  document.getElementById('startStudyBtn').addEventListener('click', toggleStudyTimer);
+  document.getElementById('openTimerBtn').addEventListener('click', toggleStudyTimer);
   document.getElementById('dailyCheckinBtn').addEventListener('click', () => {
     const button = document.getElementById('dailyCheckinBtn');
-    button.textContent = '✓ 已打卡';
+    button.textContent = '✓ 已打卡（本机）';
     button.disabled = true;
   });
-  document.getElementById('prepStatsBtn').addEventListener('click', () => {
-    renderAgentProposal();
-    navigateTo('agentProposal');
-  });
+  document.getElementById('prepStatsBtn').addEventListener('click', openAgentProposal);
   document.getElementById('agentChatBackBtn').addEventListener('click', () => navigateTo('agentProposal'));
   document.getElementById('agentProposalBackBtn').addEventListener('click', () => navigateTo('prep'));
-  document.getElementById('agentPlanLink').addEventListener('click', () => {
-    renderAgentProposal();
-    navigateTo('agentProposal');
+  document.getElementById('agentPlanLink')?.addEventListener('click', () => generateAgentProposal());
+  document.getElementById('agentMessages').addEventListener('click', (event) => {
+    if (event.target.closest('[data-create-agent-proposal]')) generateAgentProposal();
   });
-  document.getElementById('agentOpenChatBtn').addEventListener('click', () => navigateTo('agentChat'));
+  document.getElementById('agentOpenChatBtn').addEventListener('click', openAgentChat);
   document.querySelectorAll('[data-agent-prompt]').forEach((button) => {
-    button.addEventListener('click', () => askAgent(button.dataset.agentPrompt));
+    button.addEventListener('click', () => askAgent(button.dataset.agentPrompt, button.dataset.agentProposalType));
   });
   document.getElementById('agentChatForm').addEventListener('submit', (event) => {
     event.preventDefault();
     askAgent(document.getElementById('agentChatInput').value);
   });
-  document.getElementById('agentAdjustProposalBtn').addEventListener('click', () => navigateTo('agentChat'));
+  document.getElementById('agentAdjustProposalBtn').addEventListener('click', openAgentChat);
   document.getElementById('agentApplyProposalBtn').addEventListener('click', async () => {
     const button = document.getElementById('agentApplyProposalBtn');
-    if (!activeAgentProposal?.id) {
-      button.textContent = '✓ 已应用演示计划';
-      button.disabled = true;
-      return;
-    }
+    if (!activeAgentProposal?.id || activeAgentProposal.status !== 'pending') return;
     button.disabled = true;
     button.textContent = '正在应用…';
     try {
-      await applyAgentProposal(activeAgentProposal.id);
-      button.textContent = '✓ 已应用到备考计划';
+      const response = await applyAgentProposal(activeAgentProposal.id);
+      activeAgentProposal = { ...activeAgentProposal, status: 'applied' };
+      if (response?.planType === 'study' && response?.plan) {
+        studyPlanState = response.plan;
+        renderStudyPlan(response.plan.plan);
+      }
+      if (response?.planType === 'admission' && response?.plan) {
+        admissionPlanState = response.plan;
+      }
+      await refreshAuthenticatedData();
+      renderAgentProposal(activeAgentProposal);
     } catch (error) {
-      button.disabled = false;
-      button.textContent = '应用这份计划';
+      if (error instanceof AgentApiError && error.status === 409) {
+        await refreshAuthenticatedData();
+        try { await loadLatestAgentProposal(); } catch { /* 保留原提案错误提示 */ }
+        renderAgentProposal(activeAgentProposal);
+      } else {
+        button.disabled = false;
+        button.textContent = '应用这份计划';
+      }
       alert(error instanceof Error ? error.message : '应用计划失败，请稍后再试。');
     }
   });
@@ -751,18 +1531,79 @@ function bindEvents() {
   document.getElementById('myOpenAuthBtn').addEventListener('click', () => {
     document.getElementById('myAuthForm').classList.remove('hidden');
     document.getElementById('myOpenAuthBtn').hidden = true;
+    setAuthFormMode(document.getElementById('myAuthForm').dataset.mode || 'register');
     document.getElementById('myAuthNameInput').focus();
   });
   document.getElementById('myCloseAuthBtn').addEventListener('click', () => {
     document.getElementById('myAuthForm').classList.add('hidden');
     document.getElementById('myOpenAuthBtn').hidden = false;
+    showAuthError('');
   });
-  document.getElementById('myAuthForm').addEventListener('submit', (event) => {
+  document.getElementById('myAuthSwitchBtn').addEventListener('click', () => {
+    const form = document.getElementById('myAuthForm');
+    setAuthFormMode(form.dataset.mode === 'login' ? 'register' : 'login');
+  });
+  document.getElementById('myAuthForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const name = document.getElementById('myAuthNameInput').value.trim();
-    const account = document.getElementById('myAuthAccountInput').value.trim();
-    if (!name || !account) return;
-    localStorage.setItem(MY_AUTH_KEY, JSON.stringify({ name, account, createdAt: new Date().toISOString() }));
+    const form = document.getElementById('myAuthForm');
+    const username = document.getElementById('myAuthNameInput').value.trim();
+    const password = document.getElementById('myAuthPasswordInput').value;
+    const email = document.getElementById('myAuthAccountInput').value.trim();
+    const submit = document.getElementById('myAuthSubmitBtn');
+    showAuthError('');
+    submit.disabled = true;
+    submit.textContent = form.dataset.mode === 'login' ? '登录中…' : '注册中…';
+    try {
+      if (form.dataset.mode === 'login') await login({ username, password });
+      else await register({ username, password, email });
+      localStorage.removeItem('my_auth_profile');
+      form.reset();
+      form.classList.add('hidden');
+      document.getElementById('myOpenAuthBtn').hidden = true;
+      activeAgentConversationId = null;
+      activeAgentConversationUserId = null;
+      await refreshAuthenticatedData();
+      renderMyPage();
+    } catch (error) {
+      showAuthError(error instanceof Error ? error.message : '登录失败，请稍后重试。');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = form.dataset.mode === 'login' ? '登录' : '注册并登录';
+    }
+  });
+  document.getElementById('myLogoutBtn').addEventListener('click', async () => {
+    const button = document.getElementById('myLogoutBtn');
+    button.disabled = true;
+    try {
+      await logout();
+      activeAgentConversationId = null;
+      activeAgentConversationUserId = null;
+      activeAgentProposal = null;
+      await refreshAuthenticatedData();
+      renderMyPage();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '退出登录失败，请稍后重试。');
+    } finally {
+      button.disabled = false;
+    }
+  });
+  window.addEventListener('kaoyan-auth-change', (event) => {
+    const nextUserId = Number(event.detail?.user?.id) || null;
+    if (nextUserId !== authenticatedUserId) {
+      authenticatedUserId = nextUserId;
+      // 让旧账号的异步请求失效，并且不在切换后短暂展示其计划或对话。
+      authenticatedDataLoadVersion += 1;
+      resetAuthenticatedUiState();
+      if (nextUserId) {
+        cloudFavoritesState = { userId: nextUserId, records: [], loaded: false, loading: true, error: null };
+      } else {
+        renderOfflinePrepTasks();
+      }
+    }
+    renderMyStudyData();
+    renderPrepStudyData();
+    renderPrepPlanMeta();
+    renderAgentStudyOverview();
     renderMyPage();
   });
   document.querySelectorAll('[data-practice-action], #resumePracticeBtn, #allWrongBtn, #wrongAnalysisBtn').forEach((button) => {
@@ -892,12 +1733,9 @@ function bindEvents() {
   });
 
   // 收藏按钮
-  document.getElementById('detailFavBtn').addEventListener('click', () => {
+  document.getElementById('detailFavBtn').addEventListener('click', async () => {
     const name = document.getElementById('detailName').textContent;
-    const faved = toggleFavorite(name);
-    const favBtn = document.getElementById('detailFavBtn');
-    favBtn.textContent = faved ? '★' : '☆';
-    favBtn.classList.toggle('is-faved', faved);
+    await toggleUniversityFavorite(name);
   });
 
   // B区尝试
@@ -1093,7 +1931,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'practice', 'results', 'fail', 'my'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'agentChat', 'agentProposal'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -1442,63 +2280,94 @@ function renderMyPage() {
   const authTitle = document.getElementById('myAuthTitle');
   const authDescription = document.getElementById('myAuthDescription');
   const authButton = document.getElementById('myOpenAuthBtn');
+  const logoutButton = document.getElementById('myLogoutBtn');
+  const authForm = document.getElementById('myAuthForm');
+  const authCard = document.getElementById('myAuthCard');
   if (auth) {
-    profileName.textContent = auth.name;
-    profileMeta.textContent = '已登录 · 本机数据待同步';
+    if (authCard) authCard.dataset.authState = 'signed-in';
+    profileName.textContent = auth.username || '研友';
+    profileMeta.textContent = auth.email ? `已登录 · ${auth.email}` : '已登录 · 云端同步已开启';
     authTitle.textContent = '账号已登录';
-    authDescription.textContent = '登录状态已保存在本机，服务端部署后可开启跨设备同步。';
-    authButton.textContent = '已登录';
-    authButton.disabled = true;
+    authDescription.textContent = '学习记录、计划和 AI 建议会同步到当前账号。';
+    authButton.hidden = true;
+    authButton.disabled = false;
+    logoutButton.hidden = false;
+    if (authForm) authForm.classList.add('hidden');
   } else {
+    if (authCard) authCard.dataset.authState = 'signed-out';
     profileName.textContent = '未登录';
     profileMeta.textContent = '登录后同步你的备考数据';
     authTitle.textContent = '登录后，学习数据不会丢';
     authDescription.textContent = '跨设备同步目标院校、学习计划与 AI 建议。';
     authButton.textContent = '登录 / 注册';
+    authButton.hidden = false;
     authButton.disabled = false;
+    logoutButton.hidden = true;
   }
-  // 目标分数
-  const target = getTargetScore() || {};
-  document.getElementById('myTargetScore').textContent = target.score || '365';
-  document.getElementById('myTargetDegree').textContent = target.score ? (target.degree === 'xueshuo' ? '学硕' : '专硕') : '学硕';
-  document.getElementById('myTargetCategory').textContent = target.category || '工学';
+  // 报考方案优先显示已确认的云端计划；本地目标仅保留为离线回退。
+  const localTarget = getTargetScore() || {};
+  const cloudTarget = normalizedAdmissionPlan(admissionPlanState.plan);
+  const hasCloudTarget = Boolean(cloudTarget.university || cloudTarget.major || cloudTarget.score || cloudTarget.majorCode);
+  const localDegree = localTarget.score ? (localTarget.degree === 'xueshuo' ? '学硕' : '专硕') : '学硕';
+  const targetName = hasCloudTarget
+    ? [cloudTarget.university, cloudTarget.major].filter(Boolean).join(' · ') || '已保存云端报考方案'
+    : '北京邮电大学 · 软件工程';
+  setText('myTargetPlanLabel', hasCloudTarget ? '已确认的云端报考方案' : '本机目标档案');
+  setText('myTargetUniversity', targetName);
+  setText('myTargetScore', hasCloudTarget ? (cloudTarget.score || '—') : (localTarget.score || '365'));
+  setText('myTargetDegree', hasCloudTarget ? (cloudTarget.degree || '待补充') : localDegree);
+  setText('myTargetCategory', hasCloudTarget ? (cloudTarget.category || '待补充') : (localTarget.category || '工学'));
+  setText('myTargetPlanCode', hasCloudTarget ? (cloudTarget.majorCode || '已同步') : '083500');
 
-  // 收藏院校
-  const favorites = getFavorites();
-  const favs = Array.isArray(favorites) ? favorites : [];
-  document.getElementById('myFavCount').textContent = favs.length;
+  // 收藏院校：登录后仅展示当前账号的 MySQL 数据；离线时保留本机收藏。
+  const cloudFavorites = cloudFavoritesForCurrentUser();
+  const favs = favoriteRecordsForView();
+  setText('myFavCount', String(favs.length));
+  const favSyncStatus = document.getElementById('myFavSyncStatus');
+  if (favSyncStatus) {
+    favSyncStatus.textContent = !auth
+      ? '本机收藏'
+      : cloudFavorites?.loading
+        ? '正在同步…'
+        : cloudFavorites?.loaded
+          ? '已同步'
+          : '同步失败';
+  }
   const favList = document.getElementById('myFavList');
-  const favEmpty = document.getElementById('myFavEmpty');
-  if (favs.length === 0) {
-    favList.innerHTML = '';
-    favList.appendChild(favEmpty);
-    favEmpty.style.display = '';
-  } else {
-    favEmpty.style.display = 'none';
-    favList.innerHTML = favs.map(name => {
-      const uni = findUniversity(name);
-      const meta = uni ? `${uni.province} · ${uni.level} · ${uni.zone}区` : '';
-      return `<button class="my-list-item" type="button" data-uni-name="${escapeHtml(name)}">
-        <div class="my-list-item-main"><strong>${escapeHtml(name)}</strong><small>${meta}</small></div>
-        <div class="my-list-item-actions">
-          <span class="my-list-item-badge">${uni ? uni.level : ''}</span>
-          <span class="my-list-item-del" data-uni-name="${escapeHtml(name)}" title="取消收藏">×</span>
-        </div>
-      </button>`;
+  if (favList && favs.length === 0) {
+    const emptyText = !auth
+      ? '登录后可跨设备保存收藏院校。'
+      : cloudFavorites?.loading
+        ? '正在读取你的云端收藏…'
+        : cloudFavorites?.error
+          ? '暂时无法读取云端收藏，请稍后重试。'
+          : '暂未收藏院校；在学校详情页点 ☆ 即可加入。';
+    favList.innerHTML = `<p id="myFavEmpty" class="my-favorites-empty">${escapeHtml(emptyText)}</p>`;
+  } else if (favList) {
+    favList.innerHTML = favs.map((favorite) => {
+      const name = favorite.universityName;
+      const localUniversity = findUniversity(name);
+      const province = favorite.province || localUniversity?.province || '';
+      const level = favorite.level || localUniversity?.level || '';
+      const zone = favorite.zone || localUniversity?.zone || '';
+      const meta = [province, level, zone ? `${zone}区` : ''].filter(Boolean).join(' · ');
+      return `<article class="my-favorite-row">
+        <button class="my-favorite-item" type="button" data-uni-name="${escapeHtml(name)}"><span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(meta || '已收藏院校')}</small></span></button>
+        <button class="my-favorite-remove" type="button" data-uni-name="${escapeHtml(name)}" title="取消收藏" aria-label="取消收藏 ${escapeHtml(name)}">×</button>
+      </article>`;
     }).join('');
-    if (favEmpty.parentNode === favList) favList.appendChild(favEmpty);
   }
 
   // 浏览历史
   const history = getBrowseHistory();
   const hist = Array.isArray(history) ? history : [];
   const histList = document.getElementById('myHistoryList');
-  const histEmpty = document.getElementById('myHistoryEmpty');
-  if (hist.length === 0) {
+  const histEmpty = ensureMyListPlaceholder(histList, 'myHistoryEmpty');
+  if (histList && hist.length === 0) {
     histList.innerHTML = '';
     histList.appendChild(histEmpty);
     histEmpty.style.display = '';
-  } else {
+  } else if (histList) {
     histEmpty.style.display = 'none';
     histList.innerHTML = hist.map(name => {
       const uni = findUniversity(name);
@@ -1510,43 +2379,87 @@ function renderMyPage() {
         </div>
       </button>`;
     }).join('');
-    if (histEmpty.parentNode === histList) histList.appendChild(histEmpty);
+    histList.appendChild(histEmpty);
   }
+  renderMyStudyData();
+}
+
+function ensureMyListPlaceholder(list, id) {
+  if (!list) return document.createElement('div');
+  let placeholder = document.getElementById(id);
+  if (!placeholder) {
+    placeholder = document.createElement('div');
+    placeholder.id = id;
+  }
+  return placeholder;
 }
 
 function initMyPageEvents() {
   // 编辑目标
-  document.getElementById('myEditTargetBtn').addEventListener('click', () => {
-    const target = getTargetScore();
-    const newScore = prompt('请输入目标分数（0-500）：', target.score || '');
+  document.getElementById('myEditTargetBtn').addEventListener('click', async () => {
+    if (admissionPlanSaving) return;
+    const localTarget = getTargetScore() || {};
+    const cloudTarget = normalizedAdmissionPlan(admissionPlanState.plan);
+    const isCloud = Boolean(getMyAuthProfile());
+    const currentDegree = cloudTarget.degree.includes('专') ? 'zhuanshuo'
+      : cloudTarget.degree.includes('学') ? 'xueshuo'
+        : (localTarget.degree || 'xueshuo');
+    const newScore = prompt('请输入目标分数（0-500）：', cloudTarget.score || localTarget.score || '');
     if (newScore === null) return;
     const score = parseInt(newScore, 10);
     if (isNaN(score) || score < 0 || score > 500) { alert('请输入 0-500 之间的分数'); return; }
 
-    const degree = confirm('点击「确定」选择学硕，点击「取消」选择专硕') ? 'xueshuo' : 'zhuanshuo';
+    const degree = confirm(`当前为${currentDegree === 'xueshuo' ? '学硕' : '专硕'}。点击「确定」选择学硕，点击「取消」选择专硕`) ? 'xueshuo' : 'zhuanshuo';
 
     const categories = getCategories(degree);
     const catList = categories.join(' / ');
-    const category = prompt(`请输入目标门类（${catList}）：`, target.category || '工学');
+    const category = prompt(`请输入目标门类（${catList}）：`, cloudTarget.category || localTarget.category || '工学');
     if (!category || !categories.includes(category)) {
       alert(`无效门类。可选：${catList}`);
       return;
     }
 
-    saveTargetScore({ score, degree, category });
-    renderMyPage();
-  });
-
-  // 收藏列表：点击跳转详情 / 删除
-  document.getElementById('myFavList').addEventListener('click', (e) => {
-    const delBtn = e.target.closest('.my-list-item-del');
-    if (delBtn) {
-      e.stopPropagation();
-      toggleFavorite(delBtn.dataset.uniName);
+    const nextLocalTarget = { score, degree, category };
+    if (!isCloud) {
+      saveTargetScore(nextLocalTarget);
       renderMyPage();
       return;
     }
-    const item = e.target.closest('.my-list-item');
+
+    admissionPlanSaving = true;
+    try {
+      const nextPlan = {
+        ...(admissionPlanState.plan && typeof admissionPlanState.plan === 'object' ? admissionPlanState.plan : {}),
+        targetScore: score,
+        degree: degree === 'xueshuo' ? '学硕' : '专硕',
+        category,
+      };
+      const response = await updateUserPlan('admission', nextPlan, admissionPlanState.revision);
+      admissionPlanState = {
+        plan: response?.plan || nextPlan,
+        revision: Number(response?.revision ?? admissionPlanState.revision),
+        updatedAt: response?.updatedAt || admissionPlanState.updatedAt,
+      };
+      saveTargetScore(nextLocalTarget);
+      renderPrepPlanMeta();
+      renderMyPage();
+    } catch (error) {
+      if (error instanceof StudyApiError && error.status === 409) await refreshAuthenticatedData();
+      alert(error instanceof Error ? `报考方案同步失败：${error.message}` : '报考方案同步失败，请稍后重试。');
+    } finally {
+      admissionPlanSaving = false;
+    }
+  });
+
+  // 收藏列表：点击跳转详情 / 删除
+  document.getElementById('myFavList').addEventListener('click', async (e) => {
+    const delBtn = e.target.closest('.my-favorite-remove');
+    if (delBtn) {
+      e.stopPropagation();
+      await toggleUniversityFavorite(delBtn.dataset.uniName);
+      return;
+    }
+    const item = e.target.closest('.my-favorite-item');
     if (item) {
       const uni = findUniversity(item.dataset.uniName);
       if (uni) {

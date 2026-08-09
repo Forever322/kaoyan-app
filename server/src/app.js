@@ -7,8 +7,10 @@ import agentsRouter from './routes/agents.js';
 import authRouter from './routes/auth.js';
 import studyRouter from './routes/study.js';
 import plansRouter from './routes/plans.js';
+import favoritesRouter from './routes/favorites.js';
 import { AgentServiceError } from './services/agent-service.js';
 import { createRateLimiter } from './middleware/rate-limit.js';
+import { getDB } from './db/index.js';
 
 function allowedOrigins() {
   return String(process.env.CORS_ORIGINS || '')
@@ -39,13 +41,23 @@ export function createApp() {
   app.use(cors(corsOptions()));
   app.use(express.json({ limit: '256kb' }));
 
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const db = await getDB();
+      await db.one('SELECT 1 AS connected');
+      return res.json({ status: 'ok', database: 'mysql', time: new Date().toISOString() });
+    } catch (error) {
+      console.error('[Health] MySQL unavailable:', error?.code || error?.message || error);
+      return res.status(503).json({ status: 'unavailable', database: 'mysql' });
+    }
+  });
   app.use('/api/universities', universitiesRouter);
   app.use('/api/national-lines', nationalLinesRouter);
   app.use('/api/match', matchRouter);
   app.use('/api/auth', createRateLimiter({ windowMs: 15 * 60_000, max: authRequestsPer15Min }), authRouter);
   app.use('/api/study', studyRouter);
   app.use('/api/plans', plansRouter);
+  app.use('/api/favorites', favoritesRouter);
   app.use('/api/agents', agentsRouter);
 
   app.use((_req, res) => res.status(404).json({ error: '接口不存在' }));

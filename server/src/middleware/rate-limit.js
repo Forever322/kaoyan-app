@@ -5,7 +5,9 @@ function requestKey(req) {
   if (authorization) return `token:${createHash('sha256').update(authorization).digest('hex')}`;
   const devUser = String(req.get('x-user-id') || '');
   if (devUser) return `dev-user:${devUser}`;
-  const forwardedFor = String(req.get('x-forwarded-for') || '').split(',')[0].trim();
+  // Nginx 的 $proxy_add_x_forwarded_for 会把真实客户端地址追加在末尾；
+  // 取末段可避免客户端伪造首段 X-Forwarded-For 绕过匿名限流。
+  const forwardedFor = String(req.get('x-forwarded-for') || '').split(',').at(-1).trim();
   return `ip:${forwardedFor || req.ip || 'unknown'}`;
 }
 
@@ -37,4 +39,3 @@ export function createRateLimiter({ windowMs, max, key = requestKey }) {
     return next();
   };
 }
-

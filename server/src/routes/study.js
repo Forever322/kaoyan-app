@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDB, save } from '../db/index.js';
+import { getDB } from '../db/index.js';
 import { requireAuthenticatedUser } from '../services/auth-service.js';
 
 const router = Router();
@@ -18,9 +18,10 @@ function toDatabaseDate(value, field) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-router.post('/sessions', (req, res, next) => {
+router.post('/sessions', async (req, res, next) => {
   try {
-    const user = requireAuthenticatedUser(req, res);
+    const db = await getDB();
+    const user = await requireAuthenticatedUser(req, res, db);
     if (!user) return;
     const { subject = '', content = '', startedAt, endedAt = null, durationS } = req.body || {};
     const duration = Number(durationS);
@@ -32,27 +33,48 @@ router.post('/sessions', (req, res, next) => {
     if (normalizedEndedAt && normalizedEndedAt < normalizedStartedAt) {
       return res.status(400).json({ error: 'endedAt 不能早于 startedAt' });
     }
-    const db = getDB();
-    db.prepare('INSERT INTO study_sessions(user_id,subject,content,started_at,ended_at,duration_s) VALUES(?,?,?,?,?,?)')
-      .run(user.id, String(subject).trim().slice(0, 40), String(content).slice(0, 200), normalizedStartedAt, normalizedEndedAt, duration);
-    const session = db.prepare('SELECT * FROM study_sessions WHERE id=last_insert_rowid()').get();
-    save();
+    const result = await db.execute(
+      'INSERT INTO study_sessions(user_id,subject,content,started_at,ended_at,duration_s) VALUES(?,?,?,?,?,?)',
+      [user.id, String(subject).trim().slice(0, 40), String(content).slice(0, 200), normalizedStartedAt, normalizedEndedAt, duration],
+    );
+    const session = await db.one('SELECT * FROM study_sessions WHERE id=?', [result.insertId]);
     return res.status(201).json({ session });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/summary', (req, res) => {
-  const user = requireAuthenticatedUser(req, res);
-  if (!user) return;
-  const days = Math.min(90, Math.max(1, Number(req.query.days) || 7));
-  const db = getDB();
-  const total = db.prepare(`SELECT COALESCE(SUM(duration_s),0) AS duration_s, COUNT(*) AS session_count FROM study_sessions WHERE user_id=? AND datetime(started_at) >= datetime('now', ?)`)
-    .get(user.id, `-${days} days`);
-  const bySubject = db.prepare(`SELECT subject,COALESCE(SUM(duration_s),0) AS duration_s,COUNT(*) AS session_count FROM study_sessions WHERE user_id=? AND datetime(started_at) >= datetime('now', ?) GROUP BY subject ORDER BY duration_s DESC`)
-    .all(user.id, `-${days} days`);
-  return res.json({ days, durationS: Number(total.duration_s || 0), sessionCount: Number(total.session_count || 0), bySubject: bySubject.map((row) => ({ subject: row.subject, durationS: Number(row.duration_s || 0), sessionCount: Number(row.session_count || 0) })) });
+router.get('/summary', async (req, res, next) => {
+  try {
+    const db = await getDB();
+    const user = await requireAuthenticatedUser(req, res, db);
+    if (!user) return;
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 7));
+    // All timestamps are persisted as UTC. Supplying a fixed UTC cutoff keeps
+    // the prior SQLite `datetime('now', '-N days')` semantics without relying
+    // on server/session time-zone settings in MySQL.
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 19).replace('T', ' ');
+    const total = await db.one(
+      'SELECT COALESCE(SUM(duration_s),0) AS duration_s, COUNT(*) AS session_count FROM study_sessions WHERE user_id=? AND started_at >= ?',
+      [user.id, cutoff],
+    );
+    const bySubject = await db.all(
+      'SELECT subject,COALESCE(SUM(duration_s),0) AS duration_s,COUNT(*) AS session_count FROM study_sessions WHERE user_id=? AND started_at >= ? GROUP BY subject ORDER BY duration_s DESC',
+      [user.id, cutoff],
+    );
+    return res.json({
+      days,
+      durationS: Number(total?.duration_s || 0),
+      sessionCount: Number(total?.session_count || 0),
+      bySubject: bySubject.map((row) => ({
+        subject: row.subject,
+        durationS: Number(row.duration_s || 0),
+        sessionCount: Number(row.session_count || 0),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

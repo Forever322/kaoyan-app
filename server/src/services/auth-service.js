@@ -1,10 +1,14 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { getDB, save } from '../db/index.js';
+import { getDB } from '../db/index.js';
 
 const TOKEN_TTL_DAYS = Number(process.env.AUTH_TOKEN_TTL_DAYS || 90);
 
 function tokenHash(token) {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function mysqlUtcDate(date) {
+  return date.toISOString().slice(0, 23).replace('T', ' ');
 }
 
 export function hashPassword(password) {
@@ -22,39 +26,37 @@ export function verifyPassword(password, storedHash) {
 }
 
 export function publicUser(user) {
-  return { id: user.id, username: user.username, email: user.email || '', avatarUrl: user.avatar_url || '' };
+  return { id: Number(user.id), username: user.username, email: user.email || '', avatarUrl: user.avatar_url || '' };
 }
 
-export function issueAccessToken(userId) {
-  const db = getDB();
+export async function issueAccessToken(db, userId) {
   const token = randomBytes(32).toString('base64url');
   const expiresAtDate = new Date(Date.now() + TOKEN_TTL_DAYS * 86400_000);
-  // SQLite 的 datetime() 使用 "YYYY-MM-DD HH:mm:ss"；对外仍返回 ISO 8601。
   const expiresAt = expiresAtDate.toISOString();
-  const expiresAtDb = expiresAt.slice(0, 19).replace('T', ' ');
-  db.prepare("DELETE FROM auth_tokens WHERE datetime(expires_at) <= datetime('now')").run();
-  db.prepare('INSERT INTO auth_tokens(user_id,token_hash,expires_at) VALUES(?,?,?)')
-    .run(userId, tokenHash(token), expiresAtDb);
-  save();
+  await db.execute('DELETE FROM auth_tokens WHERE expires_at <= UTC_TIMESTAMP(3)');
+  await db.execute('INSERT INTO auth_tokens(user_id,token_hash,expires_at) VALUES(?,?,?)', [
+    userId,
+    tokenHash(token),
+    mysqlUtcDate(expiresAtDate),
+  ]);
   return { accessToken: token, expiresAt };
 }
 
-export function revokeAccessToken(token) {
+export async function revokeAccessToken(token, db = null) {
   if (!token) return;
-  const db = getDB();
-  db.prepare('DELETE FROM auth_tokens WHERE token_hash = ?').run(tokenHash(token));
-  save();
+  const database = db || await getDB();
+  await database.execute('DELETE FROM auth_tokens WHERE token_hash = ?', [tokenHash(token)]);
 }
 
-export function userIdFromRequest(req) {
+export async function userIdFromRequest(req, db = null) {
+  const database = db || await getDB();
   const authorization = String(req.get('authorization') || '');
   const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  const db = getDB();
   if (token) {
-    const row = db.prepare("SELECT user_id FROM auth_tokens WHERE token_hash = ? AND datetime(expires_at) > datetime('now')")
-      .get(tokenHash(token));
+    const hash = tokenHash(token);
+    const row = await database.one('SELECT user_id FROM auth_tokens WHERE token_hash = ? AND expires_at > UTC_TIMESTAMP(3)', [hash]);
     if (row?.user_id) {
-      db.prepare("UPDATE auth_tokens SET last_used_at=datetime('now') WHERE token_hash=?").run(tokenHash(token));
+      await database.execute('UPDATE auth_tokens SET last_used_at=UTC_TIMESTAMP(3) WHERE token_hash=?', [hash]);
       return Number(row.user_id);
     }
     return null;
@@ -68,13 +70,14 @@ export function userIdFromRequest(req) {
   return Number.isInteger(userId) && userId > 0 ? userId : null;
 }
 
-export function requireAuthenticatedUser(req, res) {
-  const userId = userIdFromRequest(req);
+export async function requireAuthenticatedUser(req, res, db = null) {
+  const database = db || await getDB();
+  const userId = await userIdFromRequest(req, database);
   if (!userId) {
     res.status(401).json({ error: '请先登录后再使用该功能' });
     return null;
   }
-  const user = getDB().prepare('SELECT id,username,email,avatar_url FROM users WHERE id = ?').get(userId);
+  const user = await database.one('SELECT id,username,email,avatar_url FROM users WHERE id = ?', [userId]);
   if (!user) {
     res.status(401).json({ error: '登录状态无效，请重新登录' });
     return null;

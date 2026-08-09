@@ -3,7 +3,8 @@
  * 提供离线缓存和PWA能力
  */
 
-const CACHE_NAME = 'kaoyan-app-v7';
+// 登录、云端计划与 Agent 交互上线时主动切换缓存代际，避免已安装 PWA 继续使用旧入口页。
+const CACHE_NAME = 'kaoyan-app-v10';
 const IS_LOCAL_DEV = ['localhost', '127.0.0.1', '::1'].includes(self.location.hostname);
 
 // 预缓存的静态资源（Vite 会将 CSS 注入到 JS 中，所以不需要单独缓存 CSS）
@@ -65,6 +66,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   // 只处理同源请求
   if (url.origin !== self.location.origin) return;
+  // 用户、计划与 Agent 接口绝不能进入离线缓存：不仅会返回过期数据，
+  // 还可能在同一设备切换账号时错误复用上一个账号的响应。
+  if (url.pathname.startsWith('/api/')) return;
 
   const isPageOrScript = url.pathname.endsWith('.html') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
 

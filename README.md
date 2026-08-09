@@ -33,7 +33,7 @@
 | 本地存储 | IndexedDB + localStorage |
 | PWA | Service Worker + Web Manifest |
 | 后端运行时 | Node.js 24 + Express 5 |
-| 数据库 | SQLite（sql.js WASM） |
+| 数据库 | MySQL 8.4（Docker 持久卷；`sql.js` 仅用于历史数据导入） |
 | Android 壳 | Jetpack Compose + TWA |
 | 设计工具 | Pencil (.pen) |
 | 测试框架 | Vitest（42 用例） |
@@ -102,14 +102,14 @@ kaoyan-app/
 │
 ├── server/                     # 后端 API 服务
 │   ├── package.json
-│   ├── data/kaoyan.db          # SQLite 数据库
+│   ├── data/kaoyan.db          # 旧 sql.js 导入源（非运行数据库）
 │   ├── src/
 │   │   ├── index.js            # Express 入口 (端口 3000)
 │   │   ├── db/
-│   │   │   ├── schema.sql      # DDL（6 张表）
-│   │   │   ├── index.js        # getDB() / migrate() / reset()
-│   │   │   ├── migrate.js      # CLI 迁移
-│   │   │   └── seed.js         # 从 src/data/*.js 导入
+│   │   │   ├── migrations/     # 版本化 MySQL DDL
+│   │   │   ├── index.js        # 异步 MySQL 连接池 / 迁移执行器
+│   │   │   ├── migrate.js      # MySQL CLI 迁移
+│   │   │   └── seed.js         # 从 src/data/*.js 导入参考数据
 │   │   └── routes/
 │   │       ├── universities.js # /api/universities
 │   │       ├── national-lines.js # /api/national-lines
@@ -172,8 +172,8 @@ base.css → home.css → filter.css → results.css → detail.css → modal.cs
 ```bash
 cd server
 pnpm install
-pnpm db:migrate          # 建表
-pnpm db:seed             # 从 src/data/*.js 导入数据
+pnpm db:migrate          # 运行版本化 MySQL 迁移
+pnpm db:seed             # 从 src/data/*.js 导入参考数据
 pnpm dev                 # 开发模式 → http://localhost:3000
 pnpm start               # 生产模式
 ```
@@ -184,24 +184,26 @@ pnpm start               # 生产模式
 |----|------|------|
 | `express` | ^5.0 | HTTP 框架 |
 | `cors` | ^2.8 | 跨域 |
-| `sql.js` | ^1.14 | SQLite WASM（纯 JS，无原生编译） |
+| `mysql2` | ^3 | MySQL 连接池、参数化查询和事务 |
+| `sql.js` | ^1.14 | 仅用于将旧 SQLite/sql.js 数据一次性导入 MySQL |
 
 ### 4.3 数据库接口
 
 ```js
 import { getDB } from './db/index.js';
 const db = await getDB();
-const stmt = db.prepare('SELECT * FROM universities WHERE zone = ?');
-stmt.bind(['A']);
-while (stmt.step()) { const row = stmt.getAsObject(); }
-stmt.free();
+const rows = await db.all('SELECT * FROM universities WHERE zone = ?', ['A']);
 ```
+
+运行 API 前需要可连接的 MySQL；Docker 环境由 `docker-compose.backend.yml` 提供 `mysql` 服务。生产发布时保持 `RUN_MIGRATIONS_ON_START=false`，先运行一次性 `api-migrate` 再启动或更新 API。
 
 ---
 
 ## 5. 数据库设计
 
-### 5.1 表结构（6 张表）
+### 5.1 表结构（版本化 MySQL migration）
+
+下图仅展示院校参考数据主关系；用户、认证、学习、计划、Agent 审计与后续扩展表以 `server/src/db/migrations/` 为准。
 
 ```
 universities ──1:1──→ uni_details
@@ -284,11 +286,13 @@ const data = res ? (await res.json()).data
 ### 8.2 数据库操作
 
 ```bash
-pnpm db:migrate     # 增量迁移（保留数据）
-pnpm db:reset       # 完全重建（⚠️ 清除所有数据）
+cd server
+pnpm db:migrate     # 追加式 MySQL migration（保留数据）
+pnpm db:seed        # 受控更新参考数据
+# 仅开发空库：ALLOW_DB_RESET=true pnpm db:reset
 ```
 
-新增表/字段: 编辑 `schema.sql` → `pnpm db:migrate`
+新增表/字段：新增 migration 文件，不能改写已部署 migration；生产前先备份并通过 `api-migrate` 串行执行。旧 `sql.js` 数据导入使用 `pnpm db:import:mysql -- --source /path/to/kaoyan.db` 预览，确认后才追加 `--apply`，随后运行一次 `pnpm db:seed` 补齐新参考字段。
 
 ### 8.3 添加新页面
 
@@ -304,7 +308,7 @@ pnpm db:reset       # 完全重建（⚠️ 清除所有数据）
 | 用户系统 | JWT + `user` 表 | 高 |
 | 收藏同步 | `user_favorites` 表 + REST | 中 |
 | 实时推送 | WebSocket 分数线变动 | 中 |
-| 全文搜索 | SQLite FTS5 | 中 |
+| 全文搜索 | MySQL FULLTEXT / 专用搜索服务 | 中 |
 | Docker | Dockerfile + compose | 低 |
 | CI/CD | GitHub Actions | 低 |
 
@@ -332,8 +336,8 @@ pnpm test         # 42 用例
 **Q: 如何部署？**
 ```bash
 pnpm build                    # 前端
-cd server && pnpm start       # 后端 (端口 3000)
-# Nginx: /api/* → 3000, /* → dist/
+# 后端请按 docs/backend-docker-deployment.md 使用 Docker + MySQL 部署
+# Nginx: /api/* → 127.0.0.1:3000, /* → dist/
 ```
 
 ---

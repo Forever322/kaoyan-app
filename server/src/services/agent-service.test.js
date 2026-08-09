@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AgentServiceError, validateProposalPayload } from './agent-service.js';
+import {
+  AgentServiceError,
+  getChatSystemPrompt,
+  normalizeChatAgentType,
+  validateChatReplyPayload,
+  validateProposalPayload,
+} from './agent-service.js';
+import { KAOYAN_COACH_POLICY_VERSION } from './kaoyan-coach-policy.js';
 
 test('学习计划提案只接受一个 replace_study_plan 操作', () => {
   const proposal = validateProposalPayload('study', {
@@ -30,3 +37,47 @@ test('多项变更不会被静默截断为第一项', () => {
   }), (error) => error instanceof AgentServiceError && error.code === 'invalid_model_response');
 });
 
+test('考研教练使用静态、版本化的服务端策略', () => {
+  const prompt = getChatSystemPrompt('kaoyan-coach');
+
+  assert.equal(normalizeChatAgentType('kaoyan-coach'), 'kaoyan-coach');
+  assert.match(prompt, new RegExp(KAOYAN_COACH_POLICY_VERSION.replaceAll('.', '\\.'), 'u'));
+  assert.match(prompt, /只输出一个合法 JSON 对象/u);
+  assert.match(prompt, /不能执行 SQL、调用工具、写入计划/u);
+});
+
+test('考研教练在信息不足时只接受受限的结构化追问', () => {
+  const reply = validateChatReplyPayload({
+    reply: '先补齐目标与时间信息，我再给你安排。',
+    suggestions: ['填写目标院校'],
+    canCreateProposal: false,
+    needsIntake: true,
+    questions: ['目标院校和专业是什么？', '计划参加哪一年的考试？', '每天平均可学习多久？'],
+  }, 'kaoyan-coach');
+
+  assert.equal(reply.needsIntake, true);
+  assert.equal(reply.questions.length, 3);
+  assert.equal(reply.canCreateProposal, false);
+});
+
+test('考研教练追问不能绕过提案确认边界', () => {
+  assert.throws(() => validateChatReplyPayload({
+    reply: '补充信息后再安排。',
+    canCreateProposal: true,
+    needsIntake: true,
+    questions: ['目标院校？', '目标专业？', '考试年份？'],
+  }, 'kaoyan-coach'), (error) => error instanceof AgentServiceError && error.code === 'invalid_model_response');
+});
+
+test('考研教练拒绝没有 needsIntake 标记的追问字段', () => {
+  assert.throws(() => validateChatReplyPayload({
+    reply: '先回答几个问题。',
+    questions: ['目标院校？'],
+  }, 'kaoyan-coach'), (error) => error instanceof AgentServiceError && error.code === 'invalid_model_response');
+});
+
+test('未知智能体类型不会降级为未审核提示词', () => {
+  assert.throws(() => normalizeChatAgentType('system-admin'), (error) => (
+    error instanceof AgentServiceError && error.code === 'invalid_agent_type'
+  ));
+});
