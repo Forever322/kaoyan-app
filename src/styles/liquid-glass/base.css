@@ -57,6 +57,9 @@ body {
   font-synthesis: none;
 }
 
+/* 确保中文小字最低可读尺寸 */
+small, .req-note, .retest-sub, .info-label, .section-note { font-size: .68rem; }
+
 body::before {
   content: "";
   position: fixed;

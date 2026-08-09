@@ -100,7 +100,7 @@
 .modal-tab {
     min-height: 35px;
     flex: 1;
-    color: #afbdd0;
+    color: #c6d0e2;
     border: 0;
     border-radius: 9px;
     background: transparent;
@@ -138,7 +138,7 @@
 .import-hint,
 .import-result {
     margin: 0;
-    color: #aabbd2;
+    color: #c4cee2;
     font-size: .78rem;
 }
 
