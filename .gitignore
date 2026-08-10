@@ -16,6 +16,8 @@ dist/
 *.apk
 # Local deployment artifacts: upload these directly to the server, never GitHub.
 *.tar
+*.tar.gz
+*.tgz
 kaoyan-web-*.zip
 android-twa/.gradle/
 android-twa/build/
@@ -49,4 +51,8 @@ npm-debug.log*
 !public/version.json
 !package.json
 !pnpm-workspace.yaml
+!tools/
+!tools/data-maintenance/
+!tools/data-maintenance/*.json
 *.cjs
+!tools/data-maintenance/*.cjs

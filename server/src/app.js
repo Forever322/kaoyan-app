@@ -40,10 +40,11 @@ function corsOptions() {
 export function createApp() {
   const app = express();
   const authRequestsPer15Min = Math.min(100, Math.max(5, Number(process.env.AUTH_REQUESTS_PER_15_MIN || 30)));
+  const jsonBodyLimit = process.env.JSON_BODY_LIMIT || process.env.ADMIN_DATABASE_IMPORT_BODY_LIMIT || '12mb';
 
   if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
   app.use(cors(corsOptions()));
-  app.use(express.json({ limit: '256kb' }));
+  app.use(express.json({ limit: jsonBodyLimit }));
 
   app.get('/api/health', async (_req, res) => {
     try {

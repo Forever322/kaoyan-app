@@ -16,6 +16,7 @@ const MIGRATIONS = [
   { version: '003-university-catalog-governance', file: 'migrations/003-university-catalog-governance.sql' },
   { version: '004-admin-rbac-and-agent-controls', file: 'migrations/004-admin-rbac-and-agent-controls.sql' },
   { version: '005-catalog-issue-lifecycle', file: 'migrations/005-catalog-issue-lifecycle.sql' },
+  { version: '006-database-manager-agent', file: 'migrations/006-database-manager-agent.sql' },
 ];
 
 let dbPromise = null;

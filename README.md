@@ -114,7 +114,8 @@ kaoyan-app/
 │   │       ├── universities.js # /api/universities
 │   │       ├── national-lines.js # /api/national-lines
 │   │       └── match.js        # /api/match
-│   └── check-db.cjs           # 数据库校验
+│   ├── scripts/                # 后端运维脚本
+│   └── analyze-data.mjs        # 数据分析辅助脚本
 │
 ├── android-twa/                # Android TWA 壳
 │   ├── build.gradle.kts        # AGP 8.10.1
@@ -125,9 +126,17 @@ kaoyan-app/
 ├── designs/pencil/             # Pencil UI 设计稿
 │   └── pencil-new.pen
 │
-├── dist/                       # Vite 构建输出
-├── apply.cjs / collect.cjs / convert.cjs  # 数据维护脚本
-└── province-schools.json / real-scores.json
+├── tools/data-maintenance/      # 静态数据维护工具
+│   ├── collect.cjs              # 采集真实分数到 real-scores.json
+│   ├── apply.cjs                # 将 real-scores.json 应用到 admission-scores.js
+│   ├── convert.cjs              # 按院校白名单重生成 admission-scores.js
+│   ├── province-schools.json    # 研招网院校白名单
+│   └── real-scores.json         # 采集的真实录取分数数据
+│
+├── docs/                        # 运维、Agent、后台 API 文档
+│   └── archive/README.legacy.md # 旧版说明备份
+│
+└── dist/                        # Vite 构建输出（不提交）
 ```
 
 ---
