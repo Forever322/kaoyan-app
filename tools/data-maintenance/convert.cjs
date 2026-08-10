@@ -3,10 +3,16 @@
  * 只给研招网确认有研招点的院校生成数据
  */
 const fs = require('fs');
+const path = require('path');
 
-const provData = JSON.parse(fs.readFileSync('province-schools.json', 'utf8'));
-const asContent = fs.readFileSync('src/data/admission-scores.js', 'utf8');
-const unisContent = fs.readFileSync('src/data/universities.js', 'utf8');
+const ROOT_DIR = path.resolve(__dirname, '../..');
+const DATA_FILE = path.join(__dirname, 'province-schools.json');
+const ADMISSION_SCORES_FILE = path.join(ROOT_DIR, 'src/data/admission-scores.js');
+const UNIVERSITIES_FILE = path.join(ROOT_DIR, 'src/data/universities.js');
+
+const provData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+const asContent = fs.readFileSync(ADMISSION_SCORES_FILE, 'utf8');
+const unisContent = fs.readFileSync(UNIVERSITIES_FILE, 'utf8');
 
 // 研招网白名单
 const confirmedSet = new Set();
@@ -113,5 +119,5 @@ for (const [prov, schools] of Object.entries(byProvince)) {
 }
 
 output += `};\n\n` + functions;
-fs.writeFileSync('src/data/admission-scores.js', output);
+fs.writeFileSync(ADMISSION_SCORES_FILE, output);
 console.log('Generated: ' + total + ' schools with data');

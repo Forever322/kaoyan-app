@@ -1,7 +1,9 @@
 import './styles.css';
 import {
+  API_BASE,
   ApiError,
   apiRequest,
+  getAccessToken,
   getAuthenticatedUser,
   login,
   logout,
@@ -11,10 +13,23 @@ import { escapeHtml } from '../src/utils.js';
 
 const root = document.getElementById('admin-app');
 const PAGE_SIZE = 20;
+const DB_PAGE_SIZE = 25;
+const DB_EXPORT_FORMATS = ['csv', 'txt', 'sql', 'xlsx'];
+const DB_IMPORT_FORMATS = ['csv', 'txt', 'sql', 'xlsx', 'db'];
+const DB_TABLE_PRIORITY = [
+  'universities',
+  'programs',
+  'program_admissions',
+  'admission_scores',
+  'national_lines',
+  'uni_details',
+  'uni_requirements',
+  'uni_photos',
+];
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '◫', label: '运营概览', subtitle: '平台运行与核心指标' },
-  { id: 'database', icon: '▦', label: '数据库管理', subtitle: '结构、迁移与容量健康' },
+  { id: 'database', icon: '▦', label: '数据库管理', subtitle: '完整表维护、导入导出与 Agent 审核' },
   { id: 'schools', icon: '⌂', label: '院校资料', subtitle: '学校与基础档案管理' },
   { id: 'users', icon: '♙', label: '用户管理', subtitle: '账号、权限与使用状态' },
   { id: 'agents', icon: '✦', label: '智能体管理', subtitle: '配置、开关与运行状态' },
@@ -30,7 +45,21 @@ const state = {
   toast: null,
   accessDenied: false,
   dashboard: null,
-  database: { status: null, loading: false },
+  database: {
+    status: null,
+    selectedTable: '',
+    schema: null,
+    rows: [],
+    total: 0,
+    page: 1,
+    pageSize: DB_PAGE_SIZE,
+    keyword: '',
+    orderBy: '',
+    orderDir: 'ASC',
+    loading: false,
+    loadingRows: false,
+    importResult: null,
+  },
   schools: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, keyword: '', catalogStatus: '', loading: false },
   users: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, keyword: '', role: '', status: '', loading: false },
   agents: { configurations: [], flags: [], loading: false },
@@ -92,6 +121,59 @@ function paginationOf(payload, fallback) {
     pageSize: number(payload?.pageSize, fallback.pageSize),
     total: number(payload?.total, fallback.total),
   };
+}
+
+function databaseTables() {
+  return state.database.status?.tables || [];
+}
+
+function chooseDatabaseTable(tables, preferred = state.database.selectedTable) {
+  const names = tables.map((table) => table.name).filter(Boolean);
+  if (preferred && names.includes(preferred)) return preferred;
+  return DB_TABLE_PRIORITY.find((table) => names.includes(table)) || names[0] || '';
+}
+
+function databasePrimaryKey() {
+  const primary = state.database.schema?.primaryKey || [];
+  return primary.length === 1 ? primary[0] : '';
+}
+
+function databaseColumns() {
+  return state.database.schema?.columns || [];
+}
+
+function databaseEditableColumns({ creating = false } = {}) {
+  if (state.database.schema?.writeBlocked) return [];
+  return databaseColumns().filter((column) => column.writable && (creating || !column.primaryKey));
+}
+
+function databaseCell(value) {
+  if (value === null || value === undefined || value === '') return '<span class="admin-table-note">—</span>';
+  if (typeof value === 'object') return html(JSON.stringify(value));
+  return html(String(value));
+}
+
+function databaseFieldValue(value) {
+  if (value === null || value === undefined || value === '[redacted]') return '';
+  return String(value);
+}
+
+function databaseFormatLabel(format) {
+  return format === 'db' ? 'DB' : format.toUpperCase();
+}
+
+function tableDisplayName(name) {
+  const labels = {
+    universities: '学校主表',
+    uni_details: '学校详情',
+    uni_requirements: '报考要求',
+    uni_photos: '学校图片',
+    programs: '专业目录',
+    program_admissions: '专业招生',
+    admission_scores: '院校分数',
+    national_lines: '国家线',
+  };
+  return labels[name] || name;
 }
 
 async function adminRequest(path, options = {}) {
@@ -159,6 +241,15 @@ function sectionContent() {
   }
 }
 
+function renderTopbarActions() {
+  if (state.section === 'database') {
+    const hasTable = Boolean(state.database.selectedTable);
+    const canWrite = Boolean(hasTable && state.database.schema && !state.database.schema.writeBlocked);
+    return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button><button class="admin-button admin-button--ghost" data-action="open-db-export" ${hasTable ? '' : 'disabled'}>导出当前表</button><button class="admin-button admin-button--lime" data-action="open-db-import">导入文件</button><button class="admin-button admin-button--ghost" data-action="new-db-row" ${canWrite ? '' : 'disabled'}>新增记录</button>`;
+  }
+  return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button>${state.section === 'schools' ? '<button class="admin-button admin-button--lime" data-action="new-school">＋ 新增院校</button>' : ''}`;
+}
+
 function renderLogin() {
   root.innerHTML = `<main class="admin-login">
     <section class="admin-login-card" aria-labelledby="adminLoginTitle">
@@ -195,7 +286,7 @@ function renderShell() {
     <main class="admin-main">
       <header class="admin-topbar">
         <div><button class="admin-button admin-button--ghost admin-button--small admin-mobile-menu" data-action="toggle-menu">☰</button><h1 class="admin-page-title">${html(nav.label)}</h1><p class="admin-page-subtitle">${html(nav.subtitle)}</p></div>
-        <div class="admin-topbar-actions"><button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button>${state.section === 'schools' ? '<button class="admin-button admin-button--lime" data-action="new-school">＋ 新增院校</button>' : ''}</div>
+        <div class="admin-topbar-actions">${renderTopbarActions()}</div>
       </header>
       ${state.accessDenied ? renderAccessDenied() : sectionContent()}
     </main>
@@ -240,20 +331,59 @@ function renderDatabase() {
   const status = data.status;
   if (!status) return `<section class="admin-section">${empty('暂未取得数据库健康信息')}</section>`;
   const tables = status.tables || [];
-  const migrations = status.migrations || [];
+  const selected = data.selectedTable || chooseDatabaseTable(tables);
+  const columns = databaseColumns();
+  const rows = data.rows || [];
+  const pk = databasePrimaryKey();
+  const canWrite = Boolean(selected && data.schema && !data.schema.writeBlocked);
   return `<section class="admin-section">
     <div class="admin-metrics">
       ${metric('数据表', number(status.totals?.tables).toLocaleString(), `${number(status.migrationCount)} 项迁移已执行`, 'green')}
       ${metric('估算记录', number(status.totals?.estimatedRows).toLocaleString(), '来自 MySQL 表统计信息', 'lime')}
       ${metric('数据容量', formatBytes(status.totals?.dataBytes), `索引 ${formatBytes(status.totals?.indexBytes)}`, 'blue')}
-      ${metric('最近检查', isoTime(status.checkedAt), '只读健康检查', 'orange')}
+      ${metric('当前表', selected ? tableDisplayName(selected) : '未选择', canWrite ? '可由超级管理员写入' : '受保护或未加载', 'orange')}
     </div>
-    <div class="admin-grid">
-      <section class="admin-card"><header class="admin-card-head"><div><h2>数据库状态</h2><p>名称 ${html(status.databaseName || '—')} · MySQL ${html(status.serverVersion || '—')}</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-database">刷新</button></header><div class="admin-card-body"><div class="admin-kpi-list"><div class="admin-kpi-row"><i class="admin-kpi-dot"></i><span class="admin-kpi-copy"><strong>运行边界</strong><small>后台仅展示只读状态，不提供网页 SQL 控制台、数据库口令或任意表导出。</small></span></div><div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:#efaa56"></i><span class="admin-kpi-copy"><strong>备份与恢复</strong><small>请按服务器部署文档执行 Docker/MySQL 备份；恢复操作必须在受控运维环境完成。</small></span></div></div></div></section>
-      <section class="admin-card"><header class="admin-card-head"><div><h2>Schema 迁移</h2><p>当前数据库已记录的版本化结构变更</p></div></header><div class="admin-card-body">${migrations.length ? `<div class="admin-issue-list">${migrations.map((migration) => `<div class="admin-issue"><div class="admin-issue-meta"><strong>${html(migration.version)}</strong>${badge('已应用')}</div><p>${html(isoTime(migration.appliedAt))}</p></div>`).join('')}</div>` : empty('尚未读取到迁移记录')}</div></section>
+    ${renderDatabaseCommandBar(selected, canWrite)}
+    <div class="admin-db-layout">
+      <section class="admin-card admin-db-tables"><header class="admin-card-head"><div><h2>数据库表</h2><p>${html(status.databaseName || '—')} · ${html(isoTime(status.checkedAt))}</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-database">刷新</button></header><div class="admin-db-table-list">${tables.length ? tables.map((table) => `<button class="admin-db-table-item${table.name === selected ? ' is-active' : ''}" data-action="select-db-table" data-table="${html(table.name)}"><span><strong>${html(tableDisplayName(table.name))}</strong><small>${html(table.name)}</small></span><em>${number(table.estimatedRows).toLocaleString()}</em></button>`).join('') : empty('数据库中没有可展示的数据表')}</div></section>
+      <section class="admin-card admin-db-workbench">
+        <header class="admin-card-head"><div><h2>${selected ? html(tableDisplayName(selected)) : '表数据'}</h2><p>${selected ? `${html(selected)} · ${columns.length} 个字段 · ${number(data.total).toLocaleString()} 行` : '请选择一张数据表'}</p></div><div class="admin-table-actions"><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-db-table" ${selected ? '' : 'disabled'}>刷新表</button><button class="admin-button admin-button--lime admin-button--small" data-action="new-db-row" ${canWrite ? '' : 'disabled'}>新增记录</button></div></header>
+        ${renderDatabaseToolbar(selected, columns)}
+        ${data.loadingRows && !rows.length ? loading('正在读取表数据…') : renderDatabaseRows(rows, columns, pk)}
+        ${renderPagination('database', data)}
+      </section>
     </div>
-    <section class="admin-card"><header class="admin-card-head"><div><h2>数据表概览</h2><p>行数和容量为 MySQL 元数据估算，精确统计请在维护窗口运行。</p></div></header>${tables.length ? `<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>表名</th><th>估算记录</th><th>数据</th><th>索引</th><th>更新时间</th></tr></thead><tbody>${tables.map((table) => `<tr><td><span class="admin-table-title">${html(table.name)}</span></td><td>${number(table.estimatedRows).toLocaleString()}</td><td>${html(formatBytes(table.dataBytes))}</td><td>${html(formatBytes(table.indexBytes))}</td><td>${html(isoTime(table.updatedAt))}</td></tr>`).join('')}</tbody></table></div>` : empty('数据库中没有可展示的数据表')}</section>
+    ${renderDatabaseReviewPanel(data.importResult)}
   </section>`;
+}
+
+function renderDatabaseCommandBar(selected, canWrite) {
+  return `<section class="admin-card admin-db-command"><div class="admin-db-command-main"><span class="admin-db-command-label">当前目标表</span><strong>${selected ? html(tableDisplayName(selected)) : '未选择数据表'}</strong><small>${selected ? html(selected) : '导入时可以在弹窗内选择目标表'}</small></div><div class="admin-db-command-actions"><button class="admin-db-command-button admin-db-command-button--primary" data-action="open-db-import"><span>导入文件</span><small>TXT / CSV / XLSX / SQL / DB</small></button><button class="admin-db-command-button" data-action="open-db-export" ${selected ? '' : 'disabled'}><span>导出当前表</span><small>CSV / TXT / SQL / XLSX</small></button><button class="admin-db-command-button" data-action="new-db-row" ${canWrite ? '' : 'disabled'}><span>新增记录</span><small>按字段创建一行</small></button></div></section>`;
+}
+
+function renderDatabaseToolbar(selected, columns) {
+  return `<div class="admin-toolbar"><div class="admin-toolbar-left"><input class="admin-search" id="dbSearch" value="${html(state.database.keyword)}" placeholder="搜索当前表文本字段" ${selected ? '' : 'disabled'} /><select class="admin-select" id="dbOrderBy" ${selected ? '' : 'disabled'}><option value="">默认排序</option>${columns.map((column) => `<option value="${html(column.name)}" ${state.database.orderBy === column.name ? 'selected' : ''}>${html(column.name)}</option>`).join('')}</select><select class="admin-select" id="dbOrderDir" ${selected ? '' : 'disabled'}><option value="ASC" ${state.database.orderDir !== 'DESC' ? 'selected' : ''}>升序</option><option value="DESC" ${state.database.orderDir === 'DESC' ? 'selected' : ''}>降序</option></select><button class="admin-button admin-button--ghost admin-button--small" data-action="search-db-table" ${selected ? '' : 'disabled'}>查询</button></div><div class="admin-toolbar-right"><span class="admin-loading">${state.database.loadingRows ? '<i class="admin-spinner"></i>同步中' : `第 ${number(state.database.page, 1).toLocaleString()} 页`}</span></div></div>`;
+}
+
+function renderDatabaseRows(rows, columns, pk) {
+  if (!state.database.selectedTable) return empty('请选择左侧数据库表');
+  if (!state.database.schema) return empty('暂未读取到表结构');
+  if (!rows.length) return empty('当前表没有匹配的数据行');
+  const editable = Boolean(pk && !state.database.schema.writeBlocked);
+  return `<div class="admin-table-wrap admin-db-row-wrap"><table class="admin-table admin-db-row-table"><thead><tr>${columns.map((column) => `<th title="${html(column.columnType || column.dataType)}">${html(column.name)}${column.primaryKey ? ' *' : ''}</th>`).join('')}<th>操作</th></tr></thead><tbody>${rows.map((row, index) => `<tr>${columns.map((column) => `<td>${databaseCell(row[column.name])}${column.sensitive ? '<span class="admin-table-note">敏感字段</span>' : ''}</td>`).join('')}<td><span class="admin-table-actions">${editable ? `<button class="admin-button admin-button--ghost admin-button--small" data-action="edit-db-row" data-index="${index}">编辑</button><button class="admin-button admin-button--danger admin-button--small" data-action="delete-db-row" data-index="${index}">删除</button>` : '<span class="admin-table-note">不可写</span>'}</span></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderDatabaseReviewPanel(importResult) {
+  if (!importResult) return '';
+  return `<section class="admin-card"><header class="admin-card-head"><div><h2>最近导入结果</h2><p>${html(importResult.table || '')}</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="clear-db-import-result">清除</button></header>${renderImportResult(importResult)}</section>`;
+}
+
+function renderImportResult(result) {
+  if (!result) return '';
+  const preview = result.preview || [];
+  const previewColumns = [...new Set(preview.flatMap((row) => Object.keys(row)))].slice(0, 12);
+  const review = result.review || {};
+  return `<div class="admin-import-result"><div class="admin-issue-meta"><strong>${result.dryRun ? '导入预览' : '导入完成'} · ${number(result.rowCount).toLocaleString()} 行</strong>${badge(result.mode || result.format || 'import')}</div><p>表 ${html(result.table)} · ${html(result.format)} · ${html(result.checksum || '')}</p>${review.agentType ? `<div class="admin-agent-review"><strong>${html(review.displayName || review.agentType)}</strong><span>${html(review.modelReady ? '可执行模型审核' : '等待接入模型审核')}</span><small>${html(review.note || '')}</small></div>` : ''}${preview.length ? `<div class="admin-table-wrap"><table class="admin-table"><thead><tr>${previewColumns.map((column) => `<th>${html(column)}</th>`).join('')}</tr></thead><tbody>${preview.map((row) => `<tr>${previewColumns.map((column) => `<td>${databaseCell(row[column])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}</div>`;
 }
 
 function renderSchools() {
@@ -355,11 +485,48 @@ function renderPagination(kind, data) {
 
 function renderModal() {
   if (!state.modal) return '';
+  if (state.modal.type === 'database-import') return renderDatabaseImportModal();
+  if (state.modal.type === 'database-export') return renderDatabaseExportModal();
+  if (state.modal.type === 'database-row') return renderDatabaseRowModal();
   if (state.modal.type !== 'school') return '';
   const school = state.modal.school || {};
   const detail = school.detail || {};
   const isEdit = Boolean(school.id);
   return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="schoolModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="schoolModalTitle">${isEdit ? '编辑院校资料' : '新增院校'}</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="schoolForm" class="admin-modal-form" data-id="${number(school.id)}"><div class="admin-field admin-field--wide"><label>院校名称 *</label><input name="name" required maxlength="191" value="${html(school.name)}" /></div><div class="admin-field"><label>省份 *</label><input name="province" required maxlength="64" value="${html(school.province)}" /></div><div class="admin-field"><label>城市</label><input name="city" maxlength="64" value="${html(school.city)}" /></div><div class="admin-field"><label>分区 *</label><select name="zone"><option value="A" ${school.zone !== 'B' ? 'selected' : ''}>A 区</option><option value="B" ${school.zone === 'B' ? 'selected' : ''}>B 区</option></select></div><div class="admin-field"><label>院校层次 *</label><select name="level">${['985', '211', '双一流', '双非'].map((value) => `<option value="${value}" ${school.level === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field"><label>院校类型</label><input name="type" maxlength="64" value="${html(school.type || '综合')}" /></div><div class="admin-field"><label>院校代码</label><input name="institutionCode" maxlength="64" value="${html(school.institutionCode ?? school.institution_code ?? '')}" /></div><div class="admin-field"><label>核验状态</label><select name="verificationStatus">${['pending', 'verified', 'unverified', 'needs_review', 'rejected'].map((value) => `<option value="${value}" ${(school.verificationStatus ?? school.verification_status ?? 'pending') === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field"><label>资料状态</label><select name="catalogStatus">${['active', 'archived'].map((value) => `<option value="${value}" ${(school.catalogStatus ?? school.catalog_status ?? 'active') === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field admin-field--wide"><label>院校地址</label><input name="address" maxlength="500" value="${html(detail.address || school.address || '')}" /></div><div class="admin-field admin-field--wide"><label>官网</label><input name="website" maxlength="500" value="${html(detail.website || school.website || '')}" /></div><div class="admin-field"><label>咨询电话</label><input name="phone" maxlength="128" value="${html(detail.phone || school.phone || '')}" /></div><div class="admin-field"><label>英文名称</label><input name="englishName" maxlength="191" value="${html(detail.englishName ?? detail.english_name ?? '')}" /></div><div class="admin-field admin-field--wide"><label>院校简介</label><textarea name="description">${html(detail.description || '')}</textarea></div><div class="admin-field admin-field--wide"><label>特色说明</label><textarea name="features">${html(detail.features || '')}</textarea></div><div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">${isEdit ? '保存修改' : '创建院校'}</button></div></form></div></section></div>`;
+}
+
+function renderDatabaseTableOptions(selected = state.database.selectedTable) {
+  const tables = databaseTables();
+  return tables.map((table) => `<option value="${html(table.name)}" ${table.name === selected ? 'selected' : ''}>${html(tableDisplayName(table.name))} · ${html(table.name)}</option>`).join('');
+}
+
+function renderDatabaseImportModal() {
+  const selected = state.modal?.table || state.database.selectedTable || chooseDatabaseTable(databaseTables());
+  return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="dbImportModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="dbImportModalTitle">导入数据库文件</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="dbImportForm" class="admin-form"><div class="admin-field"><label>目标表</label><select name="table" required>${renderDatabaseTableOptions(selected)}</select></div><div class="admin-field"><label>文件格式</label><select name="format">${DB_IMPORT_FORMATS.map((format) => `<option value="${format}" ${format === 'txt' ? 'selected' : ''}>${databaseFormatLabel(format)}${format === 'txt' ? '（TAB）' : ''}</option>`).join('')}</select></div><div class="admin-field"><label>导入模式</label><select name="mode"><option value="insert">插入</option><option value="upsert">按主键更新</option></select></div><div class="admin-field"><label>写入方式</label><label class="admin-check admin-check--field"><input name="dryRun" type="checkbox" checked />先预览</label></div><div class="admin-field admin-field--wide"><label>选择文件</label><input class="admin-file admin-file--wide" name="file" type="file" accept=".csv,.txt,.tsv,.sql,.xlsx,.db" required /></div><div class="admin-field admin-field--wide"><label>DB 源表名</label><input name="sourceTable" value="${html(selected || '')}" maxlength="64" /></div><div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">开始导入</button></div></form></div></section></div>`;
+}
+
+function renderDatabaseExportModal() {
+  const selected = state.modal?.table || state.database.selectedTable;
+  return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="dbExportModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="dbExportModalTitle">导出数据库表</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="dbExportForm" class="admin-form"><div class="admin-field"><label>目标表</label><select name="table" required>${renderDatabaseTableOptions(selected)}</select></div><div class="admin-field"><label>文件格式</label><select name="format">${DB_EXPORT_FORMATS.map((format) => `<option value="${format}" ${format === 'xlsx' ? 'selected' : ''}>${databaseFormatLabel(format)}</option>`).join('')}</select></div><div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">导出文件</button></div></form></div></section></div>`;
+}
+
+function renderDatabaseRowModal() {
+  const modal = state.modal || {};
+  const creating = modal.mode === 'create';
+  const row = modal.row || {};
+  const columns = databaseEditableColumns({ creating });
+  return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal admin-modal--wide" role="dialog" aria-modal="true" aria-labelledby="dbRowModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="dbRowModalTitle">${creating ? '新增数据库记录' : '编辑数据库记录'}</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="dbRowForm" class="admin-modal-form admin-modal-form--db" data-table="${html(modal.table || state.database.selectedTable)}" data-id="${html(modal.id ?? '')}" data-mode="${creating ? 'create' : 'edit'}">${columns.length ? columns.map((column) => renderDatabaseField(column, row[column.name])).join('') : `<div class="admin-field admin-field--wide">${empty('当前表没有可编辑字段')}</div>`}<div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime" ${columns.length ? '' : 'disabled'}>${creating ? '创建记录' : '保存修改'}</button></div></form></div></section></div>`;
+}
+
+function renderDatabaseField(column, value) {
+  const fieldValue = databaseFieldValue(value);
+  const wide = ['text', 'mediumtext', 'longtext', 'json'].includes(column.dataType) || String(fieldValue).length > 80;
+  const label = `${column.name}${column.nullable ? '' : ' *'}`;
+  if (wide) {
+    return `<div class="admin-field admin-field--wide"><label>${html(label)} · ${html(column.columnType || column.dataType)}</label><textarea name="${html(column.name)}" data-db-field="${html(column.name)}">${html(fieldValue)}</textarea></div>`;
+  }
+  const type = ['tinyint', 'smallint', 'mediumint', 'int', 'integer', 'bigint', 'decimal', 'float', 'double', 'real'].includes(column.dataType) ? 'number' : 'text';
+  return `<div class="admin-field"><label>${html(label)} · ${html(column.columnType || column.dataType)}</label><input name="${html(column.name)}" data-db-field="${html(column.name)}" type="${type}" value="${html(fieldValue)}" /></div>`;
 }
 
 function renderToast() {
@@ -392,10 +559,63 @@ async function loadDatabase() {
   state.database.loading = true;
   render();
   try {
-    state.database = { status: await adminRequest('/api/admin/database/status'), loading: false };
+    const status = await adminRequest('/api/admin/database/status');
+    const selectedTable = chooseDatabaseTable(status.tables || [], state.database.selectedTable);
+    state.database = {
+      ...state.database,
+      status,
+      selectedTable,
+      loading: false,
+      schema: selectedTable === state.database.selectedTable ? state.database.schema : null,
+      rows: selectedTable === state.database.selectedTable ? state.database.rows : [],
+      total: selectedTable === state.database.selectedTable ? state.database.total : 0,
+    };
     state.accessDenied = false;
+    if (selectedTable) await loadDatabaseTable({ table: selectedTable, page: state.database.page || 1 });
   } catch (error) {
     state.database.loading = false;
+    handleAdminError(error);
+  }
+  render();
+}
+
+async function loadDatabaseTable({ table = state.database.selectedTable, page = state.database.page } = {}) {
+  if (!table) return;
+  const sameTable = table === state.database.selectedTable;
+  state.database = {
+    ...state.database,
+    selectedTable: table,
+    page: Math.max(1, page),
+    loadingRows: true,
+    schema: sameTable ? state.database.schema : null,
+    rows: sameTable ? state.database.rows : [],
+    total: sameTable ? state.database.total : 0,
+    importResult: sameTable ? state.database.importResult : null,
+  };
+  render();
+  try {
+    const query = new URLSearchParams({
+      page: String(Math.max(1, page)),
+      pageSize: String(state.database.pageSize || DB_PAGE_SIZE),
+    });
+    if (state.database.keyword) query.set('keyword', state.database.keyword);
+    if (state.database.orderBy) query.set('orderBy', state.database.orderBy);
+    if (state.database.orderDir) query.set('orderDir', state.database.orderDir);
+    const encodedTable = encodeURIComponent(table);
+    const [schema, payload] = await Promise.all([
+      adminRequest(`/api/admin/database/tables/${encodedTable}/schema`),
+      adminRequest(`/api/admin/database/tables/${encodedTable}/rows?${query}`),
+    ]);
+    state.database = {
+      ...state.database,
+      schema,
+      rows: unwrapList(payload),
+      ...paginationOf(payload, state.database),
+      loadingRows: false,
+    };
+    state.accessDenied = false;
+  } catch (error) {
+    state.database.loadingRows = false;
     handleAdminError(error);
   }
   render();
@@ -591,6 +811,141 @@ async function restoreSchool(id) {
   }
 }
 
+function openDatabaseRowModal(mode, index = -1) {
+  const table = state.database.selectedTable;
+  const pk = databasePrimaryKey();
+  if (!table || !state.database.schema || state.database.schema.writeBlocked) return;
+  const row = mode === 'edit' ? state.database.rows[index] || {} : {};
+  state.modal = {
+    type: 'database-row',
+    mode: mode === 'edit' ? 'edit' : 'create',
+    table,
+    id: mode === 'edit' && pk ? row[pk] : '',
+    row,
+  };
+  render();
+}
+
+function collectDatabaseRow(form) {
+  const fields = new FormData(form);
+  return Object.fromEntries([...fields.entries()].map(([key, value]) => [key, String(value)]));
+}
+
+async function saveDatabaseRow(form) {
+  const table = form.dataset.table || state.database.selectedTable;
+  const id = form.dataset.id;
+  const creating = form.dataset.mode === 'create';
+  const row = collectDatabaseRow(form);
+  try {
+    await adminRequest(
+      creating
+        ? `/api/admin/database/tables/${encodeURIComponent(table)}/rows`
+        : `/api/admin/database/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(id)}`,
+      { method: creating ? 'POST' : 'PATCH', body: { row } },
+    );
+    state.modal = null;
+    showToast(creating ? '数据库记录已创建' : '数据库记录已保存');
+    await loadDatabaseTable({ table, page: state.database.page });
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function deleteDatabaseRow(index) {
+  const table = state.database.selectedTable;
+  const pk = databasePrimaryKey();
+  const row = state.database.rows[index];
+  if (!table || !pk || !row) return;
+  const id = row[pk];
+  if (!window.confirm(`确认删除 ${table} 中 ${pk}=${id} 的记录？`)) return;
+  try {
+    await adminRequest(`/api/admin/database/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    showToast('数据库记录已删除');
+    await loadDatabaseTable({ table, page: state.database.page });
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function readFileContent(file, format) {
+  if (['xlsx', 'db'].includes(format)) {
+    const buffer = await file.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return { contentBase64: window.btoa(binary) };
+  }
+  return { content: await file.text() };
+}
+
+async function exportDatabaseTable(form = null) {
+  const fields = form ? new FormData(form) : null;
+  const table = String(fields?.get('table') || state.database.selectedTable || '').trim();
+  if (!table) return;
+  const format = String(fields?.get('format') || 'xlsx');
+  const query = new URLSearchParams({ format, limit: '20000' });
+  if (table === state.database.selectedTable) {
+    if (state.database.keyword) query.set('keyword', state.database.keyword);
+    if (state.database.orderBy) query.set('orderBy', state.database.orderBy);
+    if (state.database.orderDir) query.set('orderDir', state.database.orderDir);
+  }
+  try {
+    const response = await fetch(`${API_BASE}/api/admin/database/tables/${encodeURIComponent(table)}/export?${query}`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new ApiError(payload.error || `导出失败（${response.status}）`, response.status, payload);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] || `${table}.${format}`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    state.modal = null;
+    showToast('导出文件已生成');
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function importDatabaseTable(form = null) {
+  const fields = form ? new FormData(form) : null;
+  const table = String(fields?.get('table') || state.database.selectedTable || '').trim();
+  const file = fields?.get('file') instanceof File && fields.get('file').name ? fields.get('file') : null;
+  if (!table || !file) return showToast('请选择要导入的文件', { error: true });
+  const format = String(fields?.get('format') || 'csv');
+  const dryRun = fields ? fields.get('dryRun') === 'on' : true;
+  const mode = String(fields?.get('mode') || 'insert');
+  try {
+    const body = {
+      format,
+      mode,
+      dryRun,
+      ...(await readFileContent(file, format)),
+    };
+    const sourceTable = String(fields?.get('sourceTable') || '').trim();
+    if (format === 'db' && sourceTable) body.sourceTable = sourceTable;
+    const result = await adminRequest(`/api/admin/database/tables/${encodeURIComponent(table)}/import`, { method: 'POST', body });
+    state.database.importResult = result;
+    state.modal = null;
+    showToast(dryRun ? '导入预览已生成' : '导入完成');
+    if (!dryRun || table !== state.database.selectedTable) await loadDatabaseTable({ table, page: 1 });
+    else render();
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
 async function patchUser(id, body) {
   try {
     await adminRequest(`/api/admin/users/${id}`, { method: 'PATCH', body });
@@ -672,6 +1027,9 @@ document.addEventListener('submit', (event) => {
   const form = event.target;
   if (form.id === 'adminLoginForm') { event.preventDefault(); void handleLogin(form); }
   if (form.id === 'schoolForm') { event.preventDefault(); void saveSchool(form); }
+  if (form.id === 'dbRowForm') { event.preventDefault(); void saveDatabaseRow(form); }
+  if (form.id === 'dbImportForm') { event.preventDefault(); void importDatabaseTable(form); }
+  if (form.id === 'dbExportForm') { event.preventDefault(); void exportDatabaseTable(form); }
 });
 
 document.addEventListener('click', (event) => {
@@ -679,11 +1037,33 @@ document.addEventListener('click', (event) => {
   if (section) { setSection(section.dataset.section); return; }
   const button = event.target.closest('[data-action]');
   if (!button) return;
+  if (button.classList.contains('admin-modal-backdrop') && event.target !== button) return;
   const { action } = button.dataset;
   if (action === 'toggle-menu') { state.menuOpen = !state.menuOpen; render(); return; }
   if (action === 'logout') { void logout().finally(() => { state.user = null; state.accessDenied = false; render(); }); return; }
   if (action === 'refresh') { void loadActiveSection(); return; }
   if (action === 'refresh-database') { void loadDatabase(); return; }
+  if (action === 'select-db-table') {
+    state.database.keyword = '';
+    state.database.orderBy = '';
+    state.database.orderDir = 'ASC';
+    void loadDatabaseTable({ table: button.dataset.table, page: 1 });
+    return;
+  }
+  if (action === 'refresh-db-table') { void loadDatabaseTable({ table: state.database.selectedTable, page: state.database.page }); return; }
+  if (action === 'search-db-table') {
+    state.database.keyword = root.querySelector('#dbSearch')?.value?.trim() || '';
+    state.database.orderBy = root.querySelector('#dbOrderBy')?.value || '';
+    state.database.orderDir = root.querySelector('#dbOrderDir')?.value || 'ASC';
+    void loadDatabaseTable({ table: state.database.selectedTable, page: 1 });
+    return;
+  }
+  if (action === 'new-db-row') { openDatabaseRowModal('create'); return; }
+  if (action === 'edit-db-row') { openDatabaseRowModal('edit', number(button.dataset.index, -1)); return; }
+  if (action === 'delete-db-row') { void deleteDatabaseRow(number(button.dataset.index, -1)); return; }
+  if (action === 'open-db-import') { state.modal = { type: 'database-import', table: state.database.selectedTable || chooseDatabaseTable(databaseTables()) }; render(); return; }
+  if (action === 'open-db-export') { state.modal = { type: 'database-export', table: state.database.selectedTable }; render(); return; }
+  if (action === 'clear-db-import-result') { state.database.importResult = null; render(); return; }
   if (action === 'new-school') { state.modal = { type: 'school', school: { zone: 'A', level: '双非', type: '综合', verificationStatus: 'pending', catalogStatus: 'active' } }; render(); return; }
   if (action === 'close-modal') { state.modal = null; render(); return; }
   if (action === 'search-schools') { state.schools.keyword = root.querySelector('#schoolSearch')?.value?.trim() || ''; state.schools.catalogStatus = root.querySelector('#schoolStatus')?.value || ''; state.schools.page = 1; void loadSchools({ page: 1 }); return; }
@@ -707,12 +1087,13 @@ document.addEventListener('click', (event) => {
   if (action === 'page') {
     const page = number(button.dataset.page, 1);
     if (page < 1) return;
+    if (button.dataset.kind === 'database') void loadDatabaseTable({ table: state.database.selectedTable, page });
     if (button.dataset.kind === 'schools') void loadSchools({ page });
     if (button.dataset.kind === 'users') void loadUsers({ page });
     if (button.dataset.kind === 'quality') void loadQuality({ page });
     if (button.dataset.kind === 'audit') void loadAudit({ page });
   }
-});
+}, true);
 
 async function boot() {
   render();

@@ -12,7 +12,7 @@ COPY server ./server
 # 必须在最终源码 COPY 后安装依赖。这样宿主机残留的 node_modules
 # 不会覆盖镜像内的生产依赖，且构建阶段会提前校验关键依赖。
 RUN cd server && pnpm install --prod --no-frozen-lockfile \
-    && node --input-type=module -e "await import('dotenv/config'); await import('mysql2/promise'); await import('sql.js'); console.log('server-dependencies-ok')"
+    && node --input-type=module -e "await import('dotenv/config'); await import('mysql2/promise'); await import('sql.js'); await import('xlsx'); console.log('server-dependencies-ok')"
 
 WORKDIR /app/server
 EXPOSE 3000

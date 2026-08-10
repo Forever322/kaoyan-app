@@ -1,6 +1,6 @@
 /**
  * 数据采集器 - 接受官网搜索的真实分数，存入 real-scores.json
- * 用法: node collect.cjs '{"学校名":{"门类":{"2025":分数,...}}}'
+ * 用法: node tools/data-maintenance/collect.cjs '{"学校名":{"门类":{"2025":分数,...}}}'
  * 每次WebSearch搜到真实数据后，追加到这个JSON文件
  */
 const fs = require('fs');

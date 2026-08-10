@@ -45,7 +45,14 @@ docker compose -f docker-compose.backend.yml --profile tools run --rm \
 | 接口 | 用途 |
 | --- | --- |
 | `GET /api/admin/dashboard` | 用户、院校库、智能体运行和开关的聚合指标。 |
-| `GET /api/admin/database/status` | 只读数据库名称、MySQL 版本、迁移状态及各表容量估算；不提供网页 SQL 控制台。 |
+| `GET /api/admin/database/status` | 只读数据库名称、MySQL 版本、迁移状态及各表容量估算。 |
+| `GET /api/admin/database/tables/:table/schema` | 查看单表字段、主键、可写状态和敏感列标记；仅 `super_admin`。 |
+| `GET /api/admin/database/tables/:table/rows?page=1&pageSize=50&keyword=&orderBy=&orderDir=` | 直接分页查看单表数据；敏感列会脱敏；仅 `super_admin`。 |
+| `POST /api/admin/database/tables/:table/rows` | 插入一行 `{ "row": {...} }`；拒绝系统表、自动列和敏感列；仅 `super_admin`。 |
+| `PATCH /api/admin/database/tables/:table/rows/:id` | 按单字段主键更新一行 `{ "row": {...} }`；仅 `super_admin`。 |
+| `DELETE /api/admin/database/tables/:table/rows/:id` | 按单字段主键删除一行；系统表不可删；仅 `super_admin`。 |
+| `GET /api/admin/database/tables/:table/export?format=csv\|txt\|sql\|xlsx&limit=5000` | 导出表数据，支持 CSV、TAB 分隔 TXT、INSERT SQL、XLSX；敏感列不导出；仅 `super_admin`。 |
+| `POST /api/admin/database/tables/:table/import` | 导入 CSV、TAB 分隔 TXT、受限 INSERT SQL、XLSX、SQLite/sql.js DB 或 `rows` 数组；默认 `dryRun=true` 只解析预览；仅 `super_admin`。 |
 | `GET /api/admin/universities?page=1&pageSize=20&keyword=&catalogStatus=` | 管理端院校分页列表；可包含已归档记录。 |
 | `GET /api/admin/universities/:id` | 返回院校基础档案、详情和关联资料计数。 |
 | `POST /api/admin/universities` | 创建院校及可选 `detail` 档案。 |
@@ -76,6 +83,25 @@ docker compose -f docker-compose.backend.yml --profile tools run --rm \
 智能体配置和功能开关没有 `POST`/`DELETE` 接口：键由数据库迁移预置并经过代码审核，后台只能修改安全的元数据和启用状态。`settings`/`audience` 会拒绝 `token`、`secret`、`password`、`apiKey`、`provider`、`model`、`baseUrl` 等敏感或运行时连接字段。
 
 每次用户权限、智能体配置、功能开关变更都会写入 `admin_audit_logs`，审计快照会再次脱敏后返回。
+
+## 数据库工作台边界
+
+直接数据库工作台用于受控运维和批量数据治理，不替代领域接口。`admin` 只能查看数据库状态，只有 `super_admin` 可以查看表数据、导入导出和增删改。`schema_migrations`、`admin_audit_logs`、`auth_tokens` 等系统表不允许通过网页写入；字段名包含 `password`、`token`、`secret`、`apiKey`、`credential` 等敏感含义时，查询和导出会脱敏，写入会被拒绝。
+
+数据库工作台预留固定的 `database-manager` 后台 Agent。它用于导入预审、重复记录检测、字段异常识别、表间一致性核对和修复计划生成；默认配置为 `writeAccess=false`、`requiresHumanConfirmation=true`，模型不得直接写入生产数据库。上线小模型后，应让它复用 `dryRun` 导入结果或只读表摘要输出审核报告，再由超级管理员在后台确认落库。
+
+导入请求示例：
+
+```json
+{
+  "format": "csv",
+  "dryRun": true,
+  "mode": "insert",
+  "content": "name,province,city,zone,level,type\n测试大学,北京,北京,A,双非,综合\n"
+}
+```
+
+`dryRun` 默认是 `true`，只返回字段解析结果、前 10 行预览、行数和校验摘要；显式传 `false` 才会落库。`mode` 支持 `insert` 和 `upsert`。XLSX 与 DB 使用 `contentBase64` 承载文件内容；DB 默认读取同名源表，也可传 `sourceTable` 指定源表。也可以直接传结构化 `rows: [{...}]`。当前导入结果会返回 `review.modelReady=false` 的固定审核挂点；后续服务器小模型可以复用 dry-run 结果，对来源、重复记录、异常字段和疑似错误数据做二次审核后再允许落库。
 
 ## 智能体控制实际生效方式
 
