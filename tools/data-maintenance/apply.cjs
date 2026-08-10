@@ -1,14 +1,15 @@
 /**
  * 数据更新器 - 读取 real-scores.json，更新 admission-scores.js
- * 用法: node apply.cjs [--build]
+ * 用法: node tools/data-maintenance/apply.cjs [--build]
  * --build: 同时执行 vite build + 同步到 TWA assets
  */
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+const ROOT_DIR = path.resolve(__dirname, '../..');
 const DATA_FILE = path.join(__dirname, 'real-scores.json');
-const TARGET_FILE = path.join(__dirname, 'src/data/admission-scores.js');
+const TARGET_FILE = path.join(ROOT_DIR, 'src/data/admission-scores.js');
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
@@ -62,10 +63,10 @@ function main() {
   // 可选构建
   if (process.argv.includes('--build')) {
     console.log('\n构建中...');
-    execSync('npx vite build', { cwd: __dirname, stdio: 'inherit' });
+    execSync('npx vite build', { cwd: ROOT_DIR, stdio: 'inherit' });
     // 同步到 TWA assets（跨平台，避免 rm -rf / cp -r 在 Windows 上失败）
-    const assetsDir = path.join(__dirname, 'android-twa/app/src/main/assets');
-    const distDir = path.join(__dirname, 'dist');
+    const assetsDir = path.join(ROOT_DIR, 'android-twa/app/src/main/assets');
+    const distDir = path.join(ROOT_DIR, 'dist');
     for (const entry of fs.readdirSync(assetsDir)) {
       // 保留 git 跟踪的 TWA 专属文件（图标/开屏图/清单），其余用 dist 覆盖
       if (entry === 'icons' || entry === 'splash.png') continue;
