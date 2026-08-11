@@ -19,6 +19,7 @@ import {
   isAgentModelConfigured,
   reviewDatabaseContent,
 } from '../services/agent-service.js';
+import { resolveAgentModelRuntime } from '../services/agent-model-settings-service.js';
 import { runAuditedAgentCall } from '../services/agent-run-service.js';
 import { assertAgentCapabilityEnabled } from '../services/agent-runtime-policy.js';
 import {
@@ -94,8 +95,15 @@ function stagingExpiry() {
   return mysqlUtcDate(new Date(Date.now() + STAGING_TTL_HOURS * 3_600_000));
 }
 
-function databaseReviewModelVersion() {
-  return `${bounded(process.env.LLM_PROVIDER || 'openai-compatible', 40)}:${bounded(process.env.AGENT_MODEL || 'deepseek-chat', 80)}`;
+function databaseReviewModelVersion(modelRuntime) {
+  if (!modelRuntime) return '';
+  const profile = modelRuntime.profileKey
+    ? `${bounded(modelRuntime.profileKey, 64)}@${Number(modelRuntime.profileRevision || 0)}`
+    : 'environment';
+  const credential = modelRuntime.credentialVersion === null || modelRuntime.credentialVersion === undefined
+    ? ''
+    : `:credential-${Number(modelRuntime.credentialVersion)}`;
+  return `${bounded(modelRuntime.provider || 'openai-compatible', 40)}:${bounded(modelRuntime.model, 80)}:${profile}${credential}`;
 }
 
 function sourceChecksum(body, sourceType) {
@@ -357,6 +365,7 @@ export function createAdminAgentRouter({
   authenticate = requireAdministrator,
   generateRows = generateDatabaseRows,
   reviewContent = reviewDatabaseContent,
+  resolveModelRuntime = resolveAgentModelRuntime,
   audit = writeAdminAudit,
 } = {}) {
   const router = Router();
@@ -385,8 +394,15 @@ export function createAdminAgentRouter({
         throw requestError(`instruction 不能超过 ${MAX_INSTRUCTION_LENGTH} 个字符`);
       }
       if (['text', 'voice'].includes(sourceType) && !instruction) throw requestError('请输入或口述要写入的数据');
-      if (['text', 'voice'].includes(sourceType) && !isAgentModelConfigured()) {
-        throw requestError('服务端尚未配置 LLM_API_KEY，暂时无法解析口述内容', 503, 'missing_llm_key');
+      let modelRuntime = null;
+      try {
+        modelRuntime = await resolveModelRuntime(db);
+      } catch (error) {
+        if (!['missing_llm_key', 'agent_model_profile_unavailable'].includes(error?.code)
+          || ['text', 'voice'].includes(sourceType)) throw error;
+      }
+      if (['text', 'voice'].includes(sourceType) && !isAgentModelConfigured(modelRuntime)) {
+        throw requestError('后台尚未配置模型 API Key，暂时无法解析口述内容', 503, 'missing_llm_key');
       }
       const format = sourceType === 'file' ? normalizeFormat(req.body?.format) : '';
       const mode = normalizeMode(req.body?.mode);
@@ -409,12 +425,14 @@ export function createAdminAgentRouter({
           userId: actor.id,
           adminAgentJobId: jobId,
           runType: 'admin_ingest',
+          model: modelRuntime.model,
           input: { targetTable: meta.tableName, sourceType, instruction },
           run: () => generateRows({
             instruction,
             table: meta.tableName,
             columns: agentWritableColumns(meta),
             mode,
+            modelRuntime,
           }),
         });
         rows = draft.rows.map((row) => normalizeDatabaseRow(row, meta, { importMode: true }));
@@ -470,12 +488,13 @@ export function createAdminAgentRouter({
       const databaseStateChecksum = checksumRows([databaseStateSnapshot(meta, databaseState)]);
       let modelReview = null;
       let modelFailure = null;
-      if (isAgentModelConfigured()) {
+      if (modelRuntime && isAgentModelConfigured(modelRuntime)) {
         try {
           modelReview = await runAuditedAgentCall(db, {
             userId: actor.id,
             adminAgentJobId: jobId,
             runType: 'admin_review',
+            model: modelRuntime.model,
             input: { targetTable: meta.tableName, rowCount: rows.length, checksum: normalizedChecksum },
             run: () => reviewContent({
               table: meta.tableName,
@@ -483,6 +502,7 @@ export function createAdminAgentRouter({
               rows: rows.map((row) => redactDatabaseRow(row, meta.columns)),
               deterministicIssues: deterministic.issues,
               instruction,
+              modelRuntime,
             }),
           });
         } catch (error) {
@@ -494,7 +514,7 @@ export function createAdminAgentRouter({
       review.sourceChecksum = rawChecksum;
       review.databaseStateChecksum = databaseStateChecksum;
       review.policyVersion = DATABASE_REVIEW_POLICY_VERSION;
-      review.modelVersion = modelReview ? databaseReviewModelVersion() : '';
+      review.modelVersion = modelReview ? databaseReviewModelVersion(modelRuntime) : '';
       review.semanticReviewSample = {
         sampled: rows.length > DATABASE_REVIEW_SAMPLE_LIMIT,
         sampleSize: Math.min(rows.length, DATABASE_REVIEW_SAMPLE_LIMIT),
@@ -525,7 +545,7 @@ export function createAdminAgentRouter({
           normalizedChecksum,
           JSON.stringify(rows),
           JSON.stringify(review),
-          isAgentModelConfigured() ? bounded(process.env.AGENT_MODEL || 'deepseek-chat', 80) : '',
+          modelRuntime && isAgentModelConfigured(modelRuntime) ? bounded(modelRuntime.model, 80) : '',
           jobId,
         ]);
         await tx.execute('UPDATE data_import_batches SET record_count=? WHERE id=?', [rows.length, provenance.importBatchId]);
@@ -674,8 +694,11 @@ export function createAdminAgentRouter({
         const rows = stagedRows.map((row) => normalizeDatabaseRow(row, meta, { importMode: true, allowSystemManaged: true }));
         if (checksumRows(rows) !== job.checksum) throw requestError('规范化数据已变化，请重新审核', 409, 'normalized_payload_changed');
         const storedReview = parseJson(job.review_json, null);
+        const currentModelVersion = storedReview?.modelVersion
+          ? databaseReviewModelVersion(await resolveModelRuntime(tx))
+          : '';
         if (storedReview?.policyVersion !== DATABASE_REVIEW_POLICY_VERSION
-          || (storedReview.modelVersion && storedReview.modelVersion !== databaseReviewModelVersion())) {
+          || (storedReview.modelVersion && storedReview.modelVersion !== currentModelVersion)) {
           throw requestError('审核策略或模型版本已更新，请重新提交审核', 409, 'review_stale');
         }
         if (!storedReview?.databaseStateChecksum) {

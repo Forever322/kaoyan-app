@@ -11,14 +11,24 @@ function inputLength(input) {
   try { return Math.min(500_000, Buffer.byteLength(JSON.stringify(input), 'utf8')); } catch { return 0; }
 }
 
-async function writeRun(db, { userId, adminAgentJobId = null, runType, status, inputChars, outputChars = 0, durationMs, errorCode = '' }) {
+async function writeRun(db, {
+  userId,
+  adminAgentJobId = null,
+  runType,
+  status,
+  model = process.env.AGENT_MODEL || 'deepseek-chat',
+  inputChars,
+  outputChars = 0,
+  durationMs,
+  errorCode = '',
+}) {
   await db.execute(`INSERT INTO agent_runs(user_id,admin_agent_job_id,run_type,status,model,input_chars,output_chars,duration_ms,error_code)
     VALUES(?,?,?,?,?,?,?,?,?)`, [
     userId,
     adminAgentJobId,
     runType,
     status,
-    String(process.env.AGENT_MODEL || 'deepseek-chat').slice(0, 80),
+    String(model || 'unconfigured').slice(0, 80),
     inputChars,
     outputChars,
     Math.max(0, Math.round(durationMs)),
@@ -34,14 +44,23 @@ export async function assertDailyAgentQuota(db, userId) {
   }
 }
 
-export async function runAuditedAgentCall(db, { userId, adminAgentJobId = null, runType, input, run }) {
+export async function runAuditedAgentCall(db, {
+  userId,
+  adminAgentJobId = null,
+  runType,
+  model = process.env.AGENT_MODEL || 'deepseek-chat',
+  input,
+  run,
+}) {
   await assertDailyAgentQuota(db, userId);
   const startedAt = Date.now();
   const inputChars = inputLength(input);
   try {
     const result = await run();
     const outputChars = inputLength(result);
-    await writeRun(db, { userId, adminAgentJobId, runType, status: 'success', inputChars, outputChars, durationMs: Date.now() - startedAt });
+    await writeRun(db, {
+      userId, adminAgentJobId, runType, status: 'success', model, inputChars, outputChars, durationMs: Date.now() - startedAt,
+    });
     return result;
   } catch (error) {
     await writeRun(db, {
@@ -49,6 +68,7 @@ export async function runAuditedAgentCall(db, { userId, adminAgentJobId = null, 
       adminAgentJobId,
       runType,
       status: 'failed',
+      model,
       inputChars,
       durationMs: Date.now() - startedAt,
       errorCode: error?.code || error?.name || 'agent_error',

@@ -18,6 +18,7 @@ const MIGRATIONS = [
   { version: '005-catalog-issue-lifecycle', file: 'migrations/005-catalog-issue-lifecycle.sql' },
   { version: '006-database-manager-agent', file: 'migrations/006-database-manager-agent.sql' },
   { version: '007-admin-agent-operations', file: 'migrations/007-admin-agent-operations.sql' },
+  { version: '008-agent-model-profiles', file: 'migrations/008-agent-model-profiles.sql' },
 ];
 
 let dbPromise = null;
@@ -271,7 +272,7 @@ export async function reset() {
   }
   const db = await getDB();
   const tables = [
-    'admin_alerts', 'admin_access_logs', 'admin_agent_jobs',
+    'agent_model_profiles', 'admin_alerts', 'admin_access_logs', 'admin_agent_jobs',
     'domain_events', 'background_jobs', 'catalog_data_issues', 'catalog_change_log',
     'retest_rules', 'admission_statistics', 'exam_subjects', 'score_lines',
     'program_offerings', 'programs', 'academic_units', 'campuses', 'university_aliases',

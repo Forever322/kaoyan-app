@@ -13,6 +13,7 @@ import adminRouter from './routes/admin.js';
 import adminCatalogRouter from './routes/admin-catalog.js';
 import adminDatabaseRouter from './routes/admin-database.js';
 import adminAgentRouter from './routes/admin-agent.js';
+import adminAgentModelSettingsRouter from './routes/admin-agent-model-settings.js';
 import { AgentServiceError } from './services/agent-service.js';
 import { createRateLimiter } from './middleware/rate-limit.js';
 import { createAdminAccessLogger } from './middleware/admin-access-log.js';
@@ -99,6 +100,7 @@ export function createApp() {
   app.use('/api/admin', adminCatalogRouter);
   app.use('/api/admin', adminDatabaseRouter);
   app.use('/api/admin', adminAgentRouter);
+  app.use('/api/admin', adminAgentModelSettingsRouter);
 
   app.use((_req, res) => res.status(404).json({ error: '接口不存在' }));
 

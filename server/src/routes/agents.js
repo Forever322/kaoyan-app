@@ -3,6 +3,7 @@ import { getDB } from '../db/index.js';
 import { requireAuthenticatedUser } from '../services/auth-service.js';
 import { buildAgentContext, getCurrentPlans, publicProposal } from '../services/agent-context-service.js';
 import { AgentServiceError, generateChatReply, generateProposal } from '../services/agent-service.js';
+import { resolveAgentModelRuntime } from '../services/agent-model-settings-service.js';
 import { KAOYAN_COACH_POLICY_VERSION } from '../services/kaoyan-coach-policy.js';
 import { getPlanState, getPlansState, replacePlan, validateAgentPlan } from '../services/plan-service.js';
 import { runAuditedAgentCall } from '../services/agent-run-service.js';
@@ -75,12 +76,12 @@ function safeStringList(value, { limit, maxLength }) {
     .map((item) => item.slice(0, maxLength));
 }
 
-function assistantMessageMetadata(agentType, reply) {
+function assistantMessageMetadata(agentType, reply, model = process.env.AGENT_MODEL || 'deepseek-chat') {
   const metadata = {
     agentType,
     suggestions: safeStringList(reply?.suggestions, { limit: 3, maxLength: 24 }),
     canCreateProposal: reply?.canCreateProposal !== false,
-    model: String(process.env.AGENT_MODEL || 'deepseek-chat').slice(0, 80),
+    model: String(model || 'unconfigured').slice(0, 80),
   };
   if (agentType === 'kaoyan-coach') {
     // Only persist a normalized subset of model output. Client context never
@@ -288,15 +289,17 @@ router.post('/conversations/:id/messages', agentGenerationRateLimiter, async (re
     if (!conversation) return res.status(404).json({ error: '会话不存在' });
     const agentType = conversationAgentType(conversation.agent_type);
     await assertAgentCapabilityEnabled(db, { userId: user.id, agentType, capability: 'chat' });
+    const modelRuntime = await resolveAgentModelRuntime(db);
     const history = (await db.all('SELECT role,content FROM agent_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 16', [conversation.id])).reverse();
     const context = { ...await buildAgentContext(db, user.id), conversation: parseJson(conversation.context_json, {}) };
     const reply = await runAuditedAgentCall(db, {
       userId: user.id,
       runType: 'conversation',
+      model: modelRuntime.model,
       input: { agentType, message, context, history },
-      run: () => generateChatReply({ agentType, message, context, history }),
+      run: () => generateChatReply({ agentType, message, context, history, modelRuntime }),
     });
-    const messageMetadata = assistantMessageMetadata(agentType, reply);
+    const messageMetadata = assistantMessageMetadata(agentType, reply, modelRuntime.model);
     const assistantMessage = await db.transaction(async (tx) => {
       await tx.execute('INSERT INTO agent_messages(conversation_id,role,content,metadata_json) VALUES(?,?,?,?)', [
         conversation.id, 'user', message, '{}',
@@ -327,6 +330,7 @@ router.post('/proposals', agentGenerationRateLimiter, async (req, res, next) => 
     if (String(question).length > MAX_QUESTION_LENGTH) return res.status(400).json({ error: `question 不能超过 ${MAX_QUESTION_LENGTH} 个字符` });
     const normalizedAgentType = normalizeAgentType(agentType);
     await assertAgentCapabilityEnabled(db, { userId: user.id, agentType: normalizedAgentType, capability: 'proposal' });
+    const modelRuntime = await resolveAgentModelRuntime(db);
     const sourceContext = {
       agentType: normalizedAgentType,
       agentContext: await buildAgentContext(db, user.id),
@@ -335,8 +339,11 @@ router.post('/proposals', agentGenerationRateLimiter, async (req, res, next) => 
     const proposal = await runAuditedAgentCall(db, {
       userId: user.id,
       runType: 'proposal',
+      model: modelRuntime.model,
       input: { agentType: normalizedAgentType, proposalType, question, context: sourceContext },
-      run: () => generateProposal({ agentType: normalizedAgentType, proposalType, question, context: sourceContext }),
+      run: () => generateProposal({
+        agentType: normalizedAgentType, proposalType, question, context: sourceContext, modelRuntime,
+      }),
     });
     assertProposalChanges(proposalType, proposal.changes);
     validateAgentPlan(proposalType, proposal.changes[0].data);
@@ -347,7 +354,7 @@ router.post('/proposals', agentGenerationRateLimiter, async (req, res, next) => 
     ) VALUES(?,?,?,?,?,?,?,?,?,?)`, [
       user.id, proposalType, proposal.summary, proposal.rationale, JSON.stringify(proposal.changes),
       JSON.stringify(sourceContext), JSON.stringify(before), targetPlan.revision, proposalExpiry(),
-      String(process.env.AGENT_MODEL || 'deepseek-chat').slice(0, 80),
+      String(modelRuntime.model || 'unconfigured').slice(0, 80),
     ]);
     const created = await db.one('SELECT * FROM agent_proposals WHERE id=?', [result.insertId]);
     return res.status(201).json({ proposal: publicProposal(created) });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   AgentServiceError,
   getChatSystemPrompt,
+  isAgentModelConfigured,
   normalizeChatAgentType,
   validateChatReplyPayload,
   validateProposalPayload,
@@ -80,4 +81,9 @@ test('未知智能体类型不会降级为未审核提示词', () => {
   assert.throws(() => normalizeChatAgentType('system-admin'), (error) => (
     error instanceof AgentServiceError && error.code === 'invalid_agent_type'
   ));
+});
+
+test('后台解析出的模型凭据优先于进程环境回退', () => {
+  assert.equal(isAgentModelConfigured({ apiKey: 'db-managed-key' }), true);
+  assert.equal(isAgentModelConfigured({ apiKey: '' }), false);
 });
