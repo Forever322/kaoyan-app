@@ -146,6 +146,52 @@ test('智能体配置固定列表会脱敏，且 PATCH 拒绝密钥等运行时�
   });
 });
 
+test('普通管理员不能修改全局功能开关', async () => {
+  let databaseQueryCount = 0;
+  const router = createAdminRouter({
+    database: async () => ({
+      one: async () => { databaseQueryCount += 1; return null; },
+      execute: async () => { databaseQueryCount += 1; return { affectedRows: 1 }; },
+    }),
+    authenticate: async () => ({ id: 2, username: 'operator', role: 'admin', status: 'active' }),
+  });
+  await withRouter(router, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/feature-flags/agent-database-manager`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).error, /超级管理员/);
+  });
+  assert.equal(databaseQueryCount, 0);
+});
+
+test('数据库管理 Agent 的人工确认安全边界不能通过 settings 放宽', async () => {
+  const current = {
+    config_key: 'database-manager', display_name: '数据库管理 Agent', description: 'reviewed', enabled: 1,
+    settings_json: JSON.stringify({ profile: 'database-manager', writeAccess: false, requiresHumanConfirmation: true }),
+    updated_at: '2026-08-11 10:00:00.000', updated_by_user_id: null,
+  };
+  let updateCount = 0;
+  const db = {
+    transaction: async (callback) => callback(db),
+    one: async (sql) => (sql.includes('FOR UPDATE') ? current : current),
+    execute: async () => { updateCount += 1; return { affectedRows: 1 }; },
+  };
+  const router = createAdminRouter({ database: async () => db, authenticate: async () => superAdmin });
+  await withRouter(router, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/agent-configurations/database-manager`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ settings: { profile: 'database-manager', writeAccess: true, requiresHumanConfirmation: false } }),
+    });
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).error, /必须保持/);
+  });
+  assert.equal(updateCount, 0);
+});
+
 test('审计列表脱敏历史字段并验证分页查询', async () => {
   const router = createAdminRouter({
     database: async () => ({

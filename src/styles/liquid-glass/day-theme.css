@@ -3,12 +3,14 @@ body[data-study-theme='day'] {
   --day-bg:#f5f7f6;
   --day-card:#ffffff;
   --day-ink:#101a15;
-  --day-muted:#34483c;
-  --day-line:#e1e9e3;
-  --day-green:#1f5a41;
+  --day-muted:#000000;
+  --day-line:#d4e0d8;
+  --day-green:#1a4d36;
   --day-soft:#eaf2ee;
   color:var(--day-ink);
   background:var(--day-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body[data-study-theme='day'] .home-screen,
@@ -101,7 +103,7 @@ body[data-study-theme='day'] .round-nav-btn {
 }
 body[data-study-theme='day'] .round-nav-btn.is-lime { color:#173625; background:#d9f46a; }
 body[data-study-theme='day'] .result-card .uni-meta,
-body[data-study-theme='day'] .result-card .uni-meta span { color:#4f6257; }
+body[data-study-theme='day'] .result-card .uni-meta span { color:#000000; }
 
 /* 筛选面板与模态框 */
 body[data-study-theme='day'] .filter-sheet-backdrop { background:rgba(24,32,28,.28); }
@@ -121,7 +123,7 @@ body[data-study-theme='day'] .form-input,
 body[data-study-theme='day'] .form-select,
 body[data-study-theme='day'] .form-textarea { color:var(--day-ink); border-color:var(--day-line); background:#fff; }
 body[data-study-theme='day'] .sheet-option-grid button,
-body[data-study-theme='day'] .sheet-choice-row button { color:#385246; border-color:var(--day-line); background:#fff; }
+body[data-study-theme='day'] .sheet-choice-row button { color:#000000; border-color:var(--day-line); background:#fff; }
 body[data-study-theme='day'] .sheet-option-grid button.active,
 body[data-study-theme='day'] .sheet-choice-row button.active { color:var(--day-green); border-color:#a8d5bc; background:#dcefe3; }
 
@@ -145,7 +147,7 @@ body[data-study-theme='day'] .practice-wrong-list button { color:var(--day-ink);
 body[data-study-theme='day'] .my-week-card { background:var(--day-green); border:0; }
 body[data-study-theme='day'] .my-subject-list i { background:#edf0ed; }
 body[data-study-theme='day'] .my-demo-note,
-body[data-study-theme='day'] .study-ai-tip { color:#385246; border:0; background:#eaf2ee; }
+body[data-study-theme='day'] .study-ai-tip { color:#000000; border:0; background:#eaf2ee; }
 body[data-study-theme='day'] .my-demo-note > b,
 body[data-study-theme='day'] .study-ai-tip > b { color:var(--day-green); }
 body[data-study-theme='day'] #themeToggleBtn { color:inherit; border:1px solid currentColor; background:transparent; }
@@ -228,6 +230,20 @@ body[data-study-theme='day'] .results-screen em,
 body[data-study-theme='day'] .results-screen .uni-meta,
 body[data-study-theme='day'] .filter-sheet-panel small,
 body[data-study-theme='day'] .filter-sheet-panel p,
+body[data-study-theme='day'] .subject-card,
+body[data-study-theme='day'] .tl-stage { color:var(--day-ink); border:1px solid var(--day-line); background:#fff; box-shadow:none; }
+body[data-study-theme='day'] .subject-card strong,
+body[data-study-theme='day'] .tl-stage>strong { color:var(--day-ink); }
+body[data-study-theme='day'] .subject-card small,
+body[data-study-theme='day'] .subject-card em,
+body[data-study-theme='day'] .tl-subject { color:var(--day-muted); }
+body[data-study-theme='day'] .subject-card i,
+body[data-study-theme='day'] .tl-period { color:var(--day-green); background:var(--day-soft); }
+body[data-study-theme='day'] .tl-subject b { color:var(--day-green); }
+body[data-study-theme='day'] .prep-task .english-subject { color:#4a55b0; }
+body[data-study-theme='day'] .prep-task .math-subject { color:#b8453a; }
+body[data-study-theme='day'] .prep-task .politics-subject { color:#8a6d20; }
+body[data-study-theme='day'] .practice-wrong-list em { color:#b8453a; }
 body[data-study-theme='day'] .prep-screen small,
 body[data-study-theme='day'] .prep-screen em,
 body[data-study-theme='day'] .practice-screen small,
@@ -241,7 +257,7 @@ body[data-study-theme='day'] .modal-content small,
 body[data-study-theme='day'] .modal-content p { color:var(--day-muted) !important; opacity:1; }
 
 body[data-study-theme='day'] .app-footer { background:#ffffff; border-color:#d4e1d8; }
-body[data-study-theme='day'] .footer-btn { color:#365247; }
+body[data-study-theme='day'] .footer-btn { color:#000000; }
 body[data-study-theme='day'] .footer-nav-btn.active { color:#173f2c; }
 
 /* 我的页的夜间基础规则使用了较高选择器；白天主题在此明确覆盖，防止用户名与档案信息变白。 */
@@ -252,7 +268,7 @@ body[data-study-theme='day'] .my-screen .my-target-snapshot p,
 body[data-study-theme='day'] .my-screen .my-target-snapshot p i,
 body[data-study-theme='day'] .my-screen .my-metric-grid small,
 body[data-study-theme='day'] .my-screen .my-subject-list em,
-body[data-study-theme='day'] .my-screen .my-quick-grid span { color:#34483c !important; opacity:1; }
+body[data-study-theme='day'] .my-screen .my-quick-grid span { color:#000000 !important; opacity:1; }
 body[data-study-theme='day'] .my-screen .my-target-snapshot strong,
 body[data-study-theme='day'] .my-screen .my-metric-grid b,
 body[data-study-theme='day'] .my-screen .my-subject-list p { color:#18201c !important; }

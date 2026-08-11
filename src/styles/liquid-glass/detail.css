@@ -185,7 +185,7 @@
 
 .detail-match-summary>div:first-child span {
     margin-top: 6px;
-    color: #b5c8df;
+    color: #c8d4ec;
     font-size: .58rem;
     font-weight: 720;
 }
@@ -307,7 +307,7 @@
 }
 
 .detail-score-section .score-table th {
-    color: #a9bfda;
+    color: #c4d0e8;
 }
 
 .detail-score-section .score-table tbody tr:first-child {
@@ -452,7 +452,7 @@
 
 .req-note {
     margin-top: 3px;
-    color: #b5c8dd;
+    color: #c8d4ea;
     font-size: .52rem;
     line-height: 1.35;
 }
@@ -533,7 +533,7 @@
 
 .info-label {
     flex: 0 0 auto;
-    color: #aebfd5;
+    color: #c4d0e4;
     font-size: .49rem;
     line-height: 1.1;
     white-space: nowrap;

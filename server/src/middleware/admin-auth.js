@@ -7,6 +7,7 @@ export const ADMIN_ROLES = new Set(['admin', 'super_admin']);
  * development compatibility path intentionally cannot grant admin access.
  */
 export async function requireAdministrator(req, res, db) {
+  if (req.adminActor && ADMIN_ROLES.has(String(req.adminActor.role || ''))) return req.adminActor;
   const authorization = String(req.get('authorization') || '');
   if (!/^Bearer\s+\S+$/iu.test(authorization)) {
     res.status(401).json({ error: '管理后台需要使用登录令牌' });
@@ -26,6 +27,10 @@ export async function requireAdministrator(req, res, db) {
     res.status(403).json({ error: '管理后台当前已被运维暂停' });
     return null;
   }
+  // The access logger runs before individual routers and records only after the
+  // response finishes, so assigning the verified actor here avoids a second
+  // token lookup and guarantees unauthenticated requests are not attributed.
+  req.adminActor = user;
   return user;
 }
 

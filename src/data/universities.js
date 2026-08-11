@@ -94,7 +94,7 @@ export const UNIVERSITIES = [
   // ==================== 河北 (A区) - 24所 ====================
   { name: '燕山大学', province: '河北', city: '秦皇岛', zone: 'A', level: '双非', type: '综合' },
   { name: '河北大学', province: '河北', city: '保定', zone: 'A', level: '双非', type: '综合' },
-  { name: '华北理工大学', province: '河北', city: '石家庄', zone: 'A', level: '双非', type: '理工' },
+  { name: '华北理工大学', province: '河北', city: '唐山', zone: 'A', level: '双非', type: '理工' },
   { name: '河北师范大学', province: '河北', city: '石家庄', zone: 'A', level: '双非', type: '师范' },
   { name: '河北农业大学', province: '河北', city: '石家庄', zone: 'A', level: '双非', type: '农业' },
   { name: '河北医科大学', province: '河北', city: '石家庄', zone: 'A', level: '双非', type: '医药' },
@@ -193,6 +193,7 @@ export const UNIVERSITIES = [
   { name: '吉林医药学院', province: '吉林', city: '吉林', zone: 'A', level: '双非', type: '综合' },
   { name: '空军航空大学', province: '吉林', city: '长春', zone: 'A', level: '双非', type: '航空' },
   { name: '吉林动画学院', province: '吉林', city: '长春', zone: 'A', level: '双非', type: '综合' },
+  { name: '长春工程学院', province: '吉林', city: '长春', zone: 'A', level: '双非', type: '理工' },
 
   // ==================== 黑龙江 (A区) - 19所 ====================
   { name: '哈尔滨工业大学', province: '黑龙江', city: '哈尔滨', zone: 'A', level: '985', type: '理工' },
@@ -214,6 +215,7 @@ export const UNIVERSITIES = [
   { name: '牡丹江医学院', province: '黑龙江', city: '牡丹江', zone: 'A', level: '双非', type: '医药' },
   { name: '哈尔滨体育学院', province: '黑龙江', city: '哈尔滨', zone: 'A', level: '双非', type: '体育' },
   { name: '黑龙江工程学院', province: '黑龙江', city: '哈尔滨', zone: 'A', level: '双非', type: '理工' },
+  { name: '哈尔滨学院', province: '黑龙江', city: '哈尔滨', zone: 'A', level: '双非', type: '综合' },
 
   // ==================== 上海 (A区) - 31所 ====================
   { name: '复旦大学', province: '上海', city: '上海', zone: 'A', level: '985', type: '综合' },
@@ -349,6 +351,9 @@ export const UNIVERSITIES = [
   { name: '电子工程学院', province: '安徽', city: '合肥', zone: 'A', level: '双非', type: '电子' },
   { name: '安徽科技学院', province: '安徽', city: '滁州', zone: 'A', level: '双非', type: '理工' },
   { name: '陆军炮兵防空兵学院', province: '安徽', city: '合肥', zone: 'A', level: '双非', type: '综合' },
+  { name: '宿州学院', province: '安徽', city: '宿州', zone: 'A', level: '双非', type: '综合' },
+  { name: '滁州学院', province: '安徽', city: '滁州', zone: 'A', level: '双非', type: '综合' },
+  { name: '皖西学院', province: '安徽', city: '六安', zone: 'A', level: '双非', type: '综合' },
 
   // ==================== 福建 (A区) - 17所 ====================
   { name: '厦门大学', province: '福建', city: '厦门', zone: 'A', level: '985', type: '综合' },
@@ -368,6 +373,7 @@ export const UNIVERSITIES = [
   { name: '厦门国家会计学院', province: '福建', city: '厦门', zone: 'A', level: '双非', type: '综合' },
   { name: '福建理工大学', province: '福建', city: '福州', zone: 'A', level: '双非', type: '理工' },
   { name: '武夷学院', province: '福建', city: '南平', zone: 'A', level: '双非', type: '综合' },
+  { name: '福建江夏学院', province: '福建', city: '福州', zone: 'A', level: '双非', type: '综合' },
 
   // ==================== 江西 (A区) - 18所 ====================
   { name: '南昌大学', province: '江西', city: '南昌', zone: 'A', level: '211', type: '综合' },
@@ -391,8 +397,8 @@ export const UNIVERSITIES = [
 
   // ==================== 山东 (A区) - 40所 ====================
   { name: '山东大学', province: '山东', city: '济南', zone: 'A', level: '985', type: '综合' },
-  { name: '中国海洋大学', province: '山东', city: '济南', zone: 'A', level: '985', type: '海洋' },
-  { name: '中国石油大学(华东)', province: '山东', city: '济南', zone: 'A', level: '211', type: '石油' },
+  { name: '中国海洋大学', province: '山东', city: '青岛', zone: 'A', level: '985', type: '海洋' },
+  { name: '中国石油大学(华东)', province: '山东', city: '青岛', zone: 'A', level: '211', type: '石油' },
   { name: '山东科技大学', province: '山东', city: '济南', zone: 'A', level: '双非', type: '理工' },
   { name: '青岛大学', province: '山东', city: '青岛', zone: 'A', level: '双非', type: '综合' },
   { name: '济南大学', province: '山东', city: '济南', zone: 'A', level: '双非', type: '综合' },
@@ -655,6 +661,7 @@ export const UNIVERSITIES = [
   { name: '赤峰学院', province: '内蒙古', city: '赤峰', zone: 'B', level: '双非', type: '综合' },
   { name: '内蒙古艺术学院', province: '内蒙古', city: '呼和浩特', zone: 'B', level: '双非', type: '艺术' },
   { name: '包头师范学院', province: '内蒙古', city: '包头', zone: 'B', level: '双非', type: '师范' },
+  { name: '呼伦贝尔学院', province: '内蒙古', city: '呼伦贝尔', zone: 'B', level: '双非', type: '综合' },
 
   // ==================== 广西 (B区) - 16所 ====================
   { name: '广西大学', province: '广西', city: '南宁', zone: 'B', level: '211', type: '综合' },
@@ -747,6 +754,7 @@ export const UNIVERSITIES = [
   { name: '宁夏医科大学', province: '宁夏', city: '银川', zone: 'B', level: '双非', type: '医药' },
   { name: '北方民族大学', province: '宁夏', city: '银川', zone: 'B', level: '双非', type: '民族' },
   { name: '宁夏师范学院', province: '宁夏', city: '银川', zone: 'B', level: '双非', type: '师范' },
+  { name: '宁夏理工学院', province: '宁夏', city: '石嘴山', zone: 'B', level: '双非', type: '理工' },
 
   // ==================== 新疆 (B区) - 13所 ====================
   { name: '新疆大学', province: '新疆', city: '乌鲁木齐', zone: 'B', level: '211', type: '综合' },

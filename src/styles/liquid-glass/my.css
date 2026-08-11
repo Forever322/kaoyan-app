@@ -60,7 +60,7 @@
 
 .my-card-label {
   display: block;
-  color: #a8b8d8;
+  color: #c8d2e8;
   font-size: .62rem;
   font-weight: 700;
   letter-spacing: .08em;
@@ -91,13 +91,13 @@
   display: flex;
   gap: 6px;
   margin-top: 6px;
-  color: #a0b0d0;
+  color: #c2cee4;
   font-size: .65rem;
   font-weight: 650;
 }
 
 .my-target-sep {
-  color: #6a7aaa;
+  color: #8890b8;
 }
 
 .my-icon-btn {
@@ -170,13 +170,13 @@
 }
 
 .my-empty span {
-  color: #8a9abc;
+  color: #b4c2de;
   font-size: .76rem;
   font-weight: 650;
 }
 
 .my-empty small {
-  color: #6a7a9a;
+  color: #7a8aaa;
   font-size: .63rem;
 }
 
@@ -201,7 +201,7 @@
 
 .my-list-item-main { min-width: 0; }
 .my-list-item-main strong { display: block; font-size: .78rem; font-weight: 700; }
-.my-list-item-main small { display: block; color: #8ea0c0; font-size: .62rem; margin-top: 2px; }
+.my-list-item-main small { display: block; color: #b8c6de; font-size: .62rem; margin-top: 2px; }
 
 .my-list-item-actions {
   display: flex;
@@ -212,7 +212,7 @@
 
 .my-list-item-badge {
   padding: 3px 8px;
-  color: #8ea0c0;
+  color: #b8c6de;
   border-radius: 999px;
   background: rgba(180, 200, 230, .12);
   font-size: .56rem;
@@ -271,7 +271,7 @@
 }
 
 .my-quick-card small {
-  color: #8a9abc;
+  color: #b4c2de;
   font-size: .56rem;
   grid-column: 2;
 }
@@ -284,14 +284,14 @@
 
 .my-footer p {
   margin: 0;
-  color: #6a7aaa;
+  color: #8890b8;
   font-size: .65rem;
 }
 
 .my-footer small {
   display: block;
   margin-top: 4px;
-  color: #4a5a7a;
+  color: #7a82a8;
   font-size: .55rem;
 }
 
@@ -301,9 +301,9 @@
 }
 
 /* Pencil 同步：学习数据页 */
-.my-profile-head { justify-content:flex-start; gap:11px; }.my-profile-head > span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:#2f6b50;background:#ddeeE4}.my-profile-head > div{flex:1}.my-week-card{display:grid;grid-template-columns:1fr auto;gap:6px;padding:17px;border-radius:20px;color:#fff;background:#2f6b50}.my-week-card small,.my-week-card em{color:#ddeeE4;font-size:.62rem;font-style:normal}.my-week-card strong{display:block;margin-top:4px;font-size:1.6rem;letter-spacing:-.05em}.my-bars{grid-column:1/-1;display:flex;align-items:end;gap:10px;height:45px;margin-top:4px}.my-bars i{display:block;flex:1;height:55%;border-radius:4px 4px 1px 1px;background:rgba(255,255,255,.45)}.my-bars i:nth-child(2){height:76%}.my-bars i:nth-child(3){height:70%}.my-bars i:nth-child(4){height:42%}.my-bars i:nth-child(5){height:64%}.my-bars i.active{height:78%;background:#f0a45d}.my-metric-grid{grid-template-columns:repeat(3,1fr)}.my-metric-grid span{display:grid;gap:3px;padding:11px 4px;border-radius:15px;background:#fff;text-align:center}.my-metric-grid b{font-size:.78rem}.my-metric-grid small{color:#718078;font-size:.56rem}.my-subject-section{margin-top:20px}.my-subject-list{display:grid;gap:12px;margin-top:10px;padding:15px}.my-subject-list p{display:grid;grid-template-columns:44px 1fr 25px;gap:8px;align-items:center;margin:0;font-size:.68rem}.my-subject-list i{height:5px;overflow:hidden;border-radius:4px;background:#edf0ed}.my-subject-list b{display:block;height:100%;border-radius:inherit;background:#d96c5f}.my-subject-list p:nth-child(2) b{background:#6d7bd6}.my-subject-list p:nth-child(3) b{background:#2f8b7a}.my-subject-list p:nth-child(4) b{background:#d99b3d}.my-subject-list em{color:#718078;font-size:.6rem;font-style:normal}.my-quick-grid{grid-template-columns:repeat(4,1fr);margin-top:18px}.my-quick-grid button{display:grid;gap:7px;place-items:center;padding:12px 4px;color:#2f6b50;border:0;border-radius:16px;background:#fff;font-size:1rem}.my-quick-grid button b{font-size:1.05rem;font-weight:500}.my-quick-grid span{color:#718078;font-size:.55rem}.my-data-compat{display:none!important}
+.my-profile-head { justify-content:flex-start; gap:11px; }.my-profile-head > span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:#2f6b50;background:#ddeeE4}.my-profile-head > div{flex:1}.my-week-card{display:grid;grid-template-columns:1fr auto;gap:6px;padding:17px;border-radius:20px;color:#fff;background:#2f6b50}.my-week-card small,.my-week-card em{color:#ffffff;font-size:.62rem;font-style:normal}.my-week-card strong{display:block;margin-top:4px;font-size:1.6rem;letter-spacing:-.05em}.my-bars{grid-column:1/-1;display:flex;align-items:end;gap:10px;height:45px;margin-top:4px}.my-bars i{display:block;flex:1;height:55%;border-radius:4px 4px 1px 1px;background:rgba(255,255,255,.45)}.my-bars i:nth-child(2){height:76%}.my-bars i:nth-child(3){height:70%}.my-bars i:nth-child(4){height:42%}.my-bars i:nth-child(5){height:64%}.my-bars i.active{height:78%;background:#f0a45d}.my-metric-grid{grid-template-columns:repeat(3,1fr)}.my-metric-grid span{display:grid;gap:3px;padding:11px 4px;border-radius:15px;background:#fff;text-align:center}.my-metric-grid b{font-size:.78rem}.my-metric-grid small{color:#000000;font-size:.56rem}.my-subject-section{margin-top:20px}.my-subject-list{display:grid;gap:12px;margin-top:10px;padding:15px}.my-subject-list p{display:grid;grid-template-columns:44px 1fr 25px;gap:8px;align-items:center;margin:0;font-size:.68rem}.my-subject-list i{height:5px;overflow:hidden;border-radius:4px;background:#edf0ed}.my-subject-list b{display:block;height:100%;border-radius:inherit;background:#d96c5f}.my-subject-list p:nth-child(2) b{background:#6d7bd6}.my-subject-list p:nth-child(3) b{background:#2f8b7a}.my-subject-list p:nth-child(4) b{background:#d99b3d}.my-subject-list em{color:#000000;font-size:.6rem;font-style:normal}.my-quick-grid{grid-template-columns:repeat(4,1fr);margin-top:18px}.my-quick-grid button{display:grid;gap:7px;place-items:center;padding:12px 4px;color:#2f6b50;border:0;border-radius:16px;background:#fff;font-size:1rem}.my-quick-grid button b{font-size:1.05rem;font-weight:500}.my-quick-grid span{color:#000000;font-size:.55rem}.my-data-compat{display:none!important}
 .my-auth-card{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:16px;padding:15px;border-radius:20px;color:#fff;background:linear-gradient(135deg,#244d3a,#2f6b50)}.my-auth-copy{display:grid;gap:4px}.my-auth-copy>span{color:#d8efde;font-size:.58rem;font-weight:700}.my-auth-copy strong{color:#fff;font-size:.82rem}.my-auth-copy small{color:#d8efde;font-size:.6rem;line-height:1.45}.my-auth-card>button{padding:10px 12px;color:#173625;border:0;border-radius:14px;background:#d9f46a;font-size:.66rem;font-weight:800}.my-auth-card>#myLogoutBtn{color:#fff;background:rgba(255,255,255,.14)}.my-auth-form{grid-column:1/-1;display:grid;gap:9px;padding-top:4px}.my-auth-form.hidden{display:none}.my-auth-form label{display:grid;gap:5px;color:#d8efde;font-size:.58rem;font-weight:650}.my-auth-form input{width:100%;min-height:38px;padding:0 11px;color:#18201c;border:0;border-radius:11px;background:#fff;font-size:.72rem;outline:0}.my-auth-form button{min-height:39px;color:#173625;border:0;border-radius:12px;background:#d9f46a;font-size:.68rem;font-weight:800}.my-auth-form button:disabled{opacity:.62}.my-auth-form-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.my-auth-form-actions #myAuthSwitchBtn{color:#fff;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12)}.my-auth-form #myCloseAuthBtn{color:#fff;background:rgba(255,255,255,.14)}.my-auth-error{margin:0;color:#ffe0d6;font-size:.6rem;line-height:1.4}.my-auth-error[hidden]{display:none}
-.my-target-snapshot{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:14px 16px;border-radius:19px;background:#fff}.my-target-snapshot div{display:grid;gap:4px}.my-target-snapshot small{color:#718078;font-size:.6rem}.my-target-snapshot strong{color:#18201c;font-size:.78rem}.my-target-snapshot p{margin:0;color:#718078;font-size:.62rem}.my-target-snapshot p span{color:#2f6b50;font-size:1rem;font-weight:750}.my-target-snapshot p i{font-style:normal}.my-target-snapshot>b{padding:7px 9px;color:#2f6b50;border-radius:12px;background:#ddeeE4;font-size:.65rem}.my-demo-note{display:flex;gap:10px;align-items:flex-start;margin-top:18px;padding:13px;border-radius:17px;color:#526a5d;background:#eaf2ee}.my-demo-note>b{color:#2f6b50}.my-demo-note span{display:grid;gap:3px}.my-demo-note strong{font-size:.7rem}.my-demo-note small{font-size:.62rem;line-height:1.4}
+.my-target-snapshot{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:19px;background:#fff}.my-target-snapshot div{display:grid;gap:4px}.my-target-snapshot small{color:#000000;font-size:.6rem}.my-target-snapshot strong{color:#18201c;font-size:.78rem}.my-target-snapshot p{margin:0;color:#000000;font-size:.62rem}.my-target-snapshot p span{color:#2f6b50;font-size:1rem;font-weight:750}.my-target-snapshot p i{font-style:normal}.my-target-snapshot>b{padding:7px 9px;color:#2f6b50;border-radius:12px;background:#ddeeE4;font-size:.65rem}.my-demo-note{display:flex;gap:10px;align-items:flex-start;margin-top:18px;padding:13px;border-radius:17px;color:#000000;background:#eaf2ee}.my-demo-note>b{color:#2f6b50}.my-demo-note span{display:grid;gap:3px}.my-demo-note strong{font-size:.7rem}.my-demo-note small{font-size:.62rem;line-height:1.4}
 
 /* 账号与同步：表单 ID 由 app.js 使用，视觉状态仅由 hidden/data-mode 驱动。 */
 .my-screen .my-auth-card {

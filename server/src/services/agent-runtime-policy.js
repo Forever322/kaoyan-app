@@ -43,6 +43,7 @@ async function requireEnabledFeatureFlag(db, key, userId) {
 export async function assertAgentCapabilityEnabled(db, { userId, agentType, capability }) {
   await requireEnabledAgentConfiguration(db, agentType);
   if (agentType === 'kaoyan-coach') await requireEnabledFeatureFlag(db, 'agent-kaoyan-coach', userId);
+  if (agentType === 'database-manager') await requireEnabledFeatureFlag(db, 'agent-database-manager', userId);
   if (capability === 'proposal') await requireEnabledFeatureFlag(db, 'agent-proposals', userId);
 }
 

@@ -186,7 +186,7 @@
 
 .sheet-subhead {
     margin: 13px 0 8px;
-    color: #b5c8df;
+    color: #c8d4ec;
     font-size: .66rem;
     font-weight: 800;
 }
@@ -282,7 +282,7 @@
 }
 
 .sheet-major-input::placeholder {
-    color: #a9bdd5;
+    color: #c4d0e4;
 }
 
 .sheet-major-panel {
@@ -486,7 +486,7 @@
 .sheet-choice-group>span {
     display: block;
     margin-bottom: 7px;
-    color: #b5c8df;
+    color: #c8d4ec;
     font-size: .66rem;
     font-weight: 800;
 }

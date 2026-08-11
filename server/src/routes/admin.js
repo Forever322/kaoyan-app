@@ -296,6 +296,13 @@ function validateAgentConfigurationPatch(body) {
   return values;
 }
 
+function assertAgentConfigurationSafety(key, settings) {
+  if (key !== 'database-manager') return;
+  if (settings?.writeAccess !== false || settings?.requiresHumanConfirmation !== true) {
+    throw requestError('数据库管理 Agent 必须保持 writeAccess=false 且 requiresHumanConfirmation=true', 403);
+  }
+}
+
 function validateFeatureFlagPatch(body) {
   const patch = assertKnownPatch(body, new Set(['displayName', 'description', 'enabled', 'rolloutPercentage', 'audience']), '功能开关');
   const values = {};
@@ -332,7 +339,7 @@ export function createAdminRouter({
       const db = await database();
       const actor = await authenticate(req, res, db);
       if (!actor) return;
-      const [users, catalog, agents, agentRuns] = await Promise.all([
+      const [users, catalog, agents, agentRuns, agentOperations] = await Promise.all([
         db.one(`SELECT COUNT(*) AS total,
           SUM(status='active') AS active,
           SUM(status='suspended') AS suspended,
@@ -351,6 +358,11 @@ export function createAdminRouter({
         db.one(`SELECT COUNT(*) AS total,
           SUM(status='failed') AS failed
           FROM agent_runs WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 24 HOUR)`),
+        db.one(`SELECT
+          (SELECT COUNT(*) FROM admin_agent_jobs WHERE status='awaiting_confirmation') AS awaiting_confirmation,
+          (SELECT COUNT(*) FROM admin_agent_jobs WHERE status IN ('blocked','failed')) AS blocked_or_failed,
+          (SELECT COUNT(*) FROM admin_alerts WHERE status='open') AS open_alerts,
+          (SELECT COUNT(*) FROM admin_alerts WHERE status='open' AND severity='critical') AS critical_alerts`),
       ]);
       return res.json({
         generatedAt: new Date().toISOString(),
@@ -367,6 +379,10 @@ export function createAdminRouter({
           configurations: toNumber(agents?.configurations), enabledConfigurations: toNumber(agents?.enabled_configurations),
           featureFlags: toNumber(agents?.feature_flags), enabledFeatureFlags: toNumber(agents?.enabled_feature_flags),
           runsLast24Hours: toNumber(agentRuns?.total), failedRunsLast24Hours: toNumber(agentRuns?.failed),
+          awaitingConfirmation: toNumber(agentOperations?.awaiting_confirmation),
+          blockedOrFailedJobs: toNumber(agentOperations?.blocked_or_failed),
+          openAlerts: toNumber(agentOperations?.open_alerts),
+          criticalAlerts: toNumber(agentOperations?.critical_alerts),
         },
       });
     } catch (error) { return next(error); }
@@ -450,6 +466,7 @@ export function createAdminRouter({
           enabled: Object.hasOwn(patch, 'enabled') ? patch.enabled : Boolean(Number(current.enabled)),
           settings_json: Object.hasOwn(patch, 'settings_json') ? patch.settings_json : parseJson(current.settings_json, {}),
         };
+        assertAgentConfigurationSafety(key, next.settings_json);
         await tx.execute(`UPDATE agent_configurations
           SET display_name=?,description=?,enabled=?,settings_json=?,updated_by_user_id=? WHERE config_key=?`, [
           next.display_name, next.description, next.enabled, JSON.stringify(next.settings_json), actor.id, key,
@@ -488,6 +505,7 @@ export function createAdminRouter({
       const db = await database();
       const actor = await authenticate(req, res, db);
       if (!actor) return;
+      if (!isSuperAdministrator(actor)) throw requestError('只有超级管理员可以修改全局功能开关', 403);
       const updated = await withTransaction(db, async (tx) => {
         const current = await tx.one(`${FEATURE_FLAG_SELECT} WHERE f.flag_key=? FOR UPDATE`, [key]);
         if (!current) throw requestError('功能开关不存在；仅支持修改已审核的固定开关', 404);

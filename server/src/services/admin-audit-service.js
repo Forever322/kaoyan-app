@@ -73,7 +73,7 @@ export async function writeAdminAudit(db, {
 export function requestAuditMetadata(req) {
   const forwarded = String(req.get?.('x-forwarded-for') || '').split(',').at(-1).trim();
   return {
-    requestId: boundedText(req.get?.('x-request-id') || '', 128),
+    requestId: boundedText(req.requestId || req.get?.('x-request-id') || '', 128),
     ipAddress: boundedText(forwarded || req.ip || req.socket?.remoteAddress || '', 64),
     userAgent: boundedText(req.get?.('user-agent') || '', 512),
   };
