@@ -16,6 +16,18 @@ const PAGE_SIZE = 20;
 const DB_PAGE_SIZE = 25;
 const DB_EXPORT_FORMATS = ['csv', 'txt', 'sql', 'xlsx'];
 const DB_IMPORT_FORMATS = ['csv', 'txt', 'json', 'sql', 'xlsx', 'db'];
+const AGENT_EXTRACTION_CAPABILITIES = [
+  ['natural_language_ingest', '口述 / 文本抽取'],
+  ['file_ingest', '文件内容解析'],
+];
+const AGENT_REVIEW_CAPABILITIES = [
+  ['content_review', '内容合规审核'],
+  ['duplicate_detection', '重复数据检测'],
+  ['field_anomaly_check', '字段异常检查'],
+  ['referential_consistency_check', '关联一致性检查'],
+  ['repair_plan', '修复建议生成'],
+  ['operational_alerting', '运行异常告警'],
+];
 const DB_TABLE_PRIORITY = [
   'universities',
   'programs',
@@ -66,6 +78,14 @@ const state = {
     configurations: [],
     flags: [],
     tables: [],
+    modelSettings: {
+      data: null,
+      loading: false,
+      saving: false,
+      testing: false,
+      testResult: null,
+      error: '',
+    },
     tab: 'workbench',
     currentJob: null,
     draft: { instruction: '', table: '', mode: 'insert', format: 'csv', sourceType: 'text' },
@@ -656,7 +676,134 @@ function renderAgentAlert(alert) {
 function renderAgentSettings() {
   const configs = state.agents.configurations || [];
   const flags = state.agents.flags || [];
-  return `<section class="admin-section"><div class="admin-grid"><section class="admin-card"><header class="admin-card-head"><div><h2>智能体运行配置</h2><p>仅展示可安全调整的公开配置，不显示模型密钥。</p></div></header><div class="admin-card-body">${configs.length ? `<div class="admin-config-grid">${configs.map(renderConfiguration).join('')}</div>` : empty('暂无可管理的智能体配置')}</div></section><section class="admin-card"><header class="admin-card-head"><div><h2>功能开关</h2><p>关闭后新请求不会进入对应能力。</p></div></header><div class="admin-card-body">${flags.length ? `<div class="admin-issue-list">${flags.map(renderFlag).join('')}</div>` : empty('暂无功能开关')}</div></section></div><section class="admin-card"><header class="admin-card-head"><div><h2>管理原则</h2><p>AI 只能生成建议和待确认提案；模型没有数据库写权限。</p></div></header><div class="admin-card-body"><div class="admin-kpi-list"><div class="admin-kpi-row"><i class="admin-kpi-dot"></i><span class="admin-kpi-copy"><strong>配置安全</strong><small>API 密钥只保留在服务器环境变量中，后台不会读取或回显。</small></span></div><div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:#efaa56"></i><span class="admin-kpi-copy"><strong>变更可追溯</strong><small>配置、审核、入库和告警处置都会写入后台审计日志。</small></span></div></div></div></section></section>`;
+  const databaseManager = configs.find((item) => (item.key || item.configurationKey) === 'database-manager');
+  const otherConfigs = configs.filter((item) => item !== databaseManager);
+  return `<section class="admin-section admin-agent-settings">
+    ${renderAgentModelSettings()}
+    <section class="admin-card">
+      <header class="admin-card-head"><div><h2>工作流策略</h2><p>查看数据抽取、内容审核、人工确认与安全入库流程。</p></div>${databaseManager ? badge(databaseManager.enabled === true ? '启用' : '已停用') : ''}</header>
+      <div class="admin-card-body">${databaseManager ? renderDatabaseManagerWorkflow(databaseManager) : empty('暂无数据库管理 Agent 配置')}</div>
+    </section>
+    ${otherConfigs.length ? `<section class="admin-card"><header class="admin-card-head"><div><h2>其他智能体配置</h2><p>已审核的固定智能体策略。</p></div></header><div class="admin-card-body"><div class="admin-config-grid">${otherConfigs.map(renderConfiguration).join('')}</div></div></section>` : ''}
+    <div class="admin-grid admin-agent-settings-footer">
+      <section class="admin-card"><header class="admin-card-head"><div><h2>功能开关</h2><p>关闭后新请求不会进入对应能力。</p></div></header><div class="admin-card-body">${flags.length ? `<div class="admin-issue-list">${flags.map(renderFlag).join('')}</div>` : empty('暂无功能开关')}</div></section>
+      <section class="admin-card"><header class="admin-card-head"><div><h2>管理原则</h2><p>AI 只能生成建议和待确认提案；模型没有数据库写权限。</p></div></header><div class="admin-card-body"><div class="admin-kpi-list"><div class="admin-kpi-row"><i class="admin-kpi-dot"></i><span class="admin-kpi-copy"><strong>凭据安全</strong><small>密钥可由超级管理员替换或清除，但后台永远不会读取或回显明文。</small></span></div><div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:#efaa56"></i><span class="admin-kpi-copy"><strong>变更可追溯</strong><small>模型配置、工作流、审核、入库和告警处置都会写入后台审计日志。</small></span></div></div></div></section>
+    </div>
+  </section>`;
+}
+
+function renderAgentModelSettings() {
+  const modelState = state.agents.modelSettings;
+  const settings = modelState.data;
+  const canMutate = isSuperAdministrator();
+  if (modelState.loading && !settings) {
+    return `<section class="admin-card"><header class="admin-card-head"><div><h2>模型连接</h2><p>管理 Agent 共用的模型服务与服务器端凭据。</p></div></header>${loading('正在读取模型连接…')}</section>`;
+  }
+  if (!canMutate) {
+    return `<section class="admin-card"><header class="admin-card-head"><div><h2>模型连接</h2><p>模型与凭据属于全局敏感配置。</p></div>${badge('只读')}</header><div class="admin-card-body"><div class="admin-callout admin-callout--warning">只有超级管理员可以查看模型连接状态或修改 API Key。</div></div></section>`;
+  }
+  if (!settings) {
+    return `<section class="admin-card"><header class="admin-card-head"><div><h2>模型连接</h2><p>管理 Agent 共用的模型服务与服务器端凭据。</p></div></header><div class="admin-card-body">${modelState.error ? `<div class="admin-callout admin-callout--danger admin-callout--embedded">${html(modelState.error)}</div>` : empty('模型连接配置暂不可用')}</div></section>`;
+  }
+  const busy = modelState.loading || modelState.saving || modelState.testing;
+  const disabled = busy ? 'disabled' : '';
+  const credentialMode = settings.credentialMode || settings.credentialSource || (settings.keyConfigured ? 'database' : 'disabled');
+  const credentialSource = settings.credentialSource || credentialMode;
+  const keyStatus = credentialSource === 'environment'
+    ? '由服务器环境变量提供；在此保存新密钥后会切换为数据库加密凭据'
+    : credentialSource === 'disabled'
+      ? credentialMode === 'database' && settings.keyConfigured
+        ? '数据库凭据已保存，但当前服务器无法使用；请检查主密钥配置'
+        : '模型凭据已禁用或尚未配置'
+      : settings.keyConfigured
+      ? `数据库加密凭据已配置${settings.keyLastFour ? ` · ••••${html(settings.keyLastFour)}` : ''}`
+      : '未配置';
+  const credentialBadge = credentialSource === 'environment'
+    ? '环境密钥'
+    : credentialSource === 'disabled' ? '凭据已禁用' : settings.keyConfigured ? '数据库密钥' : '密钥未配置';
+  const credentialModeLabel = ({ database: '数据库加密', environment: '服务器环境变量', disabled: '已禁用' })[credentialMode] || '未知';
+  const testResult = modelState.testResult;
+  return `<section class="admin-card admin-model-settings-card">
+    <header class="admin-card-head"><div><h2>模型连接</h2><p>配置 Agent 调用的模型、兼容接口地址与 API Key。</p></div>${badge(credentialBadge)}</header>
+    <div class="admin-card-body">
+      ${credentialSource === 'environment' ? '<div class="admin-callout admin-callout--warning">当前模型调用由服务器环境变量控制。下面的连接参数会在你输入并保存新 API Key、切换为数据库加密凭据后生效。</div>' : ''}
+      ${settings.credentialEncryptionConfigured === false ? '<div class="admin-callout admin-callout--warning">服务器尚未配置模型凭据加密主密钥。环境凭据仍可测试，但在运维完成 AGENT_CREDENTIAL_ENCRYPTION_KEY 配置前不能保存新的 API Key。</div>' : ''}
+      <form id="agentModelSettingsForm" class="admin-model-form" autocomplete="off">
+        <div class="admin-agent-form-grid">
+          <div class="admin-field"><label for="agentModelProvider">服务商 *</label><input id="agentModelProvider" name="provider" list="agentModelProviders" maxlength="40" required value="${html(settings.provider || '')}" placeholder="deepseek" ${disabled} /><datalist id="agentModelProviders"><option value="deepseek"></option><option value="openai"></option><option value="azure-openai"></option><option value="custom"></option></datalist></div>
+          <div class="admin-field"><label for="agentModelName">模型 *</label><input id="agentModelName" name="model" maxlength="128" required value="${html(settings.model || '')}" placeholder="deepseek-chat" ${disabled} /></div>
+          <div class="admin-field admin-field--wide"><label for="agentModelBaseUrl">API 基础地址 *</label><input id="agentModelBaseUrl" name="baseUrl" type="url" maxlength="500" required value="${html(settings.baseUrl || '')}" placeholder="https://api.deepseek.com/v1" ${disabled} /><small class="admin-field-help">仅允许服务器白名单中的 HTTPS 模型域名；内网地址、IP、查询参数和非 443 端口会被拒绝。</small></div>
+          <div class="admin-field admin-field--wide"><label for="agentModelApiKey">API Key</label><input id="agentModelApiKey" name="apiKey" type="password" minlength="8" maxlength="2048" autocomplete="new-password" placeholder="留空则保留现有密钥" ${disabled} /><small class="admin-field-help">${keyStatus}。密钥只会提交到服务器保存，这个输入框不会回填明文。</small></div>
+        </div>
+        <div class="admin-model-actions">
+          <span class="admin-model-meta">凭据模式：${html(credentialModeLabel)} · 修订 ${number(settings.revision)}${settings.updatedAt ? ` · 更新于 ${html(isoTime(settings.updatedAt))}` : ''}<br />连接测试使用服务器当前已保存的配置</span>
+          <div>
+            <button class="admin-button admin-button--ghost admin-button--small" type="button" data-action="test-agent-model" ${settings.keyConfigured && !busy ? '' : 'disabled'}>${modelState.testing ? '<i class="admin-spinner"></i>正在测试…' : '测试连接'}</button>
+            ${credentialMode === 'database' && settings.canClearKey ? `<button class="admin-button admin-button--danger admin-button--small" type="button" data-action="clear-agent-api-key" ${settings.keyConfigured && !busy ? '' : 'disabled'}>清除密钥</button>` : ''}
+            <button class="admin-button admin-button--lime admin-button--small" type="submit" ${disabled}>${modelState.saving ? '<i class="admin-spinner"></i>正在保存…' : '保存模型配置'}</button>
+          </div>
+        </div>
+      </form>
+      ${testResult ? renderAgentModelTestResult(testResult) : ''}
+    </div>
+  </section>`;
+}
+
+function renderAgentModelTestResult(result) {
+  const ok = result.ok === true;
+  const details = [result.provider, result.model, result.durationMs === undefined ? '' : durationLabel(result.durationMs)].filter(Boolean);
+  return `<div class="admin-model-test admin-model-test--${ok ? 'success' : 'error'}" role="status"><span class="admin-model-test-icon">${ok ? '✓' : '!'}</span><span><strong>${ok ? '模型连接测试通过' : '模型连接测试失败'}</strong><small>${html(details.join(' · ') || (ok ? '服务响应正常' : '服务未通过连接检查'))}${!ok && result.errorCode ? ` · 错误码：${html(result.errorCode)}` : ''}</small></span></div>`;
+}
+
+function renderDatabaseManagerWorkflow(item) {
+  const settings = item.settings || {};
+  const capabilities = new Set(Array.isArray(settings.capabilities) ? settings.capabilities : []);
+  const supportedFormats = new Set(Array.isArray(settings.supportedFormats) ? settings.supportedFormats : []);
+  const canMutate = isSuperAdministrator();
+  const safe = settings.writeAccess === false && settings.requiresHumanConfirmation === true;
+  const key = item.key || item.configurationKey || 'database-manager';
+  const runtimeFlag = state.agents.flags.find((flag) => (flag.key || flag.flagKey) === 'agent-database-manager');
+  const rolloutPercentage = number(runtimeFlag?.rolloutPercentage, 100);
+  const runtimeEnabled = item.enabled === true && runtimeFlag?.enabled === true && rolloutPercentage > 0;
+  const json = JSON.stringify(settings, null, 2);
+  const capabilityStatus = (options) => options.map(([value, label]) => `<span class="admin-workflow-chip${capabilities.has(value) ? ' is-on' : ''}">${capabilities.has(value) ? '✓' : '–'} ${html(label)}</span>`).join('');
+  return `<div class="admin-workflow-editor" data-workflow-key="${html(key)}">
+    <div class="admin-workflow-status-grid">
+      <div class="admin-workflow-summary ${safe ? 'is-safe' : 'is-unsafe'}"><span class="admin-workflow-summary-icon">${safe ? '✓' : '!'}</span><span><strong>${safe ? '安全边界已锁定' : '安全边界配置异常'}</strong><small>必须人工确认，模型无直接数据库写权限。</small></span></div>
+      <div class="admin-workflow-summary ${runtimeEnabled ? 'is-safe' : 'is-paused'}"><span class="admin-workflow-summary-icon">${runtimeEnabled ? '●' : 'Ⅱ'}</span><span><strong>${runtimeEnabled ? '工作流正在运行' : '工作流当前受限'}</strong><small>Agent ${item.enabled === true ? '已启用' : '已停用'} · 功能开关 ${runtimeFlag?.enabled === true ? '已开启' : '已关闭'} · 发布 ${rolloutPercentage}%</small></span></div>
+    </div>
+    <div class="admin-workflow-note">以下四个阶段是服务端固定安全链；能力标签、格式和数值来自策略元数据，仅用于状态展示，不是可关闭的运行时检查。</div>
+    <div class="admin-workflow-stages">
+      <article class="admin-workflow-stage">
+        <header><span>01</span><div><strong>数据抽取</strong><small>将口述、文本或文件转换为结构化待审数据。</small></div></header>
+        <div class="admin-workflow-options">${capabilityStatus(AGENT_EXTRACTION_CAPABILITIES)}</div>
+        <div class="admin-workflow-subsection"><strong>策略元数据 · 文件格式</strong><div class="admin-workflow-formats">${DB_IMPORT_FORMATS.map((format) => `<span class="${supportedFormats.has(format) ? 'is-on' : ''}">${databaseFormatLabel(format)}</span>`).join('')}</div></div>
+      </article>
+      <article class="admin-workflow-stage">
+        <header><span>02</span><div><strong>自动审核</strong><small>在进入人工确认前运行数据质量与内容检查。</small></div></header>
+        <div class="admin-workflow-options">${capabilityStatus(AGENT_REVIEW_CAPABILITIES)}</div>
+        <div class="admin-workflow-value"><span><strong>预览策略元数据</strong><small>管理台记录的最大预览行数</small></span><em>${number(settings.maxPreviewRows, 20)} 行</em></div>
+      </article>
+      <article class="admin-workflow-stage admin-workflow-stage--locked">
+        <header><span>03</span><div><strong>人工确认</strong><small>超级管理员核对风险、行数与校验和。</small></div></header>
+        <label class="admin-safety-lock"><input type="checkbox" checked disabled /><span><strong>必须人工确认</strong><small>requiresHumanConfirmation = true</small></span><em>强制</em></label>
+        <div class="admin-workflow-note">任何模型输出都只能形成待审提案，不能绕过确认步骤。</div>
+      </article>
+      <article class="admin-workflow-stage admin-workflow-stage--locked">
+        <header><span>04</span><div><strong>安全入库</strong><small>复核数据库状态后，由服务器事务执行写入。</small></div></header>
+        <label class="admin-safety-lock"><input type="checkbox" checked disabled /><span><strong>禁止模型直接写库</strong><small>writeAccess = false</small></span><em>强制</em></label>
+        <div class="admin-workflow-value"><span><strong>暂存策略元数据</strong><small>配置中记录的待审保留周期</small></span><em>${number(settings.stagingTtlHours, 24)} 小时</em></div>
+      </article>
+    </div>
+    <details class="admin-config-advanced">
+      <summary>高级 JSON 策略元数据</summary>
+      <p>用于审计、兼容和界面展示，不代表所有字段都会改变运行时行为。Agent 启停与发布比例请使用本页实际控制项；安全边界字段不能修改。</p>
+      <label class="admin-config-label" for="agent-settings-${html(key)}">完整公开策略</label>
+      <textarea class="admin-config-json" id="agent-settings-${html(key)}" data-config-settings="${html(key)}" spellcheck="false" ${canMutate ? '' : 'readonly'}>${html(json)}</textarea>
+      ${canMutate ? '<button class="admin-button admin-button--ghost admin-button--small" type="button" data-action="save-config" data-key="database-manager">保存高级 JSON</button>' : ''}
+    </details>
+    ${canMutate ? `<div class="admin-workflow-actions"><span>Agent 启停会在下一次模型调用和数据库写入前生效；发布范围由下方功能开关控制。</span><button class="admin-button admin-button--${item.enabled === true ? 'danger' : 'lime'} admin-button--small" type="button" data-action="toggle-agent-config" data-key="${html(key)}" data-enabled="${item.enabled === true}">${item.enabled === true ? '停用 Agent' : '启用 Agent'}</button></div>` : '<small class="admin-table-note">仅超级管理员可修改工作流运行状态</small>'}
+  </div>`;
 }
 
 function renderConfiguration(item) {
@@ -673,14 +820,15 @@ function renderConfiguration(item) {
 function renderFlag(item) {
   const key = item.key || item.flagKey || '';
   const enabled = item.enabled === true || item.value === true || item.value === 'true';
+  const rolloutPercentage = Math.max(0, Math.min(100, number(item.rolloutPercentage, 100)));
   const protectedConsole = key === 'admin-console';
   const canMutate = state.user?.role === 'super_admin';
   const control = protectedConsole
     ? '<small class="admin-table-note">紧急开关仅允许服务器运维恢复</small>'
     : !canMutate
-      ? '<small class="admin-table-note">仅超级管理员可修改全局功能开关</small>'
-    : `<button class="admin-button admin-button--ghost admin-button--small" data-action="toggle-flag" data-key="${html(key)}" data-enabled="${enabled}">${enabled ? '关闭功能' : '启用功能'}</button>`;
-  return `<article class="admin-issue"><div class="admin-issue-meta"><strong>${html(item.displayName || item.label || key)}</strong>${badge(enabled ? '启用' : '已停用')}</div><p>${html(item.description || '平台功能控制开关')}</p>${control}</article>`;
+      ? `<small class="admin-table-note">发布比例 ${rolloutPercentage}% · 仅超级管理员可修改</small>`
+      : `<div class="admin-flag-controls"><label><span>发布比例</span><span class="admin-rollout-input"><input type="number" min="0" max="100" step="1" value="${rolloutPercentage}" data-flag-rollout="${html(key)}" aria-label="${html(item.displayName || key)}发布比例" /><em>%</em></span></label><button class="admin-button admin-button--ghost admin-button--small" data-action="save-flag-rollout" data-key="${html(key)}">保存比例</button><button class="admin-button admin-button--${enabled ? 'danger' : 'lime'} admin-button--small" data-action="toggle-flag" data-key="${html(key)}" data-enabled="${enabled}">${enabled ? '关闭功能' : '启用功能'}</button></div>`;
+  return `<article class="admin-issue admin-flag-card"><div class="admin-issue-meta"><strong>${html(item.displayName || item.label || key)}</strong>${badge(enabled ? (rolloutPercentage > 0 ? '启用' : '发布暂停') : '已停用')}</div><p>${html(item.description || '平台功能控制开关')}</p>${control}</article>`;
 }
 
 function renderQuality() {
@@ -925,10 +1073,17 @@ async function loadUsers({ page = state.users.page } = {}) {
 }
 
 async function loadAgents() {
+  const canReadOperations = isSuperAdministrator();
   state.agents.loading = true;
+  state.agents.modelSettings = {
+    ...state.agents.modelSettings,
+    data: canReadOperations ? state.agents.modelSettings.data : null,
+    loading: canReadOperations,
+    testResult: canReadOperations ? state.agents.modelSettings.testResult : null,
+    error: '',
+  };
   render();
   try {
-    const canReadOperations = isSuperAdministrator();
     const results = await Promise.allSettled([
       adminRequest('/api/admin/agent-configurations'),
       adminRequest('/api/admin/feature-flags'),
@@ -942,6 +1097,9 @@ async function loadAgents() {
       canReadOperations
         ? adminRequest(`/api/admin/alerts?page=${state.agents.alerts.page}&pageSize=${state.agents.alerts.pageSize}&status=${encodeURIComponent(state.agents.alerts.status)}`)
         : Promise.resolve({ page: 1, pageSize: PAGE_SIZE, total: 0, data: [] }),
+      canReadOperations
+        ? adminRequest('/api/admin/agent-model-settings')
+        : Promise.resolve(null),
     ]);
     const value = (index, fallback = {}) => results[index].status === 'fulfilled' ? results[index].value : fallback;
     const configPayload = value(0);
@@ -950,6 +1108,8 @@ async function loadAgents() {
     const jobsPayload = value(3);
     const runsPayload = value(4);
     const alertsPayload = value(5);
+    const modelPayload = value(6, null);
+    const modelFailure = results[6].status === 'rejected' ? results[6].reason : null;
     state.agents = {
       ...state.agents,
       configurations: unwrapList(configPayload, ['configurations', 'data']),
@@ -958,14 +1118,78 @@ async function loadAgents() {
       jobs: { ...state.agents.jobs, ...paginationOf(jobsPayload, state.agents.jobs), data: unwrapList(jobsPayload), loading: false },
       runs: { ...state.agents.runs, ...paginationOf(runsPayload, state.agents.runs), data: unwrapList(runsPayload), loading: false },
       alerts: { ...state.agents.alerts, ...paginationOf(alertsPayload, state.agents.alerts), openTotal: number(alertsPayload?.total), data: unwrapList(alertsPayload), loading: false },
+      modelSettings: {
+        ...state.agents.modelSettings,
+        data: modelPayload ? normalizeAgentModelSettings(modelPayload) : state.agents.modelSettings.data,
+        loading: false,
+        error: modelFailure ? requestErrorMessage(modelFailure) : '',
+      },
       loading: false,
     };
-    const failure = results.find((result) => result.status === 'rejected');
+    const failure = results.slice(0, 6).find((result) => result.status === 'rejected');
     if (failure) handleAdminError(failure.reason);
+    else if (modelFailure instanceof ApiError && modelFailure.status === 401) handleAdminError(modelFailure);
     else state.accessDenied = false;
   } catch (error) {
     state.agents.loading = false;
     handleAdminError(error);
+  }
+  render();
+}
+
+function normalizeAgentModelSettings(payload) {
+  const source = payload?.settings || payload?.data || payload || {};
+  const environmentFallbackConfigured = payload?.environmentFallbackConfigured === true
+    || source.environmentFallbackConfigured === true;
+  const credentialMode = ['database', 'environment', 'disabled'].includes(source.credentialMode)
+    ? source.credentialMode
+    : (['database', 'environment', 'disabled'].includes(source.credentialSource)
+      ? source.credentialSource
+      : (source.keyConfigured === true ? 'database' : environmentFallbackConfigured ? 'environment' : 'disabled'));
+  const storedKeyConfigured = source.keyConfigured === true;
+  const credentialSource = ['database', 'environment', 'disabled'].includes(source.credentialSource)
+    ? source.credentialSource
+    : credentialMode === 'environment'
+      ? (environmentFallbackConfigured ? 'environment' : 'disabled')
+      : credentialMode === 'database' && storedKeyConfigured ? 'database' : 'disabled';
+  const keyConfigured = storedKeyConfigured || credentialSource === 'environment';
+  return {
+    provider: String(source.provider || ''),
+    baseUrl: String(source.baseUrl || ''),
+    model: String(source.model || ''),
+    keyConfigured,
+    keyLastFour: storedKeyConfigured ? String(source.keyLastFour || '').slice(-4) : '',
+    credentialMode,
+    credentialSource,
+    canClearKey: source.canClearKey === true
+      || (source.canClearKey === undefined && credentialMode === 'database' && storedKeyConfigured),
+    credentialEncryptionConfigured: payload?.credentialEncryptionConfigured !== false
+      && source.credentialEncryptionConfigured !== false,
+    environmentFallbackConfigured,
+    revision: Math.max(0, Math.trunc(number(source.revision))),
+    updatedAt: source.updatedAt || null,
+  };
+}
+
+async function loadAgentModelSettings() {
+  if (!isSuperAdministrator()) return;
+  state.agents.modelSettings = { ...state.agents.modelSettings, loading: true, error: '' };
+  render();
+  try {
+    const payload = await adminRequest('/api/admin/agent-model-settings');
+    state.agents.modelSettings = {
+      ...state.agents.modelSettings,
+      data: normalizeAgentModelSettings(payload),
+      loading: false,
+      error: '',
+    };
+  } catch (error) {
+    state.agents.modelSettings = {
+      ...state.agents.modelSettings,
+      loading: false,
+      error: requestErrorMessage(error),
+    };
+    if (error instanceof ApiError && error.status === 401) handleAdminError(error);
   }
   render();
 }
@@ -1078,6 +1302,7 @@ function handleAdminError(error) {
   if (error instanceof ApiError && error.status === 401) {
     state.user = getAuthenticatedUser();
     state.accessDenied = false;
+    state.agents.modelSettings = { ...state.agents.modelSettings, data: null, testResult: null, error: '' };
     render();
     return;
   }
@@ -1519,6 +1744,17 @@ async function patchUser(id, body) {
   }
 }
 
+function findUnsafeAgentSettingPath(value, path = []) {
+  if (!value || typeof value !== 'object') return '';
+  for (const [key, child] of Object.entries(value)) {
+    const nextPath = [...path, key];
+    if (/(?:url|endpoint|tool|sql|prompt|instruction|command|script)/iu.test(key)) return nextPath.join('.');
+    const nested = findUnsafeAgentSettingPath(child, nextPath);
+    if (nested) return nested;
+  }
+  return '';
+}
+
 async function saveAgentConfig(key) {
   const input = [...root.querySelectorAll('[data-config-settings]')]
     .find((node) => node.dataset.configSettings === key);
@@ -1534,12 +1770,154 @@ async function saveAgentConfig(key) {
     showToast('策略设置必须是 JSON 对象', { error: true });
     return;
   }
+  if (key === 'database-manager'
+    && (settings.writeAccess !== false || settings.requiresHumanConfirmation !== true)) {
+    showToast('安全边界不能修改：必须保持人工确认且禁止模型直接写库', { error: true });
+    return;
+  }
+  const unsafePath = key === 'database-manager' ? findUnsafeAgentSettingPath(settings) : '';
+  if (unsafePath) {
+    showToast(`高级策略不能定义地址、工具、SQL、提示词或命令：${unsafePath}`, { error: true });
+    return;
+  }
   try {
     await adminRequest(`/api/admin/agent-configurations/${encodeURIComponent(key)}`, { method: 'PATCH', body: { settings } });
     showToast('智能体配置已保存');
     await loadAgents();
   } catch (error) {
     showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function saveAgentModelSettings(form) {
+  if (!isSuperAdministrator() || state.agents.modelSettings.loading
+    || state.agents.modelSettings.saving || state.agents.modelSettings.testing) return;
+  const fields = new FormData(form);
+  const provider = String(fields.get('provider') || '').trim();
+  const baseUrl = String(fields.get('baseUrl') || '').trim();
+  const model = String(fields.get('model') || '').trim();
+  const apiKey = String(fields.get('apiKey') || '');
+  if (!provider || !baseUrl || !model) {
+    showToast('请填写服务商、API 基础地址和模型', { error: true });
+    return;
+  }
+  if (apiKey && (apiKey.length < 8 || apiKey.trim() !== apiKey || /\s/u.test(apiKey))) {
+    showToast('API Key 不能包含空白字符，且至少需要 8 个字符', { error: true });
+    return;
+  }
+  const currentSettings = state.agents.modelSettings.data;
+  if (apiKey && currentSettings?.credentialEncryptionConfigured === false) {
+    showToast('服务器尚未配置凭据加密主密钥，暂时不能保存 API Key', { error: true });
+    return;
+  }
+  const settingsChanged = currentSettings
+    && (provider !== currentSettings.provider || baseUrl !== currentSettings.baseUrl || model !== currentSettings.model);
+  if (!apiKey && !settingsChanged) {
+    showToast('模型配置没有变化');
+    return;
+  }
+  if (!apiKey && settingsChanged && currentSettings.credentialMode !== 'database') {
+    showToast('环境或禁用凭据模式下，修改模型配置必须输入 API Key 并切换为数据库加密凭据', { error: true });
+    return;
+  }
+  const endpointChanged = currentSettings
+    && (provider !== currentSettings.provider || baseUrl !== currentSettings.baseUrl);
+  if (!apiKey && endpointChanged && currentSettings.credentialMode === 'database' && currentSettings.keyConfigured) {
+    showToast('修改服务商或 API 地址时必须重新输入 API Key', { error: true });
+    return;
+  }
+  const replaceMessage = currentSettings?.credentialSource === 'environment'
+    ? '确认保存新的模型 API Key？保存后将从服务器环境变量切换为数据库加密凭据。'
+    : '确认替换当前模型 API Key？保存后无法从后台读取原密钥。';
+  if (apiKey && currentSettings?.keyConfigured && !window.confirm(replaceMessage)) return;
+  const body = {
+    provider,
+    baseUrl,
+    model,
+    credentialMode: apiKey ? 'database' : currentSettings.credentialMode,
+    expectedRevision: number(currentSettings?.revision),
+  };
+  if (apiKey) {
+    body.apiKey = apiKey;
+  }
+  state.agents.modelSettings = { ...state.agents.modelSettings, saving: true, testResult: null, error: '' };
+  render();
+  try {
+    await adminRequest('/api/admin/agent-model-settings', { method: 'PATCH', body });
+    state.agents.modelSettings.saving = false;
+    showToast(apiKey ? '模型配置和新密钥已保存' : '模型配置已保存，原密钥保持不变');
+    await loadAgentModelSettings();
+  } catch (error) {
+    state.agents.modelSettings = { ...state.agents.modelSettings, saving: false };
+    showToast(requestErrorMessage(error), { error: true });
+    if (error instanceof ApiError && error.status === 409) await loadAgentModelSettings();
+  }
+}
+
+async function clearAgentApiKey() {
+  if (!isSuperAdministrator() || !state.agents.modelSettings.data?.keyConfigured
+    || state.agents.modelSettings.loading || state.agents.modelSettings.saving || state.agents.modelSettings.testing
+    || state.agents.modelSettings.data?.credentialMode !== 'database'
+    || !state.agents.modelSettings.data?.canClearKey) return;
+  if (!window.confirm('确认清除数据库保存的模型 API Key？清除后此配置会进入凭据禁用状态，Agent 模型调用将停止，且无法恢复原密钥。')) return;
+  const settings = state.agents.modelSettings.data;
+  state.agents.modelSettings = { ...state.agents.modelSettings, saving: true, testResult: null, error: '' };
+  render();
+  try {
+    await adminRequest('/api/admin/agent-model-settings', {
+      method: 'PATCH',
+      body: {
+        provider: settings.provider,
+        baseUrl: settings.baseUrl,
+        model: settings.model,
+        clearApiKey: true,
+        credentialMode: 'disabled',
+        expectedRevision: number(settings.revision),
+      },
+    });
+    state.agents.modelSettings.saving = false;
+    showToast('数据库模型 API Key 已清除，正在重新读取生效来源');
+    await loadAgentModelSettings();
+  } catch (error) {
+    state.agents.modelSettings = { ...state.agents.modelSettings, saving: false };
+    showToast(requestErrorMessage(error), { error: true });
+    if (error instanceof ApiError && error.status === 409) await loadAgentModelSettings();
+  }
+}
+
+async function testAgentModelConnection() {
+  if (!isSuperAdministrator() || !state.agents.modelSettings.data?.keyConfigured
+    || state.agents.modelSettings.loading || state.agents.modelSettings.saving || state.agents.modelSettings.testing) return;
+  state.agents.modelSettings = { ...state.agents.modelSettings, testing: true, testResult: null, error: '' };
+  render();
+  try {
+    const payload = await adminRequest('/api/admin/agent-model-settings/test', { method: 'POST' });
+    const result = payload?.result || payload || {};
+    state.agents.modelSettings = {
+      ...state.agents.modelSettings,
+      testing: false,
+      testResult: {
+        ok: result.ok === true,
+        provider: String(result.provider || ''),
+        model: String(result.model || ''),
+        durationMs: number(result.durationMs ?? result.latencyMs),
+        errorCode: String(result.errorCode || ''),
+      },
+    };
+    showToast(result.ok === true ? '模型连接测试通过' : '模型连接测试失败', { error: result.ok !== true });
+  } catch (error) {
+    state.agents.modelSettings = {
+      ...state.agents.modelSettings,
+      testing: false,
+      testResult: {
+        ok: false,
+        provider: state.agents.modelSettings.data?.provider || '',
+        model: state.agents.modelSettings.data?.model || '',
+        durationMs: 0,
+        errorCode: String(error?.code || (error?.status ? `HTTP_${error.status}` : 'REQUEST_FAILED')),
+      },
+    };
+    showToast('模型连接测试失败', { error: true });
   }
 }
 
@@ -1557,6 +1935,24 @@ async function setFlag(key, enabled) {
   try {
     await adminRequest(`/api/admin/feature-flags/${encodeURIComponent(key)}`, { method: 'PATCH', body: { enabled } });
     showToast(enabled ? '功能已启用' : '功能已关闭');
+    await loadAgents();
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function saveFlagRollout(key) {
+  if (!isSuperAdministrator()) return;
+  const input = [...root.querySelectorAll('[data-flag-rollout]')]
+    .find((node) => node.dataset.flagRollout === key);
+  const rolloutPercentage = Number(input?.value);
+  if (!Number.isInteger(rolloutPercentage) || rolloutPercentage < 0 || rolloutPercentage > 100) {
+    showToast('发布比例必须是 0–100 的整数', { error: true });
+    return;
+  }
+  try {
+    await adminRequest(`/api/admin/feature-flags/${encodeURIComponent(key)}`, { method: 'PATCH', body: { rolloutPercentage } });
+    showToast(`发布比例已调整为 ${rolloutPercentage}%`);
     await loadAgents();
   } catch (error) {
     showToast(requestErrorMessage(error), { error: true });
@@ -1591,6 +1987,7 @@ function render() {
 document.addEventListener('submit', (event) => {
   const form = event.target;
   if (form.id === 'adminLoginForm') { event.preventDefault(); void handleLogin(form); }
+  if (form.id === 'agentModelSettingsForm') { event.preventDefault(); void saveAgentModelSettings(form); }
   if (form.id === 'schoolForm') { event.preventDefault(); void saveSchool(form); }
   if (form.id === 'dbRowForm') { event.preventDefault(); void saveDatabaseRow(form); }
   if (form.id === 'dbImportForm') { event.preventDefault(); void importDatabaseTable(form); }
@@ -1632,7 +2029,15 @@ document.addEventListener('click', (event) => {
   if (button.classList.contains('admin-modal-backdrop') && event.target !== button) return;
   const { action } = button.dataset;
   if (action === 'toggle-menu') { state.menuOpen = !state.menuOpen; render(); return; }
-  if (action === 'logout') { void logout().finally(() => { state.user = null; state.accessDenied = false; render(); }); return; }
+  if (action === 'logout') {
+    void logout().finally(() => {
+      state.user = null;
+      state.accessDenied = false;
+      state.agents.modelSettings = { ...state.agents.modelSettings, data: null, testResult: null, error: '' };
+      render();
+    });
+    return;
+  }
   if (action === 'refresh') { void loadActiveSection(); return; }
   if (action === 'open-agent-workbench') { state.agents.tab = 'workbench'; render(); return; }
   if (action === 'agent-tab') {
@@ -1659,6 +2064,8 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'set-agent-alert-status') { void setAgentAlertStatus(button.dataset.id, button.dataset.status); return; }
+  if (action === 'test-agent-model') { void testAgentModelConnection(); return; }
+  if (action === 'clear-agent-api-key') { void clearAgentApiKey(); return; }
   if (action === 'audit-tab') {
     state.audit.tab = button.dataset.tab === 'access' ? 'access' : 'operations';
     render();
@@ -1704,6 +2111,7 @@ document.addEventListener('click', (event) => {
   if (action === 'save-config') { void saveAgentConfig(button.dataset.key); return; }
   if (action === 'toggle-agent-config') { void setAgentConfiguration(button.dataset.key, button.dataset.enabled !== 'true'); return; }
   if (action === 'toggle-flag') { void setFlag(button.dataset.key, button.dataset.enabled !== 'true'); return; }
+  if (action === 'save-flag-rollout') { void saveFlagRollout(button.dataset.key); return; }
   if (action === 'refresh-quality') { void loadQuality({ page: state.quality.page }); return; }
   if (action === 'resolve-issue') { void resolveIssue(number(button.dataset.id)); return; }
   if (action === 'refresh-audit') { void loadAudit({ page: state.audit.page }); return; }

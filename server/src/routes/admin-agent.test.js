@@ -279,6 +279,10 @@ test('文字口述先生成持久化审核任务，不会在审核阶段写业�
   const router = createAdminAgentRouter({
     database: async () => db,
     authenticate: async () => superAdmin,
+    resolveModelRuntime: async () => ({
+      provider: 'test-provider', baseUrl: 'https://example.com/v1', model: 'test-model', apiKey: 'test-only-key',
+      source: 'database', profileKey: 'default', profileRevision: 1, credentialVersion: 1,
+    }),
     generateRows: async ({ table, instruction }) => {
       assert.equal(table, 'universities');
       assert.match(instruction, /测试大学/);
