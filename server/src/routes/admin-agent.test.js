@@ -103,7 +103,7 @@ function stagedJob(rows, overrides = {}) {
     checksum: checksumRows(rows),
     normalized_rows_json: JSON.stringify(rows),
     review_json: JSON.stringify({
-      status: 'passed', riskLevel: 'low', issues: [], policyVersion: '2026-08-11.3',
+      status: 'passed', riskLevel: 'low', issues: [], policyVersion: '2026-08-11.4',
       databaseStateChecksum: emptyDatabaseStateChecksum(rows),
     }),
     model: 'stub-model',
@@ -153,6 +153,7 @@ function createAgentDb({
     },
     all: async (sql, params = []) => {
       calls.push({ kind: 'all', sql, params });
+      if (sql.includes('information_schema.tables')) return [tableRow];
       if (sql.includes('information_schema.columns')) return metadataColumns;
       if (sql.includes('information_schema.statistics')) return metadataIndexes;
       if (sql.includes('information_schema.key_column_usage')) return metadataForeignKeys;
@@ -323,6 +324,55 @@ test('文字口述先生成持久化审核任务，不会在审核阶段写业�
   assert.equal(audits[0].action, 'database_agent.review');
 });
 
+test('文件审核留空目标表时会自动识别可写数据表并继续审核', async () => {
+  const scenario = createAgentDb({
+    metadataColumns: [
+      ...columnRows.slice(0, 3),
+      {
+        column_name: 'zone', data_type: 'enum', column_type: "enum('A','B')", is_nullable: 'NO',
+        column_default: null, column_key: '', extra: '', character_maximum_length: 1,
+      },
+      {
+        column_name: 'level', data_type: 'enum', column_type: "enum('985','211','双一流','双非')", is_nullable: 'NO',
+        column_default: null, column_key: '', extra: '', character_maximum_length: 3,
+      },
+      ...columnRows.slice(3),
+    ],
+  });
+  const audits = [];
+  const router = createAdminAgentRouter({
+    database: async () => scenario.db,
+    authenticate: async () => superAdmin,
+    resolveModelRuntime: async () => ({ model: 'unconfigured', apiKey: '' }),
+    collectWebEvidence: async () => ({
+      enabled: false, searchEnabled: false, fetchEnabled: false, queries: [], results: [], pages: [], errors: [],
+    }),
+    audit: async (_db, event) => { audits.push(event); },
+  });
+  await withRouter(router, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/database-agent/reviews`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sourceType: 'file',
+        format: 'json',
+        mode: 'insert',
+        sourceName: 'auto-universities.json',
+        rows: [{ name: '自动识别大学', province: '北京', zone: 'A', level: '双非' }],
+      }),
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 201, JSON.stringify(payload));
+    assert.equal(payload.job.targetTable, 'universities');
+    assert.equal(payload.job.review.tableSelection.table, 'universities');
+    assert.equal(payload.job.review.tableSelection.method, 'heuristic');
+    assert.equal(payload.job.status, 'awaiting_confirmation');
+  });
+  assert.equal(scenario.state.job.target_table, 'universities');
+  assert.equal(scenario.calls.some((call) => call.kind === 'execute' && /INSERT INTO `universities`/iu.test(call.sql)), false);
+  assert.equal(audits[0].metadata.targetTable, 'universities');
+});
+
 test('匹配审核校验和只写入一次并记录一次 apply 审计，重复执行被拒绝', async () => {
   const rows = [{ name: '待写入大学', province: '上海', source_document_id: '12', verification_status: 'pending' }];
   const { db, calls, state } = createAgentDb({ initialJob: stagedJob(rows) });
@@ -370,7 +420,7 @@ test('upsert 显式更新已审核实体并在变更日志保存 before/after �
     verification_status: 'pending', status: 'active',
   };
   const review = {
-    status: 'warning', riskLevel: 'medium', issues: [], policyVersion: '2026-08-11.3',
+    status: 'warning', riskLevel: 'medium', issues: [], policyVersion: '2026-08-11.4',
     databaseStateChecksum: databaseStateChecksum(rows, [before]),
   };
   const scenario = createAgentDb({

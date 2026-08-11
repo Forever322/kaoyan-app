@@ -19,6 +19,7 @@ const MIGRATIONS = [
   { version: '006-database-manager-agent', file: 'migrations/006-database-manager-agent.sql' },
   { version: '007-admin-agent-operations', file: 'migrations/007-admin-agent-operations.sql' },
   { version: '008-agent-model-profiles', file: 'migrations/008-agent-model-profiles.sql' },
+  { version: '009-database-agent-autodiscovery-web-research', file: 'migrations/009-database-agent-autodiscovery-web-research.sql' },
 ];
 
 let dbPromise = null;
@@ -175,6 +176,20 @@ function splitStatements(sql) {
   return sql.split(/;\s*(?:\r?\n|$)/).map((statement) => statement.trim()).filter(Boolean);
 }
 
+function sha256(source) {
+  return createHash('sha256').update(source).digest('hex');
+}
+
+export function migrationChecksumForSource(source) {
+  return sha256(String(source || '').replace(/\r\n?/gu, '\n'));
+}
+
+function migrationChecksumMatches(appliedChecksum, source) {
+  const normalized = migrationChecksumForSource(source);
+  const legacyRaw = sha256(source);
+  return [normalized, legacyRaw].includes(String(appliedChecksum || ''));
+}
+
 function isRetryableAlreadyAppliedDdl(error) {
   // MySQL 8.4 does not support `ADD COLUMN IF NOT EXISTS` in the form used by
   // multi-column ALTER statements. When a deployment is interrupted after a
@@ -196,10 +211,10 @@ async function ensureMigrationTable(db) {
 async function runMigration(db, migration) {
   const path = join(__dirname, migration.file);
   const source = await readFile(path, 'utf8');
-  const checksum = createHash('sha256').update(source).digest('hex');
+  const checksum = migrationChecksumForSource(source);
   const applied = await db.one('SELECT version, checksum FROM schema_migrations WHERE version=?', [migration.version]);
   if (applied) {
-    if (applied.checksum !== checksum) {
+    if (!migrationChecksumMatches(applied.checksum, source)) {
       throw new Error(`迁移文件 ${migration.version} 已被修改。请新增迁移文件，不能改写已部署迁移。`);
     }
     return false;
@@ -234,11 +249,10 @@ export async function assertMigrationsCurrent() {
   const applied = new Map(rows.map((row) => [row.version, row.checksum]));
   for (const migration of MIGRATIONS) {
     const source = await readFile(join(__dirname, migration.file), 'utf8');
-    const checksum = createHash('sha256').update(source).digest('hex');
     if (!applied.has(migration.version)) {
       throw new Error(`MySQL 缺少迁移 ${migration.version}：请先运行 api-migrate（或 pnpm db:migrate）`);
     }
-    if (applied.get(migration.version) !== checksum) {
+    if (!migrationChecksumMatches(applied.get(migration.version), source)) {
       throw new Error(`MySQL 迁移 ${migration.version} 的校验和不匹配：请检查发布版本，不能跳过迁移`);
     }
   }

@@ -261,6 +261,125 @@ function visibleIssues(issues) {
     .slice(0, MAX_REVIEW_ISSUES);
 }
 
+const TABLE_HINTS = Object.freeze({
+  universities: ['院校', '学校', '大学', '学院', '985', '211', '双一流', '分区', 'province', 'institution_code'],
+  uni_details: ['简介', '官网', '地址', '电话', '优势', '劣势', '排名', 'english_name', 'website', 'description'],
+  uni_photos: ['照片', '图片', '校园', 'filename', 'source_url', 'license_url', 'attribution'],
+  national_lines: ['国家线', '国家分数线', 'a区线', 'b区线', 'degree', 'category', 'zone', 'score'],
+  admission_scores: ['录取分数', '院线', '录取线', '历年分数', 'university_id', 'year', 'score'],
+  uni_requirements: ['报考要求', '招生要求', '同等学力', '跨考', '加试', 'requirement'],
+  university_aliases: ['别名', '曾用名', '历史名称', 'alias_name', 'alias_type'],
+  campuses: ['校区', '校园地址', '邮编', '经纬度', 'campus', 'postal_code', 'latitude', 'longitude'],
+  academic_units: ['学院', '院系', '研究院', '学部', 'academic_unit', 'unit_type', 'parent_id'],
+  programs: ['专业目录', '专业代码', '研究方向', 'discipline_code', 'program_type', 'direction'],
+  program_offerings: ['招生计划', '招生人数', '推免', '学制', '学费', '统考', 'enrollment_plan', 'tuition_fee'],
+  exam_subjects: ['考试科目', '参考书', '科目代码', 'subject_code', 'full_score', 'reference_books'],
+  admission_statistics: ['报录比', '录取人数', '报名人数', '平均分', '最高分', '最低分', 'admitted_count', 'average_score'],
+  score_lines: ['复试线', '分数线', '单科线', '总分线', 'politics_line', 'foreign_language_line', 'total_score'],
+  retest_rules: ['复试办法', '复试比例', '初试权重', '面试权重', '调剂政策', 'retest_mode', 'interview_weight'],
+});
+
+function normalizedSearchText(value) {
+  return String(value || '').trim().toLocaleLowerCase('zh-CN');
+}
+
+function tableHintMatches(tableName, text) {
+  const hints = TABLE_HINTS[tableName] || [];
+  return hints.filter((hint) => text.includes(normalizedSearchText(hint))).length;
+}
+
+function requiredColumnNames(meta) {
+  return new Set(meta.columns
+    .filter((column) => !column.nullable && column.defaultValue === null && !column.autoIncrement)
+    .map((column) => column.name));
+}
+
+export function describeDatabaseTable(meta) {
+  const writable = agentWritableColumns(meta);
+  const writableNames = new Set(writable.map((column) => column.name));
+  return {
+    table: meta.tableName,
+    description: TABLE_HINTS[meta.tableName]?.slice(0, 8) || [],
+    primaryKey: meta.primaryColumns.map((column) => column.name),
+    uniqueKeys: (meta.uniqueKeys || []).map((key) => ({ name: key.name, fields: key.fields })),
+    foreignKeys: (meta.foreignKeys || []).map((key) => ({
+      field: key.field,
+      references: `${key.referencedTable}.${key.referencedField}`,
+    })),
+    columns: meta.columns
+      .filter((column) => writableNames.has(column.name))
+      .map((column) => ({
+        name: column.name,
+        type: column.columnType || column.dataType,
+        required: !column.nullable && column.defaultValue === null && !column.autoIncrement,
+        unique: (meta.uniqueKeys || []).some((key) => key.fields.length === 1 && key.fields[0] === column.name),
+      })),
+  };
+}
+
+export function rankDatabaseTableCandidates(metas, { instruction = '', rows = [] } = {}) {
+  const inputRows = Array.isArray(rows) ? rows.slice(0, 50) : [];
+  const inputFields = new Set(inputRows.flatMap((row) => (
+    row && typeof row === 'object' && !Array.isArray(row) ? Object.keys(row) : []
+  )));
+  const inputText = normalizedSearchText([
+    instruction,
+    ...inputRows.slice(0, 5).flatMap((row) => Object.values(row || {})),
+  ].join(' '));
+
+  return metas.map((meta) => {
+    const writable = agentWritableColumns(meta);
+    const writableNames = new Set(writable.map((column) => column.name));
+    const allNames = new Set(meta.columns.map((column) => column.name));
+    const required = requiredColumnNames(meta);
+    const matchedFields = [...inputFields].filter((field) => writableNames.has(field));
+    const knownFields = [...inputFields].filter((field) => allNames.has(field));
+    const unknownFields = [...inputFields].filter((field) => !allNames.has(field));
+    const uniqueFields = new Set((meta.uniqueKeys || []).flatMap((key) => key.fields));
+    const matchedRequired = [...required].filter((field) => inputFields.has(field)).length;
+    const hints = tableHintMatches(meta.tableName, inputText);
+    const coverage = inputFields.size ? matchedFields.length / inputFields.size : 0;
+    const unknownRatio = inputFields.size ? unknownFields.length / inputFields.size : 0;
+
+    let score = matchedFields.length * 5
+      + knownFields.length * 2
+      + matchedRequired * 3
+      + matchedFields.filter((field) => uniqueFields.has(field)).length * 2
+      + hints * 4
+      + (inputText.includes(normalizedSearchText(meta.tableName)) ? 8 : 0);
+    score += Math.round(coverage * 30);
+    score -= Math.round(unknownRatio * 20);
+
+    return {
+      table: meta.tableName,
+      score,
+      matchedFields,
+      matchedRequired,
+      hints,
+      coverage: Number(coverage.toFixed(3)),
+      unknownRatio: Number(unknownRatio.toFixed(3)),
+    };
+  }).sort((left, right) => right.score - left.score || right.coverage - left.coverage || left.table.localeCompare(right.table));
+}
+
+export function selectDatabaseTableByHeuristic(metas, options = {}) {
+  const candidates = rankDatabaseTableCandidates(metas, options);
+  const top = candidates[0];
+  const second = candidates[1];
+  if (!top) return null;
+  const margin = top.score - (second?.score || 0);
+  const reliable = top.score >= 8
+    && (margin >= 4 || top.coverage >= 0.6 || top.hints >= 2)
+    && top.unknownRatio <= 0.6;
+  if (!reliable) return null;
+  return {
+    table: top.table,
+    confidence: Math.min(0.96, Number((0.45 + Math.max(0, margin) / 30 + top.coverage * 0.35 + top.hints * 0.03).toFixed(3))),
+    reason: `字段覆盖 ${Math.round(top.coverage * 100)}%，命中 ${top.hints} 个语义线索`,
+    candidates: candidates.slice(0, 5),
+  };
+}
+
 export function agentWritableColumns(meta) {
   const excluded = new Set([
     'created_at', 'updated_at', 'deleted_at', 'applied_at', 'confirmed_at', 'completed_at',

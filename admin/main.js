@@ -19,9 +19,13 @@ const DB_IMPORT_FORMATS = ['csv', 'txt', 'json', 'sql', 'xlsx', 'db'];
 const AGENT_EXTRACTION_CAPABILITIES = [
   ['natural_language_ingest', '口述 / 文本抽取'],
   ['file_ingest', '文件内容解析'],
+  ['table_autodetect', '自动识别目标表'],
 ];
 const AGENT_REVIEW_CAPABILITIES = [
   ['content_review', '内容合规审核'],
+  ['web_search', '公网搜索核验'],
+  ['web_fetch', '网页抓取核验'],
+  ['web_evidence_review', '联网证据交叉检查'],
   ['duplicate_detection', '重复数据检测'],
   ['field_anomaly_check', '字段异常检查'],
   ['referential_consistency_check', '关联一致性检查'],
@@ -88,7 +92,7 @@ const state = {
     },
     tab: 'workbench',
     currentJob: null,
-    draft: { instruction: '', table: '', mode: 'insert', format: 'csv', sourceType: 'text' },
+    draft: { instruction: '', table: '', mode: 'insert', format: 'csv', sourceType: 'text', webSearch: true },
     submitting: false,
     dictating: false,
     loading: false,
@@ -559,7 +563,7 @@ function renderAgentWorkbench() {
     return `<section class="admin-card"><header class="admin-card-head"><div><h2>Agent 管理概览</h2><p>入库草稿、执行日志与告警可能包含未发布数据。</p></div>${badge('只读')}</header><div class="admin-card-body"><div class="admin-callout admin-callout--warning">只有超级管理员可以发起或查看数据入库审核。你仍可在“配置与开关”中查看公开状态。</div></div></section>`;
   }
   const tables = data.tables || [];
-  const selectedTable = data.draft?.table || data.currentJob?.targetTable || state.database.selectedTable || chooseDatabaseTable(tables);
+  const selectedTable = data.draft?.table || '';
   const speechSupported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
   const recentJobs = data.jobs.data.slice(0, 5);
   return `<div class="admin-agent-workbench">
@@ -571,12 +575,13 @@ function renderAgentWorkbench() {
           <input type="hidden" name="sourceType" value="${data.draft?.sourceType === 'voice' ? 'voice' : 'text'}" />
           <div class="admin-field admin-field--wide"><label for="agentInstruction">口述内容 / 文件审核备注</label><div class="admin-dictation"><textarea id="agentInstruction" name="instruction" maxlength="8000" placeholder="例如：新增海滨大学，位于山东青岛，A 区，双非。上传文件时可补充来源和审核重点；文件字段仍须使用数据库字段名。" ${canOperate ? '' : 'disabled'}>${html(data.draft?.instruction || '')}</textarea><button class="admin-dictation-button" type="button" data-action="toggle-agent-dictation" aria-pressed="false" ${canOperate && speechSupported ? '' : 'disabled'}><span class="admin-dictation-dot"></span><span data-speech-button-label>开始口述</span></button></div><small class="admin-field-help" id="agentSpeechStatus">${speechSupported ? '口述会实时转成可编辑文字，不会向本平台上传原始录音。文件备注会用于语义审核，不会执行自由格式的数据变换。' : '当前浏览器不支持语音输入；文件备注仅用于语义审核。'}</small></div>
           <div class="admin-agent-form-grid">
-            <div class="admin-field"><label for="agentTargetTable">目标数据表 *</label><input id="agentTargetTable" name="table" list="agentTargetTables" required maxlength="64" value="${html(selectedTable)}" placeholder="universities" ${canOperate ? '' : 'disabled'} /><datalist id="agentTargetTables">${tables.map((table) => `<option value="${html(table.name)}">${html(tableDisplayName(table.name))}</option>`).join('')}</datalist></div>
+            <div class="admin-field"><label for="agentTargetTable">目标数据表</label><input id="agentTargetTable" name="table" list="agentTargetTables" maxlength="64" value="${html(selectedTable)}" placeholder="留空自动识别" ${canOperate ? '' : 'disabled'} /><datalist id="agentTargetTables">${tables.map((table) => `<option value="${html(table.name)}">${html(tableDisplayName(table.name))}</option>`).join('')}</datalist><small class="admin-field-help">留空时，服务器会根据字段、语义和模型在可写表白名单内自动选择。</small></div>
             <div class="admin-field"><label for="agentImportMode">入库模式</label><select id="agentImportMode" name="mode" ${canOperate ? '' : 'disabled'}><option value="insert" ${data.draft?.mode !== 'upsert' ? 'selected' : ''}>新增记录</option><option value="upsert" ${data.draft?.mode === 'upsert' ? 'selected' : ''}>唯一键冲突时更新</option></select></div>
             <div class="admin-field"><label for="databaseAgentFile">可选数据文件</label><input class="admin-file admin-file--wide" id="databaseAgentFile" name="file" type="file" accept=".csv,.txt,.tsv,.json,.sql,.xlsx,.db" ${canOperate ? '' : 'disabled'} /></div>
             <div class="admin-field"><label for="agentFileFormat">文件格式</label><select id="agentFileFormat" name="format" ${canOperate ? '' : 'disabled'}>${DB_IMPORT_FORMATS.map((format) => `<option value="${format}" ${format === (data.draft?.format || 'csv') ? 'selected' : ''}>${databaseFormatLabel(format)}${format === 'txt' ? '（TAB）' : ''}</option>`).join('')}</select></div>
-            <div class="admin-field admin-field--wide" data-agent-source-table ${data.draft?.format === 'db' ? '' : 'hidden'}><label for="agentSourceTable">DB 源表名</label><input id="agentSourceTable" name="sourceTable" maxlength="64" value="${html(selectedTable)}" ${canOperate ? '' : 'disabled'} /></div>
+            <div class="admin-field admin-field--wide" data-agent-source-table ${data.draft?.format === 'db' ? '' : 'hidden'}><label for="agentSourceTable">DB 源表名</label><input id="agentSourceTable" name="sourceTable" maxlength="64" value="${html(selectedTable)}" placeholder="留空时仅支持单表 DB 文件" ${canOperate ? '' : 'disabled'} /></div>
           </div>
+          <label class="admin-agent-option"><input type="checkbox" name="webSearch" ${data.draft?.webSearch === false ? '' : 'checked'} ${canOperate ? '' : 'disabled'} /><span><strong>联网核验公开资料</strong><small>若服务器已配置 websearch / webfetch，会把搜索结果和网页摘要加入本次语义审核。</small></span></label>
           <div class="admin-agent-submit"><span><strong>安全确认</strong><small>Agent 只生成审核建议，必须在预览中确认后才会写入数据库。</small></span><button class="admin-button admin-button--lime" type="submit" ${canOperate && !data.submitting ? '' : 'disabled'}>${data.submitting ? '<i class="admin-spinner"></i>正在审核…' : '生成审核预览'}</button></div>
         </form>
       </div>
@@ -624,6 +629,9 @@ function renderAgentJobReview(job, { featured = false } = {}) {
   const columns = [...new Set(preview.flatMap((row) => Object.keys(row || {})))].slice(0, 12);
   const issues = Array.isArray(review.issues) ? review.issues : [];
   const semanticSample = review.semanticReviewSample || {};
+  const tableSelection = review.tableSelection || {};
+  const webEvidence = review.webEvidence || null;
+  const evidenceCount = number(webEvidence?.results?.length) + number(webEvidence?.pages?.length);
   const status = agentJobStatus(job);
   return `<section class="admin-card admin-agent-review-panel${featured ? ' is-featured' : ''}">
     <header class="admin-card-head"><div><h2>审核预览 #${number(job.id)}</h2><p>${html(job.sourceName || (job.sourceType === 'file' ? '导入文件' : '口述 / 文本'))} · ${html(job.targetTable || '未识别数据表')} · ${html(isoTime(job.createdAt))}</p></div><div class="admin-table-actions">${badge(statusLabel(status))}${badge(agentRiskLabel(review.riskLevel))}</div></header>
@@ -634,9 +642,10 @@ function renderAgentJobReview(job, { featured = false } = {}) {
       <div><span>已写入</span><strong>${number(job.affectedRows).toLocaleString()}</strong></div>
     </div>
     <div class="admin-card-body admin-agent-review-copy">
-      <div><h3>Agent 结论</h3><p>${html(review.summary || '审核结论生成中或暂无摘要。')}</p>${review.extractionSummary ? `<small><strong>抽取：</strong>${html(review.extractionSummary)}</small>` : ''}${review.recommendation ? `<small><strong>建议：</strong>${html(review.recommendation)}</small>` : ''}</div>
+      <div><h3>Agent 结论</h3><p>${html(review.summary || '审核结论生成中或暂无摘要。')}</p>${review.extractionSummary ? `<small><strong>抽取：</strong>${html(review.extractionSummary)}</small>` : ''}${tableSelection.table ? `<small><strong>识别：</strong>${html(tableDisplayName(tableSelection.table))} · ${html(tableSelection.method || 'auto')} · 置信 ${Math.round(number(tableSelection.confidence, 1) * 100)}%${tableSelection.reason ? ` · ${html(tableSelection.reason)}` : ''}</small>` : ''}${review.recommendation ? `<small><strong>建议：</strong>${html(review.recommendation)}</small>` : ''}</div>
       <div><h3>风险与异常</h3>${issues.length ? `<ul>${issues.map((issue) => `<li>${html(agentIssueText(issue))}</li>`).join('')}</ul>` : '<p>未发现需要单独提示的异常。</p>'}</div>
     </div>
+    ${webEvidence ? `<div class="admin-agent-web-evidence"><strong>联网核验</strong><span>${webEvidence.enabled ? `已收集 ${evidenceCount} 条公开证据` : '服务器未启用联网核验'}</span>${webEvidence.queries?.length ? `<small>查询：${webEvidence.queries.map(html).join(' / ')}</small>` : ''}${webEvidence.results?.length ? `<div>${webEvidence.results.slice(0, 3).map((item) => `<a href="${html(item.url)}" target="_blank" rel="noopener noreferrer">${html(item.title || item.url)}</a>`).join('')}</div>` : ''}${webEvidence.errors?.length ? `<small class="admin-text-danger">联网提示：${html(webEvidence.errors[0].message || '部分资料未能读取')}</small>` : ''}</div>` : ''}
     ${semanticSample.sampled ? `<div class="admin-callout admin-callout--warning">语义模型已按首尾均匀抽样审核 ${number(semanticSample.sampleSize)} / ${number(semanticSample.totalRows)} 行；服务器硬规则已检查全部行。确认前请下载完整暂存数据核对。</div>` : ''}
     ${job.errorMessage ? `<div class="admin-callout admin-callout--danger">${html(job.errorMessage)}</div>` : ''}
     ${preview.length ? `<div class="admin-table-wrap admin-agent-preview"><table class="admin-table"><thead><tr>${columns.map((column) => `<th>${html(column)}</th>`).join('')}</tr></thead><tbody>${preview.slice(0, 10).map((row) => `<tr>${columns.map((column) => `<td>${databaseCell(row?.[column])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('当前任务没有可展示的数据行')}
@@ -1566,11 +1575,11 @@ async function createDatabaseAgentReview(form) {
   const mode = String(fields.get('mode') || 'insert');
   const format = String(fields.get('format') || 'csv');
   const sourceType = String(fields.get('sourceType') || 'text') === 'voice' ? 'voice' : 'text';
+  const webSearch = fields.get('webSearch') === 'on';
   const fileValue = fields.get('file');
   const file = fileValue instanceof File && fileValue.name ? fileValue : null;
-  if (!table) return showToast('请填写目标数据表', { error: true });
   if (!instruction && !file) return showToast('请口述、输入处理要求或选择数据文件', { error: true });
-  state.agents.draft = { instruction, table, mode, format, sourceType };
+  state.agents.draft = { instruction, table, mode, format, sourceType, webSearch };
   state.agents.submitting = true;
   stopAgentDictation();
   render();
@@ -1579,6 +1588,7 @@ async function createDatabaseAgentReview(form) {
       table,
       sourceType: file ? 'file' : sourceType,
       mode,
+      webSearch,
       ...(instruction ? { instruction } : {}),
     };
     if (file) {
@@ -1591,7 +1601,7 @@ async function createDatabaseAgentReview(form) {
     const payload = await adminRequest('/api/admin/database-agent/reviews', { method: 'POST', body });
     if (!payload?.job) throw new Error('服务器未返回审核任务');
     state.agents.submitting = false;
-    state.agents.draft = { instruction: '', table, mode, format, sourceType: 'text' };
+    state.agents.draft = { instruction: '', table: payload.job.targetTable || table, mode, format, sourceType: 'text', webSearch };
     rememberAgentJob(payload.job);
     showToast('Agent 审核预览已生成');
     await loadAgentJobs({ page: 1 });

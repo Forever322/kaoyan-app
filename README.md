@@ -38,7 +38,7 @@
 | 设计工具 | Pencil (.pen) |
 | 测试框架 | Vitest（42 用例） |
 | 代码规范 | ESLint + Prettier |
-| 后台 Agent | 口述/文件抽取 + 双重审核 + checksum 确认 + 审计告警 |
+| 后台 Agent | 自动识别目标表 + 口述/文件抽取 + 可选公网核验 + 双重审核 + checksum 确认 + 审计告警 |
 
 ---
 
@@ -208,7 +208,7 @@ const rows = await db.all('SELECT * FROM universities WHERE zone = ?', ['A']);
 
 运行 API 前需要可连接的 MySQL；Docker 环境由 `docker-compose.backend.yml` 提供 `mysql` 服务。生产发布时保持 `RUN_MIGRATIONS_ON_START=false`，先运行一次性 `api-migrate` 再启动或更新 API。
 
-后台 `/admin/` 的数据库管理 Agent 支持浏览器口述转写和 CSV/TXT/JSON/SQL/XLSX/DB 导入。输入会先转成暂存任务，经过确定性规则与模型语义审核；模型没有写库权限，只有超级管理员确认未变化的 checksum 后，服务端才会事务写入并生成来源、变更、访问和告警记录。完整契约见 `docs/admin-api.md`。
+后台 `/admin/` 的数据库管理 Agent 支持浏览器口述转写和 CSV/TXT/JSON/SQL/XLSX/DB 导入。目标表可由管理员指定，也可留空后由服务端在可写参考数据表白名单内自动识别；服务器配置 `ADMIN_AGENT_WEB_*` 后，还能把公网搜索和网页摘要作为语义审核证据。输入会先转成暂存任务，经过确定性规则与模型语义审核；模型没有写库权限，只有超级管理员确认未变化的 checksum 后，服务端才会事务写入并生成来源、变更、访问和告警记录。完整契约见 `docs/admin-api.md`。
 
 ---
 
