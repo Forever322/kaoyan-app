@@ -15,7 +15,7 @@ const root = document.getElementById('admin-app');
 const PAGE_SIZE = 20;
 const DB_PAGE_SIZE = 25;
 const DB_EXPORT_FORMATS = ['csv', 'txt', 'sql', 'xlsx'];
-const DB_IMPORT_FORMATS = ['csv', 'txt', 'sql', 'xlsx', 'db'];
+const DB_IMPORT_FORMATS = ['csv', 'txt', 'json', 'sql', 'xlsx', 'db'];
 const DB_TABLE_PRIORITY = [
   'universities',
   'programs',
@@ -32,9 +32,9 @@ const NAV_ITEMS = [
   { id: 'database', icon: '▦', label: '数据库管理', subtitle: '完整表维护、导入导出与 Agent 审核' },
   { id: 'schools', icon: '⌂', label: '院校资料', subtitle: '学校与基础档案管理' },
   { id: 'users', icon: '♙', label: '用户管理', subtitle: '账号、权限与使用状态' },
-  { id: 'agents', icon: '✦', label: '智能体管理', subtitle: '配置、开关与运行状态' },
+  { id: 'agents', icon: '✦', label: 'Agent 工作台', subtitle: '口述与文件入库、自动审核、运行日志与告警' },
   { id: 'quality', icon: '◈', label: '数据治理', subtitle: '来源、核验与待处理问题' },
-  { id: 'audit', icon: '≡', label: '操作审计', subtitle: '后台管理操作记录' },
+  { id: 'audit', icon: '≡', label: '日志与审计', subtitle: '后台操作审计与访问日志' },
 ];
 
 const state = {
@@ -62,10 +62,33 @@ const state = {
   },
   schools: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, keyword: '', catalogStatus: '', loading: false },
   users: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, keyword: '', role: '', status: '', loading: false },
-  agents: { configurations: [], flags: [], loading: false },
+  agents: {
+    configurations: [],
+    flags: [],
+    tables: [],
+    tab: 'workbench',
+    currentJob: null,
+    draft: { instruction: '', table: '', mode: 'insert', format: 'csv', sourceType: 'text' },
+    submitting: false,
+    dictating: false,
+    loading: false,
+    jobs: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, loading: false },
+    runs: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, loading: false },
+    alerts: { data: [], total: 0, openTotal: 0, page: 1, pageSize: PAGE_SIZE, status: 'open', loading: false },
+  },
   quality: { issues: [], total: 0, page: 1, loading: false },
-  audit: { data: [], total: 0, page: 1, loading: false },
+  audit: {
+    tab: 'operations',
+    data: [],
+    total: 0,
+    page: 1,
+    pageSize: PAGE_SIZE,
+    loading: false,
+    access: { data: [], total: 0, page: 1, pageSize: PAGE_SIZE, loading: false },
+  },
 };
+
+let activeSpeechRecognition = null;
 
 function html(value) {
   return escapeHtml(String(value ?? ''));
@@ -94,11 +117,11 @@ function formatBytes(value) {
 function badge(value) {
   const text = String(value || '未知');
   const normalized = text.toLowerCase();
-  const tone = ['active', 'verified', 'enabled', 'admin'].includes(normalized) || ['正常', '启用', '管理员', '已核验'].includes(text)
+  const tone = ['active', 'verified', 'enabled', 'admin', 'success', 'succeeded', 'applied', 'completed', 'resolved', 'low', 'passed'].includes(normalized) || ['正常', '启用', '管理员', '已核验', '已完成', '已入库', '低风险', '审核通过'].includes(text)
     ? 'active'
-    : ['pending', 'warning', 'pending_review', '待核验'].includes(normalized) || ['待处理', '待核验'].includes(text)
+    : ['pending', 'warning', 'pending_review', 'waiting_for_confirmation', 'awaiting_confirmation', 'queued', 'running', 'reviewing', 'acknowledged', 'medium'].includes(normalized) || ['待处理', '待核验', '审核中', '中风险', '已确认', '待确认', '需人工确认'].includes(text)
       ? 'pending'
-      : ['disabled', 'blocked', 'suspended', 'danger', '已停用', '禁用'].includes(normalized) || ['已停用', '禁用'].includes(text)
+      : ['disabled', 'blocked', 'suspended', 'danger', 'failed', 'rejected', 'critical', 'error', 'high', '已停用', '禁用'].includes(normalized) || ['已停用', '禁用', '失败', '已驳回', '已阻断', '高风险', '严重'].includes(text)
         ? 'disabled'
         : ['user', '普通用户'].includes(normalized) || text === '普通用户'
           ? 'user'
@@ -108,6 +131,54 @@ function badge(value) {
 
 function currentNav() {
   return NAV_ITEMS.find((item) => item.id === state.section) || NAV_ITEMS[0];
+}
+
+function isSuperAdministrator() {
+  return state.user?.role === 'super_admin';
+}
+
+function statusLabel(value) {
+  const status = String(value || '').toLowerCase();
+  return ({
+    pending: '待处理',
+    pending_review: '待审核',
+    waiting_for_confirmation: '待确认',
+    awaiting_confirmation: '待确认',
+    queued: '排队中',
+    running: '执行中',
+    reviewing: '审核中',
+    reviewed: '已审核',
+    passed: '审核通过',
+    warning: '需人工确认',
+    blocked: '已阻断',
+    approved: '已批准',
+    applied: '已入库',
+    completed: '已入库',
+    succeeded: '已完成',
+    success: '成功',
+    failed: '失败',
+    rejected: '已驳回',
+    open: '待处理',
+    acknowledged: '已确认',
+    resolved: '已解决',
+  })[status] || value || '未知';
+}
+
+function agentRiskLabel(value) {
+  const risk = String(value || '').toLowerCase();
+  return ({ low: '低风险', medium: '中风险', high: '高风险', critical: '严重', blocked: '已阻断' })[risk] || value || '未评估';
+}
+
+function modelStatusLabel(value) {
+  const status = String(value || '').toLowerCase();
+  return ({ completed: '语义审核完成', not_configured: '仅规则审核', failed: '语义审核失败', pending: '等待审核' })[status]
+    || value || '未记录';
+}
+
+function durationLabel(value) {
+  const milliseconds = number(value);
+  if (!milliseconds) return '—';
+  return milliseconds < 1000 ? `${milliseconds} ms` : `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
 }
 
 function unwrapList(payload, keys = ['data', 'items']) {
@@ -124,7 +195,7 @@ function paginationOf(payload, fallback) {
 }
 
 function databaseTables() {
-  return state.database.status?.tables || [];
+  return (state.database.status?.tables || []).filter((table) => table.readable !== false);
 }
 
 function chooseDatabaseTable(tables, preferred = state.database.selectedTable) {
@@ -244,9 +315,11 @@ function sectionContent() {
 function renderTopbarActions() {
   if (state.section === 'database') {
     const hasTable = Boolean(state.database.selectedTable);
-    const canWrite = Boolean(hasTable && state.database.schema && !state.database.schema.writeBlocked);
-    return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button><button class="admin-button admin-button--ghost" data-action="open-db-export" ${hasTable ? '' : 'disabled'}>导出当前表</button><button class="admin-button admin-button--lime" data-action="open-db-import">导入文件</button><button class="admin-button admin-button--ghost" data-action="new-db-row" ${canWrite ? '' : 'disabled'}>新增记录</button>`;
+    const operator = isSuperAdministrator();
+    const canWrite = Boolean(operator && hasTable && state.database.schema && !state.database.schema.writeBlocked);
+    return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button><button class="admin-button admin-button--ghost" data-action="open-db-export" ${operator && hasTable ? '' : 'disabled'}>导出当前表</button><button class="admin-button admin-button--lime" data-action="open-db-import" ${operator ? '' : 'disabled'}>导入文件</button><button class="admin-button admin-button--ghost" data-action="new-db-row" ${canWrite ? '' : 'disabled'}>新增记录</button>`;
   }
+  if (state.section === 'agents') return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button>${isSuperAdministrator() ? '<button class="admin-button admin-button--lime" data-action="open-agent-workbench">✦ 新建入库审核</button>' : ''}`;
   return `<button class="admin-button admin-button--ghost" data-action="refresh">↻ 刷新数据</button>${state.section === 'schools' ? '<button class="admin-button admin-button--lime" data-action="new-school">＋ 新增院校</button>' : ''}`;
 }
 
@@ -294,7 +367,8 @@ function renderShell() {
 }
 
 function renderNav(item) {
-  return `<button class="admin-nav-item${item.id === state.section ? ' is-active' : ''}" data-section="${item.id}"><span class="admin-nav-icon">${item.icon}</span><span>${html(item.label)}</span></button>`;
+  const alertCount = item.id === 'agents' && isSuperAdministrator() ? number(state.agents.alerts?.openTotal) : 0;
+  return `<button class="admin-nav-item${item.id === state.section ? ' is-active' : ''}" data-section="${item.id}"><span class="admin-nav-icon">${item.icon}</span><span>${html(item.label)}</span>${alertCount ? `<em class="admin-nav-count">${alertCount > 99 ? '99+' : alertCount}</em>` : ''}</button>`;
 }
 
 function renderAccessDenied() {
@@ -331,34 +405,36 @@ function renderDatabase() {
   const status = data.status;
   if (!status) return `<section class="admin-section">${empty('暂未取得数据库健康信息')}</section>`;
   const tables = status.tables || [];
-  const selected = data.selectedTable || chooseDatabaseTable(tables);
+  const operator = isSuperAdministrator();
+  const selected = operator ? (data.selectedTable || chooseDatabaseTable(tables)) : '';
   const columns = databaseColumns();
   const rows = data.rows || [];
   const pk = databasePrimaryKey();
-  const canWrite = Boolean(selected && data.schema && !data.schema.writeBlocked);
+  const canWrite = Boolean(operator && selected && data.schema && !data.schema.writeBlocked);
   return `<section class="admin-section">
     <div class="admin-metrics">
       ${metric('数据表', number(status.totals?.tables).toLocaleString(), `${number(status.migrationCount)} 项迁移已执行`, 'green')}
       ${metric('估算记录', number(status.totals?.estimatedRows).toLocaleString(), '来自 MySQL 表统计信息', 'lime')}
       ${metric('数据容量', formatBytes(status.totals?.dataBytes), `索引 ${formatBytes(status.totals?.indexBytes)}`, 'blue')}
-      ${metric('当前表', selected ? tableDisplayName(selected) : '未选择', canWrite ? '可由超级管理员写入' : '受保护或未加载', 'orange')}
+      ${metric(operator ? '当前表' : '当前权限', operator ? (selected ? tableDisplayName(selected) : '未选择') : '只读概览', canWrite ? '可由超级管理员写入' : operator ? '受保护或未加载' : '表级数据仅对超级管理员开放', 'orange')}
     </div>
-    ${renderDatabaseCommandBar(selected, canWrite)}
+    ${renderDatabaseCommandBar(selected, canWrite, operator)}
     <div class="admin-db-layout">
-      <section class="admin-card admin-db-tables"><header class="admin-card-head"><div><h2>数据库表</h2><p>${html(status.databaseName || '—')} · ${html(isoTime(status.checkedAt))}</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-database">刷新</button></header><div class="admin-db-table-list">${tables.length ? tables.map((table) => `<button class="admin-db-table-item${table.name === selected ? ' is-active' : ''}" data-action="select-db-table" data-table="${html(table.name)}"><span><strong>${html(tableDisplayName(table.name))}</strong><small>${html(table.name)}</small></span><em>${number(table.estimatedRows).toLocaleString()}</em></button>`).join('') : empty('数据库中没有可展示的数据表')}</div></section>
+      <section class="admin-card admin-db-tables"><header class="admin-card-head"><div><h2>数据库表</h2><p>${html(status.databaseName || '—')} · ${html(isoTime(status.checkedAt))}</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-database">刷新</button></header><div class="admin-db-table-list">${tables.length ? tables.map((table) => `<button class="admin-db-table-item${table.name === selected ? ' is-active' : ''}" ${operator ? 'data-action="select-db-table"' : 'disabled'} data-table="${html(table.name)}"><span><strong>${html(tableDisplayName(table.name))}</strong><small>${html(table.name)}</small></span><em>${number(table.estimatedRows).toLocaleString()}</em></button>`).join('') : empty('数据库中没有可展示的数据表')}</div></section>
       <section class="admin-card admin-db-workbench">
         <header class="admin-card-head"><div><h2>${selected ? html(tableDisplayName(selected)) : '表数据'}</h2><p>${selected ? `${html(selected)} · ${columns.length} 个字段 · ${number(data.total).toLocaleString()} 行` : '请选择一张数据表'}</p></div><div class="admin-table-actions"><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-db-table" ${selected ? '' : 'disabled'}>刷新表</button><button class="admin-button admin-button--lime admin-button--small" data-action="new-db-row" ${canWrite ? '' : 'disabled'}>新增记录</button></div></header>
-        ${renderDatabaseToolbar(selected, columns)}
-        ${data.loadingRows && !rows.length ? loading('正在读取表数据…') : renderDatabaseRows(rows, columns, pk)}
-        ${renderPagination('database', data)}
+        ${operator ? renderDatabaseToolbar(selected, columns) : ''}
+        ${operator ? (data.loadingRows && !rows.length ? loading('正在读取表数据…') : renderDatabaseRows(rows, columns, pk)) : empty('当前账号可查看数据库健康与表规模。直接查看、导入、导出和修改表数据需要超级管理员权限。')}
+        ${operator ? renderPagination('database', data) : ''}
       </section>
     </div>
     ${renderDatabaseReviewPanel(data.importResult)}
   </section>`;
 }
 
-function renderDatabaseCommandBar(selected, canWrite) {
-  return `<section class="admin-card admin-db-command"><div class="admin-db-command-main"><span class="admin-db-command-label">当前目标表</span><strong>${selected ? html(tableDisplayName(selected)) : '未选择数据表'}</strong><small>${selected ? html(selected) : '导入时可以在弹窗内选择目标表'}</small></div><div class="admin-db-command-actions"><button class="admin-db-command-button admin-db-command-button--primary" data-action="open-db-import"><span>导入文件</span><small>TXT / CSV / XLSX / SQL / DB</small></button><button class="admin-db-command-button" data-action="open-db-export" ${selected ? '' : 'disabled'}><span>导出当前表</span><small>CSV / TXT / SQL / XLSX</small></button><button class="admin-db-command-button" data-action="new-db-row" ${canWrite ? '' : 'disabled'}><span>新增记录</span><small>按字段创建一行</small></button></div></section>`;
+function renderDatabaseCommandBar(selected, canWrite, operator = isSuperAdministrator()) {
+  if (!operator) return `<section class="admin-callout"><span><strong>需要用自然语言或文件整理数据？</strong><small>前往 Agent 工作台查看审核任务；只有超级管理员可确认入库。</small></span><button class="admin-button admin-button--ghost admin-button--small" data-section="agents">前往 Agent 工作台</button></section>`;
+  return `<section class="admin-card admin-db-command"><div class="admin-db-command-main"><span class="admin-db-command-label">当前目标表</span><strong>${selected ? html(tableDisplayName(selected)) : '未选择数据表'}</strong><small>${selected ? html(selected) : '导入时可以在弹窗内选择目标表'}</small></div><div class="admin-db-command-actions"><button class="admin-db-command-button admin-db-command-button--primary" data-action="open-db-import"><span>导入文件</span><small>CSV / JSON / TXT / XLSX / SQL / DB</small></button><button class="admin-db-command-button" data-action="open-db-export" ${selected ? '' : 'disabled'}><span>导出当前表</span><small>CSV / TXT / SQL / XLSX</small></button><button class="admin-db-command-button" data-action="new-db-row" ${canWrite ? '' : 'disabled'}><span>新增记录</span><small>按字段创建一行</small></button></div></section>`;
 }
 
 function renderDatabaseToolbar(selected, columns) {
@@ -429,10 +505,158 @@ function renderUserRow(user) {
 
 function renderAgents() {
   const data = state.agents;
-  if (data.loading && !data.configurations.length && !data.flags.length) return `<section class="admin-section">${loading('正在读取智能体配置…')}</section>`;
-  const configs = data.configurations || [];
-  const flags = data.flags || [];
-  return `<section class="admin-section"><div class="admin-grid"><section class="admin-card"><header class="admin-card-head"><div><h2>智能体运行配置</h2><p>仅展示可安全调整的公开配置，不显示模型密钥。</p></div></header><div class="admin-card-body">${configs.length ? `<div class="admin-config-grid">${configs.map(renderConfiguration).join('')}</div>` : empty('暂无可管理的智能体配置')}</div></section><section class="admin-card"><header class="admin-card-head"><div><h2>功能开关</h2><p>关闭后新请求不会进入对应能力。</p></div></header><div class="admin-card-body">${flags.length ? `<div class="admin-issue-list">${flags.map(renderFlag).join('')}</div>` : empty('暂无功能开关')}</div></section></div><section class="admin-card"><header class="admin-card-head"><div><h2>管理原则</h2><p>AI 只能生成建议和待确认提案；模型没有数据库写权限。</p></div></header><div class="admin-card-body"><div class="admin-kpi-list"><div class="admin-kpi-row"><i class="admin-kpi-dot"></i><span class="admin-kpi-copy"><strong>配置安全</strong><small>API 密钥只保留在服务器环境变量中，后台不会读取或回显。</small></span></div><div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:#efaa56"></i><span class="admin-kpi-copy"><strong>变更可追溯</strong><small>智能体配置和开关的修改会写入后台审计日志。</small></span></div></div></div></section></section>`;
+  const tabs = (isSuperAdministrator() ? [
+    ['workbench', '入库工作台'],
+    ['jobs', '审核任务', number(data.jobs?.total)],
+    ['runs', '执行日志'],
+    ['alerts', '告警中心', number(data.alerts?.openTotal)],
+    ['settings', '配置与开关'],
+  ] : [
+    ['workbench', 'Agent 概览'],
+    ['settings', '配置与开关'],
+  ]);
+  return `<section class="admin-section">
+    <div class="admin-tabs" role="tablist" aria-label="Agent 管理导航">${tabs.map(([key, label, count]) => `<button class="admin-tab${data.tab === key ? ' is-active' : ''}" type="button" role="tab" aria-selected="${data.tab === key}" data-action="agent-tab" data-tab="${key}">${label}${count ? `<em>${count > 99 ? '99+' : count}</em>` : ''}</button>`).join('')}</div>
+    ${data.loading && !data.configurations.length && !data.jobs.data.length ? loading('正在同步 Agent 工作台…') : renderAgentTab()}
+  </section>`;
+}
+
+function renderAgentTab() {
+  if (!isSuperAdministrator() && !['workbench', 'settings'].includes(state.agents.tab)) return renderAgentWorkbench();
+  switch (state.agents.tab) {
+    case 'jobs': return renderAgentJobs();
+    case 'runs': return renderAgentRuns();
+    case 'alerts': return renderAgentAlerts();
+    case 'settings': return renderAgentSettings();
+    default: return renderAgentWorkbench();
+  }
+}
+
+function renderAgentWorkbench() {
+  const data = state.agents;
+  const canOperate = isSuperAdministrator();
+  if (!canOperate) {
+    return `<section class="admin-card"><header class="admin-card-head"><div><h2>Agent 管理概览</h2><p>入库草稿、执行日志与告警可能包含未发布数据。</p></div>${badge('只读')}</header><div class="admin-card-body"><div class="admin-callout admin-callout--warning">只有超级管理员可以发起或查看数据入库审核。你仍可在“配置与开关”中查看公开状态。</div></div></section>`;
+  }
+  const tables = data.tables || [];
+  const selectedTable = data.draft?.table || data.currentJob?.targetTable || state.database.selectedTable || chooseDatabaseTable(tables);
+  const speechSupported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const recentJobs = data.jobs.data.slice(0, 5);
+  return `<div class="admin-agent-workbench">
+    <section class="admin-card admin-agent-compose">
+      <header class="admin-card-head"><div><h2>口述或导入数据</h2><p>Agent 会自动抽取字段、检查异常并生成待确认预览。</p></div>${badge(canOperate ? '可发起审核' : '只读')}</header>
+      <div class="admin-card-body">
+        ${canOperate ? '' : '<div class="admin-callout admin-callout--warning">只有超级管理员可以发起 Agent 审核、查看入库任务、执行日志与告警；当前账号可查看公开配置。</div>'}
+        <form id="databaseAgentReviewForm" class="admin-agent-form">
+          <input type="hidden" name="sourceType" value="${data.draft?.sourceType === 'voice' ? 'voice' : 'text'}" />
+          <div class="admin-field admin-field--wide"><label for="agentInstruction">口述内容 / 文件审核备注</label><div class="admin-dictation"><textarea id="agentInstruction" name="instruction" maxlength="8000" placeholder="例如：新增海滨大学，位于山东青岛，A 区，双非。上传文件时可补充来源和审核重点；文件字段仍须使用数据库字段名。" ${canOperate ? '' : 'disabled'}>${html(data.draft?.instruction || '')}</textarea><button class="admin-dictation-button" type="button" data-action="toggle-agent-dictation" aria-pressed="false" ${canOperate && speechSupported ? '' : 'disabled'}><span class="admin-dictation-dot"></span><span data-speech-button-label>开始口述</span></button></div><small class="admin-field-help" id="agentSpeechStatus">${speechSupported ? '口述会实时转成可编辑文字，不会向本平台上传原始录音。文件备注会用于语义审核，不会执行自由格式的数据变换。' : '当前浏览器不支持语音输入；文件备注仅用于语义审核。'}</small></div>
+          <div class="admin-agent-form-grid">
+            <div class="admin-field"><label for="agentTargetTable">目标数据表 *</label><input id="agentTargetTable" name="table" list="agentTargetTables" required maxlength="64" value="${html(selectedTable)}" placeholder="universities" ${canOperate ? '' : 'disabled'} /><datalist id="agentTargetTables">${tables.map((table) => `<option value="${html(table.name)}">${html(tableDisplayName(table.name))}</option>`).join('')}</datalist></div>
+            <div class="admin-field"><label for="agentImportMode">入库模式</label><select id="agentImportMode" name="mode" ${canOperate ? '' : 'disabled'}><option value="insert" ${data.draft?.mode !== 'upsert' ? 'selected' : ''}>新增记录</option><option value="upsert" ${data.draft?.mode === 'upsert' ? 'selected' : ''}>唯一键冲突时更新</option></select></div>
+            <div class="admin-field"><label for="databaseAgentFile">可选数据文件</label><input class="admin-file admin-file--wide" id="databaseAgentFile" name="file" type="file" accept=".csv,.txt,.tsv,.json,.sql,.xlsx,.db" ${canOperate ? '' : 'disabled'} /></div>
+            <div class="admin-field"><label for="agentFileFormat">文件格式</label><select id="agentFileFormat" name="format" ${canOperate ? '' : 'disabled'}>${DB_IMPORT_FORMATS.map((format) => `<option value="${format}" ${format === (data.draft?.format || 'csv') ? 'selected' : ''}>${databaseFormatLabel(format)}${format === 'txt' ? '（TAB）' : ''}</option>`).join('')}</select></div>
+            <div class="admin-field admin-field--wide" data-agent-source-table ${data.draft?.format === 'db' ? '' : 'hidden'}><label for="agentSourceTable">DB 源表名</label><input id="agentSourceTable" name="sourceTable" maxlength="64" value="${html(selectedTable)}" ${canOperate ? '' : 'disabled'} /></div>
+          </div>
+          <div class="admin-agent-submit"><span><strong>安全确认</strong><small>Agent 只生成审核建议，必须在预览中确认后才会写入数据库。</small></span><button class="admin-button admin-button--lime" type="submit" ${canOperate && !data.submitting ? '' : 'disabled'}>${data.submitting ? '<i class="admin-spinner"></i>正在审核…' : '生成审核预览'}</button></div>
+        </form>
+      </div>
+    </section>
+    ${data.currentJob ? renderAgentJobReview(data.currentJob, { featured: true }) : `<section class="admin-card admin-agent-review-empty"><div class="admin-empty"><div><strong>待审核预览</strong><span>提交口述内容或文件后，这里会展示自动字段映射、风险和建议数据。</span></div></div></section>`}
+    <section class="admin-card admin-agent-recent"><header class="admin-card-head"><div><h2>最近审核任务</h2><p>所有入库确认、驳回与失败都会留痕。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="agent-tab" data-tab="jobs">查看全部</button></header>${recentJobs.length ? renderAgentJobTable(recentJobs) : empty('暂无 Agent 审核任务')}</section>
+    ${renderAgentRecentSignals()}
+  </div>`;
+}
+
+function renderAgentRecentSignals() {
+  if (!isSuperAdministrator()) return '';
+  const runs = state.agents.runs.data.slice(0, 4);
+  const alerts = state.agents.alerts.data.slice(0, 4);
+  return `<div class="admin-grid admin-agent-signals">
+    <section class="admin-card"><header class="admin-card-head"><div><h2>最近执行</h2><p>Agent 运行状态与耗时。</p></div>${isSuperAdministrator() ? '<button class="admin-button admin-button--ghost admin-button--small" data-action="agent-tab" data-tab="runs">全部日志</button>' : ''}</header><div class="admin-card-body">${!isSuperAdministrator() ? '<p class="admin-table-note">仅超级管理员可查看执行日志。</p>' : runs.length ? `<div class="admin-kpi-list">${runs.map((run) => `<div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:${String(run.status).toLowerCase() === 'failed' ? '#c65d5d' : '#2b7652'}"></i><span class="admin-kpi-copy"><strong>${html(run.runType || 'database-agent')} #${number(run.id)}</strong><small>${html(isoTime(run.createdAt))} · ${html(run.model || '未记录模型')}</small></span><span class="admin-kpi-value">${html(durationLabel(run.durationMs))}</span></div>`).join('')}</div>` : empty('暂无 Agent 执行记录')}</div></section>
+    <section class="admin-card"><header class="admin-card-head"><div><h2>最近告警</h2><p>待确认的运行与数据风险。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="agent-tab" data-tab="alerts">告警中心</button></header><div class="admin-card-body">${alerts.length ? `<div class="admin-issue-list">${alerts.map((alert) => `<article class="admin-issue"><div class="admin-issue-meta"><strong>${html(alert.title || alert.alertType || '系统告警')}</strong>${badge(alert.severity || 'warning')}</div><p>${html(alert.message || '未提供告警说明')}</p><small class="admin-table-note">${html(isoTime(alert.lastDetectedAt || alert.createdAt))}</small></article>`).join('')}</div>` : empty('当前没有待处理告警')}</div></section>
+  </div>`;
+}
+
+function agentJobStatus(job) {
+  return job?.status || job?.reviewStatus || 'pending_review';
+}
+
+function agentJobCanApply(job) {
+  const status = String(agentJobStatus(job)).toLowerCase();
+  const reviewStatus = String(job?.reviewStatus || job?.review?.status || '').toLowerCase();
+  return Boolean(isSuperAdministrator() && job?.id && job?.checksum
+    && status === 'awaiting_confirmation'
+    && reviewStatus !== 'blocked');
+}
+
+function agentJobCanReject(job) {
+  return Boolean(isSuperAdministrator() && job?.id && ['awaiting_confirmation', 'blocked'].includes(String(agentJobStatus(job)).toLowerCase()));
+}
+
+function agentIssueText(issue) {
+  if (typeof issue === 'string') return issue;
+  return issue?.message || issue?.summary || issue?.code || JSON.stringify(issue || {});
+}
+
+function renderAgentJobReview(job, { featured = false } = {}) {
+  const review = job.review || {};
+  const preview = Array.isArray(job.preview) ? job.preview : [];
+  const columns = [...new Set(preview.flatMap((row) => Object.keys(row || {})))].slice(0, 12);
+  const issues = Array.isArray(review.issues) ? review.issues : [];
+  const semanticSample = review.semanticReviewSample || {};
+  const status = agentJobStatus(job);
+  return `<section class="admin-card admin-agent-review-panel${featured ? ' is-featured' : ''}">
+    <header class="admin-card-head"><div><h2>审核预览 #${number(job.id)}</h2><p>${html(job.sourceName || (job.sourceType === 'file' ? '导入文件' : '口述 / 文本'))} · ${html(job.targetTable || '未识别数据表')} · ${html(isoTime(job.createdAt))}</p></div><div class="admin-table-actions">${badge(statusLabel(status))}${badge(agentRiskLabel(review.riskLevel))}</div></header>
+    <div class="admin-agent-review-summary">
+      <div><span>建议行数</span><strong>${number(job.rowCount).toLocaleString()}</strong></div>
+      <div><span>入库模式</span><strong>${job.mode === 'upsert' ? '新增或更新' : '新增'}</strong></div>
+      <div><span>模型状态</span><strong>${html(modelStatusLabel(review.modelStatus || (job.model ? 'completed' : 'pending')))}</strong></div>
+      <div><span>已写入</span><strong>${number(job.affectedRows).toLocaleString()}</strong></div>
+    </div>
+    <div class="admin-card-body admin-agent-review-copy">
+      <div><h3>Agent 结论</h3><p>${html(review.summary || '审核结论生成中或暂无摘要。')}</p>${review.extractionSummary ? `<small><strong>抽取：</strong>${html(review.extractionSummary)}</small>` : ''}${review.recommendation ? `<small><strong>建议：</strong>${html(review.recommendation)}</small>` : ''}</div>
+      <div><h3>风险与异常</h3>${issues.length ? `<ul>${issues.map((issue) => `<li>${html(agentIssueText(issue))}</li>`).join('')}</ul>` : '<p>未发现需要单独提示的异常。</p>'}</div>
+    </div>
+    ${semanticSample.sampled ? `<div class="admin-callout admin-callout--warning">语义模型已按首尾均匀抽样审核 ${number(semanticSample.sampleSize)} / ${number(semanticSample.totalRows)} 行；服务器硬规则已检查全部行。确认前请下载完整暂存数据核对。</div>` : ''}
+    ${job.errorMessage ? `<div class="admin-callout admin-callout--danger">${html(job.errorMessage)}</div>` : ''}
+    ${preview.length ? `<div class="admin-table-wrap admin-agent-preview"><table class="admin-table"><thead><tr>${columns.map((column) => `<th>${html(column)}</th>`).join('')}</tr></thead><tbody>${preview.slice(0, 10).map((row) => `<tr>${columns.map((column) => `<td>${databaseCell(row?.[column])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('当前任务没有可展示的数据行')}
+    <footer class="admin-agent-review-actions"><span class="admin-agent-checksum" title="${html(job.checksum || '')}">校验 ${html(String(job.checksum || '—').slice(0, 16))}${job.checksum ? '…' : ''} · 当前表格展示前 ${Math.min(10, preview.length)} 行</span><div><button class="admin-button admin-button--ghost" data-action="download-agent-job" data-id="${number(job.id)}" ${job.id && job.checksum ? '' : 'disabled'}>下载完整 JSON</button><button class="admin-button admin-button--danger" data-action="reject-agent-job" data-id="${number(job.id)}" ${agentJobCanReject(job) ? '' : 'disabled'}>驳回任务</button><button class="admin-button admin-button--lime" data-action="apply-agent-job" data-id="${number(job.id)}" ${agentJobCanApply(job) ? '' : 'disabled'}>确认并入库</button></div></footer>
+  </section>`;
+}
+
+function renderAgentJobTable(rows) {
+  return `<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>时间</th><th>来源</th><th>目标表</th><th>数据量</th><th>风险</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows.map((job) => `<tr><td>${html(isoTime(job.createdAt))}</td><td><span class="admin-table-title">${html(job.sourceName || (job.sourceType === 'file' ? '文件导入' : '口述 / 文本'))}</span><span class="admin-table-note">#${number(job.id)} · ${html(job.model || '未记录模型')}</span></td><td>${html(job.targetTable || '—')}</td><td>${number(job.rowCount).toLocaleString()} 行</td><td>${badge(agentRiskLabel(job.review?.riskLevel))}</td><td>${badge(statusLabel(agentJobStatus(job)))}</td><td><button class="admin-button admin-button--ghost admin-button--small" data-action="view-agent-job" data-id="${number(job.id)}">查看审核</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderAgentJobs() {
+  const data = state.agents.jobs;
+  if (!isSuperAdministrator()) return `<section class="admin-card"><header class="admin-card-head"><div><h2>数据入库审核任务</h2><p>任务预览可能包含未入库的敏感数据。</p></div></header>${empty('只有超级管理员可以查看数据入库审核任务。')}</section>`;
+  return `<section class="admin-card"><header class="admin-card-head"><div><h2>数据入库审核任务</h2><p>查看口述与文件的解析、审核和入库结果。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-agent-jobs">刷新</button></header>${data.loading && !data.data.length ? loading('正在读取审核任务…') : data.data.length ? renderAgentJobTable(data.data) : empty('暂无 Agent 审核任务')}${renderPagination('agent-jobs', data)}</section>`;
+}
+
+function renderAgentRuns() {
+  const data = state.agents.runs;
+  const rows = data.data || [];
+  if (!isSuperAdministrator()) return `<section class="admin-card"><header class="admin-card-head"><div><h2>Agent 执行日志</h2><p>执行日志包含数据入库 Agent 的脱敏运行摘要。</p></div></header>${empty('只有超级管理员可以查看 Agent 执行日志。')}</section>`;
+  return `<section class="admin-card"><header class="admin-card-head"><div><h2>Agent 执行日志</h2><p>仅展示脱敏运行摘要、耗时和错误码，不回显密钥或原始对话。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-agent-runs">刷新</button></header>${data.loading && !rows.length ? loading('正在读取执行日志…') : rows.length ? `<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>开始时间</th><th>运行 / 操作者</th><th>类型</th><th>模型</th><th>状态</th><th>耗时</th><th>结果</th></tr></thead><tbody>${rows.map((run) => `<tr><td>${html(isoTime(run.createdAt || run.startedAt))}</td><td><span class="admin-table-title">#${number(run.id)}</span><span class="admin-table-note">${html(run.actor?.username || (run.jobId ? `任务 #${number(run.jobId)}` : '系统'))}</span></td><td>${html(run.runType || run.type || 'database-review')}</td><td>${html(run.model || '—')}</td><td>${badge(statusLabel(run.status))}</td><td>${html(durationLabel(run.durationMs ?? run.duration_ms))}</td><td>${run.errorCode || run.errorMessage ? `<span class="admin-table-title admin-text-danger">${html(run.errorCode || '执行失败')}</span><span class="admin-table-note">${html(run.errorMessage || '')}</span>` : `<span class="admin-table-note">输入 ${number(run.inputChars ?? run.input_chars).toLocaleString()} / 输出 ${number(run.outputChars ?? run.output_chars).toLocaleString()}</span>`}</td></tr>`).join('')}</tbody></table></div>` : empty('暂无 Agent 执行日志')}${renderPagination('agent-runs', data)}</section>`;
+}
+
+function renderAgentAlerts() {
+  const data = state.agents.alerts;
+  const rows = data.data || [];
+  return `<section class="admin-card"><header class="admin-card-head"><div><h2>自动告警中心</h2><p>集中处理 Agent 失败、高风险审核、异常访问和数据写入问题。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-agent-alerts">刷新</button></header><div class="admin-toolbar"><div class="admin-toolbar-left"><select class="admin-select" id="agentAlertStatus"><option value="open" ${data.status === 'open' ? 'selected' : ''}>待处理</option><option value="acknowledged" ${data.status === 'acknowledged' ? 'selected' : ''}>已确认</option><option value="resolved" ${data.status === 'resolved' ? 'selected' : ''}>已解决</option><option value="" ${data.status === '' ? 'selected' : ''}>全部告警</option></select><button class="admin-button admin-button--ghost admin-button--small" data-action="filter-agent-alerts">筛选</button></div><div class="admin-toolbar-right"><span class="admin-loading">共 ${number(data.total).toLocaleString()} 条</span></div></div>${data.loading && !rows.length ? loading('正在读取告警…') : rows.length ? `<div class="admin-alert-list">${rows.map(renderAgentAlert).join('')}</div>` : empty('当前没有匹配的告警')}${renderPagination('agent-alerts', data)}</section>`;
+}
+
+function renderAgentAlert(alert) {
+  const status = String(alert.status || 'open');
+  const severity = alert.severity || alert.riskLevel || 'warning';
+  return `<article class="admin-alert admin-alert--${html(String(severity).toLowerCase())}"><div class="admin-alert-icon">!</div><div class="admin-alert-copy"><div class="admin-issue-meta"><strong>${html(alert.title || alert.alertType || alert.type || '系统告警')}</strong><span>${badge(severity)} ${badge(statusLabel(status))}</span></div><p>${html(alert.message || alert.summary || alert.description || '未提供告警说明')}</p><small>${html(isoTime(alert.lastDetectedAt || alert.createdAt))}${alert.resourceType || alert.resourceId || alert.sourceType || alert.sourceId ? ` · ${html(alert.resourceType || alert.sourceType || '来源')} ${html(alert.resourceId || alert.sourceId || '')}` : ''}${number(alert.occurrenceCount) > 1 ? ` · 已发生 ${number(alert.occurrenceCount)} 次` : ''}</small></div><div class="admin-alert-actions">${status === 'open' ? `<button class="admin-button admin-button--ghost admin-button--small" data-action="set-agent-alert-status" data-id="${number(alert.id)}" data-status="acknowledged">确认</button>` : `<button class="admin-button admin-button--ghost admin-button--small" data-action="set-agent-alert-status" data-id="${number(alert.id)}" data-status="open">重新打开</button>`}${status !== 'resolved' ? `<button class="admin-button admin-button--lime admin-button--small" data-action="set-agent-alert-status" data-id="${number(alert.id)}" data-status="resolved">标记解决</button>` : ''}</div></article>`;
+}
+
+function renderAgentSettings() {
+  const configs = state.agents.configurations || [];
+  const flags = state.agents.flags || [];
+  return `<section class="admin-section"><div class="admin-grid"><section class="admin-card"><header class="admin-card-head"><div><h2>智能体运行配置</h2><p>仅展示可安全调整的公开配置，不显示模型密钥。</p></div></header><div class="admin-card-body">${configs.length ? `<div class="admin-config-grid">${configs.map(renderConfiguration).join('')}</div>` : empty('暂无可管理的智能体配置')}</div></section><section class="admin-card"><header class="admin-card-head"><div><h2>功能开关</h2><p>关闭后新请求不会进入对应能力。</p></div></header><div class="admin-card-body">${flags.length ? `<div class="admin-issue-list">${flags.map(renderFlag).join('')}</div>` : empty('暂无功能开关')}</div></section></div><section class="admin-card"><header class="admin-card-head"><div><h2>管理原则</h2><p>AI 只能生成建议和待确认提案；模型没有数据库写权限。</p></div></header><div class="admin-card-body"><div class="admin-kpi-list"><div class="admin-kpi-row"><i class="admin-kpi-dot"></i><span class="admin-kpi-copy"><strong>配置安全</strong><small>API 密钥只保留在服务器环境变量中，后台不会读取或回显。</small></span></div><div class="admin-kpi-row"><i class="admin-kpi-dot" style="--dot:#efaa56"></i><span class="admin-kpi-copy"><strong>变更可追溯</strong><small>配置、审核、入库和告警处置都会写入后台审计日志。</small></span></div></div></div></section></section>`;
 }
 
 function renderConfiguration(item) {
@@ -467,8 +691,23 @@ function renderQuality() {
 
 function renderAudit() {
   const data = state.audit;
+  return `<section class="admin-section"><div class="admin-tabs" role="tablist" aria-label="日志类型"><button class="admin-tab${data.tab === 'operations' ? ' is-active' : ''}" role="tab" aria-selected="${data.tab === 'operations'}" data-action="audit-tab" data-tab="operations">操作审计</button><button class="admin-tab${data.tab === 'access' ? ' is-active' : ''}" role="tab" aria-selected="${data.tab === 'access'}" data-action="audit-tab" data-tab="access">访问日志</button></div>${data.tab === 'access' ? renderAccessLogs() : renderOperationAudit()}</section>`;
+}
+
+function renderOperationAudit() {
+  const data = state.audit;
   const rows = data.data || [];
   return `<section class="admin-card"><header class="admin-card-head"><div><h2>后台操作审计</h2><p>记录管理员对用户、院校、智能体和数据治理的关键变更。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-audit">刷新</button></header>${data.loading && !rows.length ? loading('正在读取审计记录…') : rows.length ? `<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>时间</th><th>操作者</th><th>操作</th><th>对象</th><th>说明</th></tr></thead><tbody>${rows.map((entry) => `<tr><td>${html(isoTime(entry.createdAt ?? entry.created_at))}</td><td>${html(auditActorName(entry))}</td><td>${html(entry.actionLabel ?? entry.action ?? entry.operation ?? '更新')}</td><td>${html(auditResourceName(entry))}</td><td>${html(auditSummary(entry))}</td></tr>`).join('')}</tbody></table></div>` : empty('暂无后台操作记录')}${renderPagination('audit', data)}</section>`;
+}
+
+function renderAccessLogs() {
+  const data = state.audit.access;
+  const rows = data.data || [];
+  if (!isSuperAdministrator()) return `<section class="admin-card"><header class="admin-card-head"><div><h2>后台访问日志</h2><p>访问日志包含来源 IP 与客户端摘要。</p></div></header>${empty('只有超级管理员可以查看后台访问日志。')}</section>`;
+  return `<section class="admin-card"><header class="admin-card-head"><div><h2>后台访问日志</h2><p>查看脱敏的管理端请求、响应状态、来源 IP 与耗时。</p></div><button class="admin-button admin-button--ghost admin-button--small" data-action="refresh-access-logs">刷新</button></header>${data.loading && !rows.length ? loading('正在读取访问日志…') : rows.length ? `<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>时间</th><th>访问者</th><th>请求</th><th>响应</th><th>来源 IP</th><th>耗时</th><th>客户端</th></tr></thead><tbody>${rows.map((entry) => {
+    const status = number(entry.statusCode ?? entry.status_code ?? entry.responseStatus);
+    return `<tr><td>${html(isoTime(entry.createdAt ?? entry.created_at ?? entry.timestamp))}</td><td>${html(entry.username || entry.actorUsername || entry.actor?.username || entry.user?.username || '匿名 / 系统')}</td><td><span class="admin-table-title">${html(entry.method || 'GET')} ${html(entry.path || entry.url || entry.route || '—')}</span><span class="admin-table-note">${html(entry.requestId || entry.request_id || '')}</span></td><td>${badge(status ? String(status) : '未知')}</td><td>${html(entry.ipAddress || entry.ip_address || '—')}</td><td>${html(durationLabel(entry.durationMs ?? entry.duration_ms))}</td><td><span class="admin-table-note admin-access-agent" title="${html(entry.userAgent || entry.user_agent || '')}">${html(entry.userAgent || entry.user_agent || '—')}</span></td></tr>`;
+  }).join('')}</tbody></table></div>` : empty('暂无后台访问日志')}${renderPagination('access-logs', data)}</section>`;
 }
 
 function renderIssue(issue) {
@@ -488,11 +727,18 @@ function renderModal() {
   if (state.modal.type === 'database-import') return renderDatabaseImportModal();
   if (state.modal.type === 'database-export') return renderDatabaseExportModal();
   if (state.modal.type === 'database-row') return renderDatabaseRowModal();
+  if (state.modal.type === 'agent-job') return renderAgentJobModal();
   if (state.modal.type !== 'school') return '';
   const school = state.modal.school || {};
   const detail = school.detail || {};
   const isEdit = Boolean(school.id);
   return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="schoolModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="schoolModalTitle">${isEdit ? '编辑院校资料' : '新增院校'}</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="schoolForm" class="admin-modal-form" data-id="${number(school.id)}"><div class="admin-field admin-field--wide"><label>院校名称 *</label><input name="name" required maxlength="191" value="${html(school.name)}" /></div><div class="admin-field"><label>省份 *</label><input name="province" required maxlength="64" value="${html(school.province)}" /></div><div class="admin-field"><label>城市</label><input name="city" maxlength="64" value="${html(school.city)}" /></div><div class="admin-field"><label>分区 *</label><select name="zone"><option value="A" ${school.zone !== 'B' ? 'selected' : ''}>A 区</option><option value="B" ${school.zone === 'B' ? 'selected' : ''}>B 区</option></select></div><div class="admin-field"><label>院校层次 *</label><select name="level">${['985', '211', '双一流', '双非'].map((value) => `<option value="${value}" ${school.level === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field"><label>院校类型</label><input name="type" maxlength="64" value="${html(school.type || '综合')}" /></div><div class="admin-field"><label>院校代码</label><input name="institutionCode" maxlength="64" value="${html(school.institutionCode ?? school.institution_code ?? '')}" /></div><div class="admin-field"><label>核验状态</label><select name="verificationStatus">${['pending', 'verified', 'unverified', 'needs_review', 'rejected'].map((value) => `<option value="${value}" ${(school.verificationStatus ?? school.verification_status ?? 'pending') === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field"><label>资料状态</label><select name="catalogStatus">${['active', 'archived'].map((value) => `<option value="${value}" ${(school.catalogStatus ?? school.catalog_status ?? 'active') === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div><div class="admin-field admin-field--wide"><label>院校地址</label><input name="address" maxlength="500" value="${html(detail.address || school.address || '')}" /></div><div class="admin-field admin-field--wide"><label>官网</label><input name="website" maxlength="500" value="${html(detail.website || school.website || '')}" /></div><div class="admin-field"><label>咨询电话</label><input name="phone" maxlength="128" value="${html(detail.phone || school.phone || '')}" /></div><div class="admin-field"><label>英文名称</label><input name="englishName" maxlength="191" value="${html(detail.englishName ?? detail.english_name ?? '')}" /></div><div class="admin-field admin-field--wide"><label>院校简介</label><textarea name="description">${html(detail.description || '')}</textarea></div><div class="admin-field admin-field--wide"><label>特色说明</label><textarea name="features">${html(detail.features || '')}</textarea></div><div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">${isEdit ? '保存修改' : '创建院校'}</button></div></form></div></section></div>`;
+}
+
+function renderAgentJobModal() {
+  const job = state.modal?.job;
+  if (!job) return '';
+  return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal admin-modal--agent" role="dialog" aria-modal="true" aria-labelledby="agentJobModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="agentJobModalTitle">Agent 审核任务 #${number(job.id)}</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body admin-modal-body--flush">${renderAgentJobReview(job)}</div></section></div>`;
 }
 
 function renderDatabaseTableOptions(selected = state.database.selectedTable) {
@@ -502,7 +748,20 @@ function renderDatabaseTableOptions(selected = state.database.selectedTable) {
 
 function renderDatabaseImportModal() {
   const selected = state.modal?.table || state.database.selectedTable || chooseDatabaseTable(databaseTables());
-  return `<div class="admin-modal-backdrop" data-action="close-modal"><section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="dbImportModalTitle" onclick="event.stopPropagation()"><header class="admin-modal-head"><h2 id="dbImportModalTitle">导入数据库文件</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header><div class="admin-modal-body"><form id="dbImportForm" class="admin-form"><div class="admin-field"><label>目标表</label><select name="table" required>${renderDatabaseTableOptions(selected)}</select></div><div class="admin-field"><label>文件格式</label><select name="format">${DB_IMPORT_FORMATS.map((format) => `<option value="${format}" ${format === 'txt' ? 'selected' : ''}>${databaseFormatLabel(format)}${format === 'txt' ? '（TAB）' : ''}</option>`).join('')}</select></div><div class="admin-field"><label>导入模式</label><select name="mode"><option value="insert">插入</option><option value="upsert">按主键更新</option></select></div><div class="admin-field"><label>写入方式</label><label class="admin-check admin-check--field"><input name="dryRun" type="checkbox" checked />先预览</label></div><div class="admin-field admin-field--wide"><label>选择文件</label><input class="admin-file admin-file--wide" name="file" type="file" accept=".csv,.txt,.tsv,.sql,.xlsx,.db" required /></div><div class="admin-field admin-field--wide"><label>DB 源表名</label><input name="sourceTable" value="${html(selected || '')}" maxlength="64" /></div><div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">开始导入</button></div></form></div></section></div>`;
+  return `<div class="admin-modal-backdrop" data-action="close-modal">
+    <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="dbImportModalTitle" onclick="event.stopPropagation()">
+      <header class="admin-modal-head"><h2 id="dbImportModalTitle">生成兼容导入预览</h2><button class="admin-modal-close" data-action="close-modal">关闭</button></header>
+      <div class="admin-modal-body"><form id="dbImportForm" class="admin-form">
+        <div class="admin-field"><label>目标表</label><select name="table" required>${renderDatabaseTableOptions(selected)}</select></div>
+        <div class="admin-field"><label>文件格式</label><select name="format">${DB_IMPORT_FORMATS.map((format) => `<option value="${format}" ${format === 'txt' ? 'selected' : ''}>${databaseFormatLabel(format)}${format === 'txt' ? '（TAB）' : ''}</option>`).join('')}</select></div>
+        <div class="admin-field"><label>导入模式</label><select name="mode"><option value="insert">插入</option><option value="upsert">按唯一键更新</option></select></div>
+        <div class="admin-field"><label>写入方式</label><p class="admin-table-note">此入口只生成预览；正式入库请到 Agent 工作台审核并确认校验和。</p></div>
+        <div class="admin-field admin-field--wide"><label>选择文件</label><input class="admin-file admin-file--wide" name="file" type="file" accept=".csv,.txt,.tsv,.json,.sql,.xlsx,.db" required /></div>
+        <div class="admin-field admin-field--wide"><label>DB 源表名</label><input name="sourceTable" value="${html(selected || '')}" maxlength="64" /></div>
+        <div class="admin-modal-footer admin-field--wide"><button type="button" class="admin-button admin-button--ghost" data-action="close-modal">取消</button><button type="submit" class="admin-button admin-button--lime">生成预览</button></div>
+      </form></div>
+    </section>
+  </div>`;
 }
 
 function renderDatabaseExportModal() {
@@ -539,15 +798,26 @@ async function loadDashboard() {
   render();
   try {
     const dashboard = await adminRequest('/api/admin/dashboard');
-    const [auditResult, issuesResult] = await Promise.allSettled([
+    const [auditResult, issuesResult, alertsResult] = await Promise.allSettled([
       adminRequest('/api/admin/audit?page=1&pageSize=6'),
       adminRequest('/api/admin/catalog/issues?page=1&pageSize=4&status=open'),
+      isSuperAdministrator()
+        ? adminRequest('/api/admin/alerts?page=1&pageSize=4&status=open')
+        : Promise.resolve({ page: 1, pageSize: 4, total: 0, data: [] }),
     ]);
     state.dashboard = {
       ...dashboard,
       recentAudit: auditResult.status === 'fulfilled' ? unwrapList(auditResult.value) : [],
       catalogIssues: issuesResult.status === 'fulfilled' ? unwrapList(issuesResult.value) : [],
     };
+    if (alertsResult.status === 'fulfilled') {
+      state.agents.alerts = {
+        ...state.agents.alerts,
+        ...paginationOf(alertsResult.value, state.agents.alerts),
+        openTotal: number(alertsResult.value?.total),
+        data: unwrapList(alertsResult.value),
+      };
+    }
     state.accessDenied = false;
   } catch (error) {
     handleAdminError(error);
@@ -560,7 +830,7 @@ async function loadDatabase() {
   render();
   try {
     const status = await adminRequest('/api/admin/database/status');
-    const selectedTable = chooseDatabaseTable(status.tables || [], state.database.selectedTable);
+    const selectedTable = isSuperAdministrator() ? chooseDatabaseTable(status.tables || [], state.database.selectedTable) : '';
     state.database = {
       ...state.database,
       status,
@@ -580,7 +850,7 @@ async function loadDatabase() {
 }
 
 async function loadDatabaseTable({ table = state.database.selectedTable, page = state.database.page } = {}) {
-  if (!table) return;
+  if (!table || !isSuperAdministrator()) return;
   const sameTable = table === state.database.selectedTable;
   state.database = {
     ...state.database,
@@ -658,13 +928,91 @@ async function loadAgents() {
   state.agents.loading = true;
   render();
   try {
-    const [configPayload, flagPayload] = await Promise.all([
+    const canReadOperations = isSuperAdministrator();
+    const results = await Promise.allSettled([
       adminRequest('/api/admin/agent-configurations'),
       adminRequest('/api/admin/feature-flags'),
+      adminRequest('/api/admin/database/status'),
+      canReadOperations
+        ? adminRequest(`/api/admin/database-agent/jobs?page=${state.agents.jobs.page}&pageSize=${state.agents.jobs.pageSize}`)
+        : Promise.resolve({ page: 1, pageSize: PAGE_SIZE, total: 0, data: [] }),
+      canReadOperations
+        ? adminRequest(`/api/admin/database-agent/runs?page=${state.agents.runs.page}&pageSize=${state.agents.runs.pageSize}`)
+        : Promise.resolve({ page: 1, pageSize: PAGE_SIZE, total: 0, data: [] }),
+      canReadOperations
+        ? adminRequest(`/api/admin/alerts?page=${state.agents.alerts.page}&pageSize=${state.agents.alerts.pageSize}&status=${encodeURIComponent(state.agents.alerts.status)}`)
+        : Promise.resolve({ page: 1, pageSize: PAGE_SIZE, total: 0, data: [] }),
     ]);
-    state.agents = { configurations: unwrapList(configPayload, ['configurations', 'data']), flags: unwrapList(flagPayload, ['flags', 'data']), loading: false };
+    const value = (index, fallback = {}) => results[index].status === 'fulfilled' ? results[index].value : fallback;
+    const configPayload = value(0);
+    const flagPayload = value(1);
+    const databaseStatus = value(2);
+    const jobsPayload = value(3);
+    const runsPayload = value(4);
+    const alertsPayload = value(5);
+    state.agents = {
+      ...state.agents,
+      configurations: unwrapList(configPayload, ['configurations', 'data']),
+      flags: unwrapList(flagPayload, ['flags', 'data']),
+      tables: (databaseStatus.tables || state.agents.tables).filter((table) => table.writable !== false),
+      jobs: { ...state.agents.jobs, ...paginationOf(jobsPayload, state.agents.jobs), data: unwrapList(jobsPayload), loading: false },
+      runs: { ...state.agents.runs, ...paginationOf(runsPayload, state.agents.runs), data: unwrapList(runsPayload), loading: false },
+      alerts: { ...state.agents.alerts, ...paginationOf(alertsPayload, state.agents.alerts), openTotal: number(alertsPayload?.total), data: unwrapList(alertsPayload), loading: false },
+      loading: false,
+    };
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure) handleAdminError(failure.reason);
+    else state.accessDenied = false;
   } catch (error) {
     state.agents.loading = false;
+    handleAdminError(error);
+  }
+  render();
+}
+
+async function loadAgentJobs({ page = state.agents.jobs.page } = {}) {
+  if (!isSuperAdministrator()) return;
+  state.agents.jobs.loading = true;
+  render();
+  try {
+    const data = state.agents.jobs;
+    const payload = await adminRequest(`/api/admin/database-agent/jobs?page=${Math.max(1, page)}&pageSize=${data.pageSize}`);
+    state.agents.jobs = { ...data, ...paginationOf(payload, data), data: unwrapList(payload), loading: false };
+  } catch (error) {
+    state.agents.jobs.loading = false;
+    handleAdminError(error);
+  }
+  render();
+}
+
+async function loadAgentRuns({ page = state.agents.runs.page } = {}) {
+  if (!isSuperAdministrator()) return;
+  state.agents.runs.loading = true;
+  render();
+  try {
+    const data = state.agents.runs;
+    const payload = await adminRequest(`/api/admin/database-agent/runs?page=${Math.max(1, page)}&pageSize=${data.pageSize}`);
+    state.agents.runs = { ...data, ...paginationOf(payload, data), data: unwrapList(payload), loading: false };
+  } catch (error) {
+    state.agents.runs.loading = false;
+    handleAdminError(error);
+  }
+  render();
+}
+
+async function loadAgentAlerts({ page = state.agents.alerts.page, status = state.agents.alerts.status } = {}) {
+  if (!isSuperAdministrator()) return;
+  state.agents.alerts.loading = true;
+  state.agents.alerts.status = status;
+  render();
+  try {
+    const data = state.agents.alerts;
+    const query = new URLSearchParams({ page: String(Math.max(1, page)), pageSize: String(data.pageSize) });
+    if (status) query.set('status', status);
+    const payload = await adminRequest(`/api/admin/alerts?${query}`);
+    state.agents.alerts = { ...data, ...paginationOf(payload, data), openTotal: status === 'open' ? number(payload?.total) : data.openTotal, status, data: unwrapList(payload), loading: false };
+  } catch (error) {
+    state.agents.alerts.loading = false;
     handleAdminError(error);
   }
   render();
@@ -696,6 +1044,21 @@ async function loadAudit({ page = state.audit.page } = {}) {
   render();
 }
 
+async function loadAccessLogs({ page = state.audit.access.page } = {}) {
+  if (!isSuperAdministrator()) return;
+  state.audit.access.loading = true;
+  render();
+  try {
+    const data = state.audit.access;
+    const payload = await adminRequest(`/api/admin/access-logs?page=${Math.max(1, page)}&pageSize=${data.pageSize}`);
+    state.audit.access = { ...data, ...paginationOf(payload, data), data: unwrapList(payload), loading: false };
+  } catch (error) {
+    state.audit.access.loading = false;
+    handleAdminError(error);
+  }
+  render();
+}
+
 async function loadActiveSection() {
   if (state.accessDenied) return;
   switch (state.section) {
@@ -704,7 +1067,9 @@ async function loadActiveSection() {
     case 'users': return loadUsers({ page: state.users.page });
     case 'agents': return loadAgents();
     case 'quality': return loadQuality({ page: state.quality.page });
-    case 'audit': return loadAudit({ page: state.audit.page });
+    case 'audit': return state.audit.tab === 'access'
+      ? loadAccessLogs({ page: state.audit.access.page })
+      : loadAudit({ page: state.audit.page });
     default: return loadDashboard();
   }
 }
@@ -924,7 +1289,7 @@ async function importDatabaseTable(form = null) {
   const file = fields?.get('file') instanceof File && fields.get('file').name ? fields.get('file') : null;
   if (!table || !file) return showToast('请选择要导入的文件', { error: true });
   const format = String(fields?.get('format') || 'csv');
-  const dryRun = fields ? fields.get('dryRun') === 'on' : true;
+  const dryRun = true;
   const mode = String(fields?.get('mode') || 'insert');
   try {
     const body = {
@@ -938,11 +1303,209 @@ async function importDatabaseTable(form = null) {
     const result = await adminRequest(`/api/admin/database/tables/${encodeURIComponent(table)}/import`, { method: 'POST', body });
     state.database.importResult = result;
     state.modal = null;
-    showToast(dryRun ? '导入预览已生成' : '导入完成');
-    if (!dryRun || table !== state.database.selectedTable) await loadDatabaseTable({ table, page: 1 });
+    showToast('兼容导入预览已生成；请到 Agent 工作台确认入库');
+    if (table !== state.database.selectedTable) await loadDatabaseTable({ table, page: 1 });
     else render();
   } catch (error) {
     showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+function rememberAgentJob(job) {
+  if (!job?.id) return;
+  const jobs = state.agents.jobs;
+  const existing = jobs.data.some((item) => number(item.id) === number(job.id));
+  state.agents.currentJob = job;
+  state.agents.jobs = {
+    ...jobs,
+    total: existing ? jobs.total : jobs.total + 1,
+    data: existing
+      ? jobs.data.map((item) => number(item.id) === number(job.id) ? job : item)
+      : [job, ...jobs.data].slice(0, jobs.pageSize),
+  };
+  if (state.modal?.type === 'agent-job' && number(state.modal.job?.id) === number(job.id)) state.modal.job = job;
+}
+
+function findAgentJob(id) {
+  const jobId = number(id);
+  if (number(state.agents.currentJob?.id) === jobId) return state.agents.currentJob;
+  if (number(state.modal?.job?.id) === jobId) return state.modal.job;
+  return state.agents.jobs.data.find((item) => number(item.id) === jobId) || null;
+}
+
+async function createDatabaseAgentReview(form) {
+  if (!isSuperAdministrator()) return showToast('只有超级管理员可以发起入库审核', { error: true });
+  const fields = new FormData(form);
+  const table = String(fields.get('table') || '').trim();
+  const instruction = String(fields.get('instruction') || '').trim();
+  const mode = String(fields.get('mode') || 'insert');
+  const format = String(fields.get('format') || 'csv');
+  const sourceType = String(fields.get('sourceType') || 'text') === 'voice' ? 'voice' : 'text';
+  const fileValue = fields.get('file');
+  const file = fileValue instanceof File && fileValue.name ? fileValue : null;
+  if (!table) return showToast('请填写目标数据表', { error: true });
+  if (!instruction && !file) return showToast('请口述、输入处理要求或选择数据文件', { error: true });
+  state.agents.draft = { instruction, table, mode, format, sourceType };
+  state.agents.submitting = true;
+  stopAgentDictation();
+  render();
+  try {
+    const body = {
+      table,
+      sourceType: file ? 'file' : sourceType,
+      mode,
+      ...(instruction ? { instruction } : {}),
+    };
+    if (file) {
+      body.sourceName = file.name;
+      body.format = format;
+      Object.assign(body, await readFileContent(file, format));
+      const sourceTable = String(fields.get('sourceTable') || '').trim();
+      if (format === 'db' && sourceTable) body.sourceTable = sourceTable;
+    }
+    const payload = await adminRequest('/api/admin/database-agent/reviews', { method: 'POST', body });
+    if (!payload?.job) throw new Error('服务器未返回审核任务');
+    state.agents.submitting = false;
+    state.agents.draft = { instruction: '', table, mode, format, sourceType: 'text' };
+    rememberAgentJob(payload.job);
+    showToast('Agent 审核预览已生成');
+    await loadAgentJobs({ page: 1 });
+  } catch (error) {
+    state.agents.submitting = false;
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function applyAgentJob(id) {
+  const job = findAgentJob(id);
+  if (!job || !agentJobCanApply(job)) return;
+  if (!window.confirm(`确认将审核任务 #${job.id} 的 ${number(job.rowCount)} 行建议写入 ${job.targetTable || '目标数据表'}？`)) return;
+  try {
+    const payload = await adminRequest(`/api/admin/database-agent/jobs/${encodeURIComponent(job.id)}/apply`, {
+      method: 'POST',
+      body: { checksum: job.checksum, rowCount: number(job.rowCount) },
+    });
+    if (payload?.job) rememberAgentJob(payload.job);
+    showToast(`任务已入库${payload?.job?.affectedRows !== undefined ? `，影响 ${number(payload.job.affectedRows)} 行` : ''}`);
+    await loadAgentJobs({ page: state.agents.jobs.page });
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+    await loadAgentJobs({ page: state.agents.jobs.page });
+  }
+}
+
+async function downloadAgentJob(id) {
+  const job = findAgentJob(id);
+  if (!job || !isSuperAdministrator()) return;
+  try {
+    const payload = await adminRequest(`/api/admin/database-agent/jobs/${encodeURIComponent(job.id)}/export`);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `database-agent-job-${job.id}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('完整暂存数据已下载，请核对行数与校验和');
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function rejectAgentJob(id) {
+  const job = findAgentJob(id);
+  if (!job || !agentJobCanReject(job)) return;
+  if (!window.confirm(`确认驳回审核任务 #${job.id}？该任务不会写入数据库。`)) return;
+  try {
+    const payload = await adminRequest(`/api/admin/database-agent/jobs/${encodeURIComponent(job.id)}/reject`, { method: 'POST' });
+    if (payload?.job) rememberAgentJob(payload.job);
+    showToast('审核任务已驳回');
+    await loadAgentJobs({ page: state.agents.jobs.page });
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+async function setAgentAlertStatus(id, status) {
+  try {
+    const payload = await adminRequest(`/api/admin/alerts/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status } });
+    if (payload?.alert) {
+      state.agents.alerts.data = state.agents.alerts.data.map((item) => number(item.id) === number(id) ? payload.alert : item);
+    }
+    showToast(status === 'resolved' ? '告警已解决' : status === 'acknowledged' ? '告警已确认' : '告警已重新打开');
+    await loadAgentAlerts({ page: 1, status: state.agents.alerts.status });
+  } catch (error) {
+    showToast(requestErrorMessage(error), { error: true });
+  }
+}
+
+function updateAgentSpeechUi(active, message = '') {
+  state.agents.dictating = active;
+  const button = root.querySelector('[data-action="toggle-agent-dictation"]');
+  const label = button?.querySelector('[data-speech-button-label]');
+  const status = root.querySelector('#agentSpeechStatus');
+  if (button) {
+    button.classList.toggle('is-recording', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  if (label) label.textContent = active ? '停止口述' : '开始口述';
+  if (status && message) status.textContent = message;
+}
+
+function stopAgentDictation(message = '') {
+  const recognition = activeSpeechRecognition;
+  activeSpeechRecognition = null;
+  if (recognition) {
+    recognition.onend = null;
+    try { recognition.stop(); } catch { /* Recognition may already be stopped. */ }
+  }
+  updateAgentSpeechUi(false, message);
+}
+
+function toggleAgentDictation() {
+  if (activeSpeechRecognition) return stopAgentDictation('口述已停止，可继续编辑后生成审核预览。');
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const input = root.querySelector('#agentInstruction');
+  if (!Recognition || !input) return updateAgentSpeechUi(false, '当前浏览器无法使用语音输入。');
+  const recognition = new Recognition();
+  const prefix = input.value.trim();
+  let committed = '';
+  recognition.lang = 'zh-CN';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const transcript = String(event.results[index][0]?.transcript || '').trim();
+      if (event.results[index].isFinal) committed += `${transcript}。`;
+      else interim += transcript;
+    }
+    input.value = [prefix, committed, interim].filter(Boolean).join(prefix ? '\n' : '');
+    state.agents.draft.instruction = input.value;
+    if (committed || interim) {
+      state.agents.draft.sourceType = 'voice';
+      const sourceType = root.querySelector('#databaseAgentReviewForm [name="sourceType"]');
+      if (sourceType) sourceType.value = 'voice';
+    }
+  };
+  recognition.onerror = (event) => {
+    activeSpeechRecognition = null;
+    const message = event.error === 'not-allowed'
+      ? '麦克风权限被拒绝，请在浏览器设置中允许后重试。'
+      : event.error === 'no-speech' ? '未检测到语音，请靠近麦克风后重试。' : `语音输入已停止：${event.error || '未知错误'}`;
+    updateAgentSpeechUi(false, message);
+  };
+  recognition.onend = () => {
+    activeSpeechRecognition = null;
+    updateAgentSpeechUi(false, '口述已转成文字，可继续编辑后生成审核预览。');
+  };
+  activeSpeechRecognition = recognition;
+  try {
+    recognition.start();
+    updateAgentSpeechUi(true, '正在聆听…点击“停止口述”完成输入。');
+  } catch (error) {
+    activeSpeechRecognition = null;
+    updateAgentSpeechUi(false, `无法启动语音输入：${error.message || '未知错误'}`);
   }
 }
 
@@ -1012,6 +1575,7 @@ async function resolveIssue(id) {
 
 function setSection(next) {
   if (!NAV_ITEMS.some((item) => item.id === next)) return;
+  if (state.section === 'agents' && next !== 'agents') stopAgentDictation();
   state.section = next;
   state.menuOpen = false;
   render();
@@ -1019,6 +1583,7 @@ function setSection(next) {
 }
 
 function render() {
+  if (activeSpeechRecognition) stopAgentDictation();
   if (!state.user) renderLogin();
   else renderShell();
 }
@@ -1030,6 +1595,33 @@ document.addEventListener('submit', (event) => {
   if (form.id === 'dbRowForm') { event.preventDefault(); void saveDatabaseRow(form); }
   if (form.id === 'dbImportForm') { event.preventDefault(); void importDatabaseTable(form); }
   if (form.id === 'dbExportForm') { event.preventDefault(); void exportDatabaseTable(form); }
+  if (form.id === 'databaseAgentReviewForm') { event.preventDefault(); void createDatabaseAgentReview(form); }
+});
+
+document.addEventListener('input', (event) => {
+  if (event.target.id === 'agentInstruction') state.agents.draft.instruction = event.target.value;
+  if (event.target.id === 'agentTargetTable') state.agents.draft.table = event.target.value;
+});
+
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'agentImportMode') state.agents.draft.mode = event.target.value;
+  if (event.target.id === 'agentFileFormat') {
+    state.agents.draft.format = event.target.value;
+    const sourceTable = root.querySelector('[data-agent-source-table]');
+    if (sourceTable) sourceTable.hidden = event.target.value !== 'db';
+  }
+  if (event.target.id === 'databaseAgentFile') {
+    const extension = String(event.target.files?.[0]?.name || '').split('.').pop().toLowerCase();
+    const normalized = extension === 'tsv' ? 'txt' : extension;
+    const format = DB_IMPORT_FORMATS.includes(normalized) ? normalized : '';
+    const select = root.querySelector('#agentFileFormat');
+    if (format && select) {
+      select.value = format;
+      state.agents.draft.format = format;
+      const sourceTable = root.querySelector('[data-agent-source-table]');
+      if (sourceTable) sourceTable.hidden = format !== 'db';
+    }
+  }
 });
 
 document.addEventListener('click', (event) => {
@@ -1042,6 +1634,37 @@ document.addEventListener('click', (event) => {
   if (action === 'toggle-menu') { state.menuOpen = !state.menuOpen; render(); return; }
   if (action === 'logout') { void logout().finally(() => { state.user = null; state.accessDenied = false; render(); }); return; }
   if (action === 'refresh') { void loadActiveSection(); return; }
+  if (action === 'open-agent-workbench') { state.agents.tab = 'workbench'; render(); return; }
+  if (action === 'agent-tab') {
+    stopAgentDictation();
+    state.agents.tab = button.dataset.tab || 'workbench';
+    render();
+    return;
+  }
+  if (action === 'toggle-agent-dictation') { toggleAgentDictation(); return; }
+  if (action === 'view-agent-job') {
+    const job = findAgentJob(button.dataset.id);
+    if (job) { state.modal = { type: 'agent-job', job }; render(); }
+    return;
+  }
+  if (action === 'download-agent-job') { void downloadAgentJob(button.dataset.id); return; }
+  if (action === 'apply-agent-job') { void applyAgentJob(button.dataset.id); return; }
+  if (action === 'reject-agent-job') { void rejectAgentJob(button.dataset.id); return; }
+  if (action === 'refresh-agent-jobs') { void loadAgentJobs({ page: state.agents.jobs.page }); return; }
+  if (action === 'refresh-agent-runs') { void loadAgentRuns({ page: state.agents.runs.page }); return; }
+  if (action === 'refresh-agent-alerts') { void loadAgentAlerts({ page: state.agents.alerts.page }); return; }
+  if (action === 'filter-agent-alerts') {
+    state.agents.alerts.status = root.querySelector('#agentAlertStatus')?.value || '';
+    void loadAgentAlerts({ page: 1, status: state.agents.alerts.status });
+    return;
+  }
+  if (action === 'set-agent-alert-status') { void setAgentAlertStatus(button.dataset.id, button.dataset.status); return; }
+  if (action === 'audit-tab') {
+    state.audit.tab = button.dataset.tab === 'access' ? 'access' : 'operations';
+    render();
+    if (state.audit.tab === 'access' && !state.audit.access.data.length) void loadAccessLogs({ page: 1 });
+    return;
+  }
   if (action === 'refresh-database') { void loadDatabase(); return; }
   if (action === 'select-db-table') {
     state.database.keyword = '';
@@ -1084,6 +1707,7 @@ document.addEventListener('click', (event) => {
   if (action === 'refresh-quality') { void loadQuality({ page: state.quality.page }); return; }
   if (action === 'resolve-issue') { void resolveIssue(number(button.dataset.id)); return; }
   if (action === 'refresh-audit') { void loadAudit({ page: state.audit.page }); return; }
+  if (action === 'refresh-access-logs') { void loadAccessLogs({ page: state.audit.access.page }); return; }
   if (action === 'page') {
     const page = number(button.dataset.page, 1);
     if (page < 1) return;
@@ -1092,6 +1716,10 @@ document.addEventListener('click', (event) => {
     if (button.dataset.kind === 'users') void loadUsers({ page });
     if (button.dataset.kind === 'quality') void loadQuality({ page });
     if (button.dataset.kind === 'audit') void loadAudit({ page });
+    if (button.dataset.kind === 'access-logs') void loadAccessLogs({ page });
+    if (button.dataset.kind === 'agent-jobs') void loadAgentJobs({ page });
+    if (button.dataset.kind === 'agent-runs') void loadAgentRuns({ page });
+    if (button.dataset.kind === 'agent-alerts') void loadAgentAlerts({ page });
   }
 }, true);
 

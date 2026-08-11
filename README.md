@@ -1,6 +1,6 @@
 # 考研择校助手 — 项目说明文档
 
-> 版本 4.3 | 2026-08-08 | 全栈 SPA + TWA + REST API
+> 版本 4.4 | 2026-08-11 | 全栈 SPA + TWA + REST API + 后台数据 Agent
 
 本文档是项目的完整技术说明，包含架构设计、API 接口、数据库 Schema、构建流程和后续升级指南。
 
@@ -38,6 +38,7 @@
 | 设计工具 | Pencil (.pen) |
 | 测试框架 | Vitest（42 用例） |
 | 代码规范 | ESLint + Prettier |
+| 后台 Agent | 口述/文件抽取 + 双重审核 + checksum 确认 + 审计告警 |
 
 ---
 
@@ -113,7 +114,8 @@ kaoyan-app/
 │   │   └── routes/
 │   │       ├── universities.js # /api/universities
 │   │       ├── national-lines.js # /api/national-lines
-│   │       └── match.js        # /api/match
+│   │       ├── match.js        # /api/match
+│   │       └── admin-agent.js  # 数据摄取、审核、确认、日志与告警
 │   ├── scripts/                # 后端运维脚本
 │   └── analyze-data.mjs        # 数据分析辅助脚本
 │
@@ -205,6 +207,8 @@ const rows = await db.all('SELECT * FROM universities WHERE zone = ?', ['A']);
 ```
 
 运行 API 前需要可连接的 MySQL；Docker 环境由 `docker-compose.backend.yml` 提供 `mysql` 服务。生产发布时保持 `RUN_MIGRATIONS_ON_START=false`，先运行一次性 `api-migrate` 再启动或更新 API。
+
+后台 `/admin/` 的数据库管理 Agent 支持浏览器口述转写和 CSV/TXT/JSON/SQL/XLSX/DB 导入。输入会先转成暂存任务，经过确定性规则与模型语义审核；模型没有写库权限，只有超级管理员确认未变化的 checksum 后，服务端才会事务写入并生成来源、变更、访问和告警记录。完整契约见 `docs/admin-api.md`。
 
 ---
 
@@ -351,4 +355,4 @@ pnpm build                    # 前端
 
 ---
 
-> **维护者**: AI Assistant | **更新**: 2026-08-08 | **版本**: 前端 v4.3 / 后端 v1.0 / TWA v4.3
+> **维护者**: AI Assistant | **更新**: 2026-08-11 | **版本**: 前端 v4.4 / 后端 v1.1 / TWA v4.3

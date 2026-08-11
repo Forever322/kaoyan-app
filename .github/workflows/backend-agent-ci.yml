@@ -1,0 +1,96 @@
+name: Backend Agent CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "admin/**"
+      - "package.json"
+      - "server/package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/backend-agent-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "admin/**"
+      - "package.json"
+      - "server/package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/backend-agent-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  test-and-migrate:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: kaoyan_ci
+          MYSQL_USER: kaoyan_ci
+          MYSQL_PASSWORD: ci-database-password
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Run backend tests
+        run: pnpm --dir server test
+
+      - name: Apply MySQL 8.4 migrations twice
+        run: |
+          pnpm --dir server db:migrate
+          pnpm --dir server db:migrate
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: "3306"
+          MYSQL_DATABASE: kaoyan_ci
+          MYSQL_USER: kaoyan_ci
+          MYSQL_PASSWORD: ci-database-password
+          MYSQL_CONNECT_RETRIES: "30"
+          MYSQL_CONNECT_RETRY_MS: "1000"
+
+      - name: Verify Agent schema
+        working-directory: server
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: "3306"
+          MYSQL_DATABASE: kaoyan_ci
+          MYSQL_USER: kaoyan_ci
+          MYSQL_PASSWORD: ci-database-password
+        run: >-
+          node --input-type=module -e "
+          import mysql from 'mysql2/promise';
+          const db = await mysql.createConnection({host:process.env.MYSQL_HOST,port:Number(process.env.MYSQL_PORT),user:process.env.MYSQL_USER,password:process.env.MYSQL_PASSWORD,database:process.env.MYSQL_DATABASE});
+          const [[migration]] = await db.query('SELECT COUNT(*) AS count FROM schema_migrations');
+          const [tables] = await db.query(\"SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('admin_agent_jobs','admin_access_logs','admin_alerts')\");
+          const [columns] = await db.query(\"SELECT column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='agent_runs' AND column_name='admin_agent_job_id'\");
+          await db.end();
+          if (Number(migration.count) !== 7 || tables.length !== 3 || columns.length !== 1) throw new Error('Agent migration verification failed');
+          console.log('mysql-agent-schema-ok');"

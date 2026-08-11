@@ -1,8 +1,7 @@
 name: kaoyan-app
 
-# API 与一次性数据库工具共用运行环境。API 通过 Compose 内部网络连接 MySQL；
-# 外部客户端通过下方显式发布的端口访问。不要把 MYSQL_ROOT_PASSWORD 传给 API，
-# 并在云安全组中仅允许可信客户端公网 IP 访问数据库端口。
+# API 与一次性数据库工具共用的运行环境。MySQL 只在 Compose 内部网络中可见，
+# 不要在 mysql 服务上添加 ports，也不要把 MYSQL_ROOT_PASSWORD 传给 API。
 x-api-environment: &api-environment
   NODE_ENV: production
   PORT: 3000
@@ -50,13 +49,10 @@ x-api-environment: &api-environment
   AGENT_MODEL: ${AGENT_MODEL:-deepseek-chat}
 
 services:
-  # API 仍通过 mysql:3306 内网访问；外部数据库客户端通过宿主机发布端口访问。
-  # 公网发布时必须同时使用云安全组限制来源 IP，禁止对全网开放 3306。
+  # 仅供 API 和运维工具访问；不映射 3306 到宿主机或公网。
   mysql:
     image: ${MYSQL_IMAGE:-mysql:8.4}
     restart: unless-stopped
-    ports:
-      - "${MYSQL_PUBLIC_BIND_ADDRESS:-0.0.0.0}:${MYSQL_PUBLIC_PORT:-3306}:3306"
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in the deployment environment}
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in the deployment environment}

@@ -16,10 +16,32 @@ const MAX_IMPORT_BYTES = 12 * 1024 * 1024;
 const TEXT_TYPES = new Set(['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext', 'enum', 'set']);
 const JSON_TYPES = new Set(['json']);
 const NUMBER_TYPES = new Set(['tinyint', 'smallint', 'mediumint', 'int', 'integer', 'bigint', 'decimal', 'float', 'double', 'real']);
+const INTEGER_TYPES = new Set(['tinyint', 'smallint', 'mediumint', 'int', 'integer', 'bigint']);
+const DATE_TYPES = new Set(['date', 'datetime', 'timestamp']);
 const BOOLEAN_COLUMN = /^(is_|has_|allow_|enabled$|.*_enabled$|.*_required$|.*_allowed$)/iu;
 const SENSITIVE_COLUMN = /(pass(?:word)?|secret|token|api[_-]?key|authorization|credential|cookie|private[_-]?key)/iu;
-const WRITE_BLOCKED_TABLES = new Set(['schema_migrations', 'admin_audit_logs', 'auth_tokens']);
-const IMPORT_FORMATS = new Set(['csv', 'txt', 'sql', 'xlsx', 'db']);
+const SERVER_MANAGED_COLUMNS = new Set([
+  'created_at', 'updated_at', 'deleted_at', 'applied_at', 'confirmed_at', 'completed_at',
+  'source_document_id', 'import_batch_id', 'verification_status', 'catalog_status', 'status',
+]);
+// Direct database writes are intentionally limited to reference/catalog data.
+// Accounts, tokens, policies, audit records and agent control-plane tables must
+// always go through their domain services so their authorization invariants
+// and side effects cannot be bypassed from the generic workbench.
+export const DATABASE_WRITE_ALLOWED_TABLES = new Set([
+  'universities', 'uni_details', 'uni_photos', 'national_lines', 'admission_scores', 'uni_requirements',
+  'university_aliases', 'campuses', 'academic_units',
+  'programs', 'program_offerings', 'exam_subjects', 'score_lines', 'admission_statistics', 'retest_rules',
+]);
+const DATABASE_READ_ALLOWED_TABLES = new Set([
+  ...DATABASE_WRITE_ALLOWED_TABLES,
+  'data_import_batches', 'source_documents', 'catalog_change_log', 'catalog_data_issues',
+]);
+const DATABASE_DELETE_ALLOWED_TABLES = new Set([
+  'uni_photos', 'national_lines', 'admission_scores', 'uni_requirements',
+  'exam_subjects', 'score_lines', 'admission_statistics', 'retest_rules',
+]);
+const IMPORT_FORMATS = new Set(['csv', 'txt', 'json', 'sql', 'xlsx', 'db']);
 const EXPORT_FORMATS = new Set(['csv', 'txt', 'sql', 'xlsx']);
 const DATABASE_MANAGER_AGENT_TYPE = 'database-manager';
 
@@ -105,8 +127,11 @@ function tableNameFromParam(value) {
 }
 
 function publicTable(row) {
+  const name = row.table_name || row.TABLE_NAME || '';
   return {
-    name: row.table_name || row.TABLE_NAME || '',
+    name,
+    readable: DATABASE_READ_ALLOWED_TABLES.has(name),
+    writable: DATABASE_WRITE_ALLOWED_TABLES.has(name),
     estimatedRows: toNumber(row.table_rows ?? row.TABLE_ROWS),
     dataBytes: toNumber(row.data_length ?? row.DATA_LENGTH),
     indexBytes: toNumber(row.index_length ?? row.INDEX_LENGTH),
@@ -144,7 +169,7 @@ function publicColumn(row) {
   };
 }
 
-async function loadTableMetadata(db, requestedTable) {
+export async function loadTableMetadata(db, requestedTable) {
   const tableName = tableNameFromParam(requestedTable);
   const table = await db.one(`SELECT table_name,table_rows,data_length,index_length,update_time
     FROM information_schema.tables
@@ -155,14 +180,68 @@ async function loadTableMetadata(db, requestedTable) {
     FROM information_schema.columns
     WHERE table_schema=DATABASE() AND table_name=?
     ORDER BY ordinal_position ASC`, [tableName]);
+  const [indexRows, foreignKeyRows] = await Promise.all([
+    db.all(`SELECT index_name,column_name,seq_in_index,non_unique,sub_part
+      FROM information_schema.statistics
+      WHERE table_schema=DATABASE() AND table_name=?
+      ORDER BY index_name ASC,seq_in_index ASC`, [tableName]),
+    db.all(`SELECT column_name,referenced_table_name,referenced_column_name,constraint_name
+      FROM information_schema.key_column_usage
+      WHERE table_schema=DATABASE() AND table_name=? AND referenced_table_name IS NOT NULL
+      ORDER BY constraint_name ASC,ordinal_position ASC`, [tableName]),
+  ]);
   const columns = columnRows.map(publicColumn);
   if (!columns.length) throw requestError('数据表没有可读取字段', 404);
   const primaryColumns = columns.filter((column) => column.primaryKey);
-  return { table: publicTable(table), tableName, columns, primaryColumns };
+  const uniqueKeyMap = new Map();
+  for (const row of indexRows || []) {
+    if (Number(row.non_unique ?? row.NON_UNIQUE) !== 0) continue;
+    const indexName = row.index_name || row.INDEX_NAME || '';
+    if (!uniqueKeyMap.has(indexName)) uniqueKeyMap.set(indexName, []);
+    uniqueKeyMap.get(indexName).push({
+      field: row.column_name || row.COLUMN_NAME || '',
+      prefixLength: Number(row.sub_part ?? row.SUB_PART) || null,
+    });
+  }
+  return {
+    table: publicTable(table),
+    tableName,
+    columns,
+    primaryColumns,
+    uniqueKeys: [...uniqueKeyMap.entries()].map(([name, parts]) => ({
+      name,
+      fields: parts.map((part) => part.field).filter(Boolean),
+      parts: parts.filter((part) => part.field),
+    })),
+    foreignKeys: (foreignKeyRows || []).map((row) => ({
+      field: row.column_name || row.COLUMN_NAME || '',
+      referencedTable: row.referenced_table_name || row.REFERENCED_TABLE_NAME || '',
+      referencedField: row.referenced_column_name || row.REFERENCED_COLUMN_NAME || '',
+      constraintName: row.constraint_name || row.CONSTRAINT_NAME || '',
+    })),
+  };
 }
 
 function requireDatabaseOperator(actor) {
   if (!isSuperAdministrator(actor)) throw requestError('只有超级管理员可以直接操作数据库', 403);
+}
+
+export function requireWritableDatabaseTable(meta) {
+  if (!DATABASE_WRITE_ALLOWED_TABLES.has(meta.tableName)) {
+    throw requestError('该表不允许通过数据库工作台写入，请使用对应的领域管理接口', 403);
+  }
+}
+
+function requireReadableDatabaseTable(meta) {
+  if (!DATABASE_READ_ALLOWED_TABLES.has(meta.tableName)) {
+    throw requestError('该表包含账号、私密业务数据或控制配置，请使用对应的领域管理接口', 403);
+  }
+}
+
+function requireDeletableDatabaseTable(meta) {
+  if (!DATABASE_DELETE_ALLOWED_TABLES.has(meta.tableName)) {
+    throw requestError('该表不允许通过数据库工作台硬删除，请使用归档或领域管理接口', 403);
+  }
 }
 
 function primaryKey(meta) {
@@ -172,11 +251,19 @@ function primaryKey(meta) {
   return meta.primaryColumns[0];
 }
 
-function redactRow(row, columns) {
+export function redactDatabaseRow(row, columns) {
   const sensitive = new Set(columns.filter((column) => column.sensitive).map((column) => column.name));
+  const jsonColumns = new Set(columns.filter((column) => column.dataType === 'json').map((column) => column.name));
   return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [
     key,
-    sensitive.has(key) && value !== null && value !== undefined && value !== '' ? '[redacted]' : value,
+    sensitive.has(key) && value !== null && value !== undefined && value !== ''
+      ? '[redacted]'
+      : jsonColumns.has(key)
+        ? safeAuditSnapshot((() => {
+          if (typeof value !== 'string') return value;
+          try { return JSON.parse(value); } catch { return value; }
+        })())
+        : value,
   ]));
 }
 
@@ -188,12 +275,63 @@ function columnMap(meta) {
   return new Map(meta.columns.map((column) => [column.name, column]));
 }
 
+function normalizeInteger(value, column) {
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) throw requestError(`${column.name} 超出安全整数范围`);
+  const text = String(value).trim();
+  if (!/^[+-]?\d+$/u.test(text)) throw requestError(`${column.name} 必须是整数`);
+  const integer = BigInt(text);
+  const unsigned = /\bunsigned\b/iu.test(column.columnType || '');
+  const bits = { tinyint: 8n, smallint: 16n, mediumint: 24n, int: 32n, integer: 32n, bigint: 64n }[column.dataType];
+  const minimum = unsigned ? 0n : -(2n ** (bits - 1n));
+  const maximum = unsigned ? (2n ** bits) - 1n : (2n ** (bits - 1n)) - 1n;
+  if (integer < minimum || integer > maximum) throw requestError(`${column.name} 超出 ${column.columnType || column.dataType} 范围`);
+  return column.dataType === 'bigint' ? integer.toString() : Number(integer);
+}
+
+function normalizeDecimal(value, column) {
+  const text = String(value).trim();
+  const match = text.match(/^([+-]?)(\d+)(?:\.(\d+))?$/u);
+  if (!match) throw requestError(`${column.name} 必须是十进制定点数`);
+  const integerDigits = match[2].replace(/^0+(?=\d)/u, '');
+  const fractionDigits = match[3] || '';
+  const precision = Number(column.numericPrecision);
+  const scale = Number(column.numericScale || 0);
+  if (Number.isFinite(precision) && precision > 0
+    && (integerDigits.length > precision - scale || fractionDigits.length > scale)) {
+    throw requestError(`${column.name} 超出 DECIMAL(${precision},${scale}) 精度`);
+  }
+  const sign = match[1] === '-' && /[1-9]/u.test(`${integerDigits}${fractionDigits}`) ? '-' : '';
+  return `${sign}${integerDigits}${fractionDigits ? `.${fractionDigits}` : ''}`;
+}
+
+function normalizeDateValue(value, column) {
+  const text = String(value).trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?)?$/u);
+  if (!match || (column.dataType !== 'date' && match[4] === undefined) || (column.dataType === 'date' && match[4] !== undefined)) {
+    throw requestError(`${column.name} 日期格式不正确`);
+  }
+  const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+  const fraction = match[7] || '';
+  const declaredFraction = Number(String(column.columnType || '').match(/\((\d+)\)/u)?.[1] || 0);
+  if (fraction.length > declaredFraction) throw requestError(`${column.name} 的小数秒精度不能超过 ${declaredFraction} 位`);
+  const [year, month, day, hour, minute, second] = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day
+    || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute || date.getUTCSeconds() !== second) {
+    throw requestError(`${column.name} 不是有效日历日期`);
+  }
+  return column.dataType === 'date' ? `${yearText}-${monthText}-${dayText}` : text.replace('T', ' ');
+}
+
 function normalizeCellValue(value, column) {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed === '' && column.nullable) return null;
+    if (trimmed === '' && NUMBER_TYPES.has(column.dataType)) {
+      throw requestError(`${column.name} 不能为空`);
+    }
     if (trimmed.toUpperCase() === 'NULL' && column.nullable) return null;
     value = trimmed;
   }
@@ -204,6 +342,7 @@ function normalizeCellValue(value, column) {
     }
     return JSON.stringify(value);
   }
+  if (DATE_TYPES.has(column.dataType)) return normalizeDateValue(value, column);
   if (NUMBER_TYPES.has(column.dataType)) {
     if (value === '' && column.nullable) return null;
     if (column.columnType === 'tinyint(1)' || BOOLEAN_COLUMN.test(column.name)) {
@@ -211,32 +350,43 @@ function normalizeCellValue(value, column) {
       const text = String(value).trim().toLowerCase();
       if (['true', 'yes', 'y'].includes(text)) return 1;
       if (['false', 'no', 'n'].includes(text)) return 0;
+      if (text === '1' || text === '0') return Number(text);
+      throw requestError(`${column.name} 必须是布尔值或 0/1`);
     }
+    if (INTEGER_TYPES.has(column.dataType)) return normalizeInteger(value, column);
+    if (column.dataType === 'decimal') return normalizeDecimal(value, column);
     const number = Number(value);
     if (!Number.isFinite(number)) throw requestError(`${column.name} 必须是数字`);
     return number;
   }
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') value = JSON.stringify(value);
+  if (column.maxLength && [...String(value)].length > column.maxLength) {
+    throw requestError(`${column.name} 不能超过 ${column.maxLength} 个字符`);
+  }
   return value;
 }
 
-function writableColumns(meta, { importMode = false } = {}) {
-  const blocked = WRITE_BLOCKED_TABLES.has(meta.tableName);
+function writableColumns(meta, { importMode = false, allowSystemManaged = false } = {}) {
+  const blocked = !DATABASE_WRITE_ALLOWED_TABLES.has(meta.tableName);
   return meta.columns.filter((column) => !blocked && !column.sensitive
+    && (allowSystemManaged || !SERVER_MANAGED_COLUMNS.has(column.name))
     && (!column.autoIncrement || (importMode && column.primaryKey))
     && (importMode || !column.primaryKey));
 }
 
-function normalizeInputRow(row, meta, { requireValue = true, importMode = false } = {}) {
+export function normalizeDatabaseRow(row, meta, { requireValue = true, importMode = false, allowSystemManaged = false } = {}) {
   const input = ensurePlainObject(row, 'row');
   const known = columnMap(meta);
-  const allowed = new Map(writableColumns(meta, { importMode }).map((column) => [column.name, column]));
+  const allowed = new Map(writableColumns(meta, { importMode, allowSystemManaged }).map((column) => [column.name, column]));
   const normalized = {};
   for (const [key, value] of Object.entries(input)) {
     if (!known.has(key)) throw requestError(`字段 ${key} 不存在于表 ${meta.tableName}`);
     if (!allowed.has(key)) throw requestError(`字段 ${key} 不允许通过数据库工作台写入`);
     const normalizedValue = normalizeCellValue(value, allowed.get(key));
     if (normalizedValue !== undefined) normalized[key] = normalizedValue;
+  }
+  if (String(normalized.verification_status || '').toLowerCase() === 'verified') {
+    throw requestError('通用工作台不能将资料直接标记为 verified，请通过带来源核验的领域流程处理');
   }
   if (requireValue && Object.keys(normalized).length === 0) throw requestError('请至少提供一个可写字段');
   return normalized;
@@ -275,7 +425,10 @@ async function selectRowByPrimaryKey(db, meta, id) {
 
 function csvEscape(value) {
   if (value === null || value === undefined) return '';
-  const text = String(value);
+  // Prevent spreadsheet programs from interpreting exported user-controlled
+  // text as a formula when an operator opens CSV/TXT files.
+  const raw = String(value);
+  const text = /^[=+\-@]/u.test(raw) ? `'${raw}` : raw;
   return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
@@ -342,13 +495,20 @@ function parseDelimited(text, delimiter) {
     }
   }
   row.push(cell);
+  if (quoted) throw requestError('导入文件包含未闭合的引号');
   if (row.some((value) => value !== '') || rows.length) rows.push(row);
   if (!rows.length) return [];
-  const headers = rows[0].map((header) => String(header || '').trim()).filter(Boolean);
-  if (!headers.length) throw requestError('导入文件缺少表头');
+  const headers = rows[0].map((header) => String(header || '').trim());
+  if (!headers.length || headers.some((header) => !header)) throw requestError('导入文件缺少表头');
+  if (new Set(headers).size !== headers.length) throw requestError('导入文件包含重复表头');
   return rows.slice(1)
     .filter((values) => values.some((value) => String(value || '').trim() !== ''))
-    .map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+    .map((values) => {
+      if (values.length > headers.length && values.slice(headers.length).some((value) => String(value || '').trim())) {
+        throw requestError('导入文件的数据列数超过表头列数');
+      }
+      return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+    });
 }
 
 function splitSqlStatements(source) {
@@ -484,7 +644,7 @@ async function parseDbImport(content, expectedTable, sourceTable = expectedTable
     if (!tableNames.includes(sourceName)) {
       throw requestError(`DB 文件中找不到表 ${sourceName}，可用表：${tableNames.slice(0, 20).join('、') || '无'}`);
     }
-    return sqliteObjects(database, `SELECT * FROM ${quoteIdentifier(sourceName).replaceAll('`', '"')}`);
+    return sqliteObjects(database, `SELECT * FROM ${quoteIdentifier(sourceName).replaceAll('`', '"')} LIMIT ${MAX_IMPORT_ROWS + 1}`);
   } finally {
     database.close();
   }
@@ -510,9 +670,16 @@ async function rowsFromImportBody(body, format, tableName) {
   const content = contentFromBody(body, format);
   if (format === 'csv') return parseDelimited(content, ',');
   if (format === 'txt') return parseDelimited(content, '\t');
+  if (format === 'json') {
+    let parsed;
+    try { parsed = JSON.parse(content); } catch { throw requestError('JSON 文件格式不正确'); }
+    const rows = Array.isArray(parsed) ? parsed : parsed?.data;
+    if (!Array.isArray(rows)) throw requestError('JSON 文件必须是数组，或包含 data 数组');
+    return rows;
+  }
   if (format === 'sql') return parseSqlImport(content, tableName);
   if (format === 'xlsx') {
-    const workbook = XLSX.read(content, { type: 'buffer', raw: false, cellDates: false });
+    const workbook = XLSX.read(content, { type: 'buffer', raw: false, cellDates: false, sheetRows: MAX_IMPORT_ROWS + 2 });
     const firstSheet = workbook.SheetNames[0];
     if (!firstSheet) throw requestError('XLSX 文件没有工作表');
     return XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '', raw: false });
@@ -521,32 +688,80 @@ async function rowsFromImportBody(body, format, tableName) {
   throw requestError('不支持的导入格式');
 }
 
-async function normalizeImportRows(body, format, meta) {
+export async function normalizeImportRows(body, format, meta) {
   const rows = await rowsFromImportBody(body, format, meta.tableName);
   if (!Array.isArray(rows) || rows.length === 0) throw requestError('导入文件没有数据行');
   if (rows.length > MAX_IMPORT_ROWS) throw requestError(`单次最多导入 ${MAX_IMPORT_ROWS} 行`);
-  return rows.map((row) => normalizeInputRow(row, meta, { importMode: true }));
+  return rows.map((row) => normalizeDatabaseRow(row, meta, { importMode: true }));
 }
 
-async function insertRows(tx, meta, rows, mode) {
+export async function insertRows(tx, meta, rows, mode, { existingRows = [] } = {}) {
   const primaryNames = new Set(meta.primaryColumns.map((column) => column.name));
   const results = [];
-  for (const row of rows) {
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
     const fields = Object.keys(row);
     if (!fields.length) continue;
     const values = fields.map((field) => row[field]);
+    const existing = mode === 'upsert' ? existingRows[rowIndex] : null;
+    if (existing) {
+      if (meta.primaryColumns.length !== 1) throw requestError('现有记录不是单字段主键，不能安全更新', 409);
+      const primary = meta.primaryColumns[0];
+      const updateFields = fields.filter((field) => !primaryNames.has(field));
+      if (!updateFields.length) throw requestError('没有可更新字段', 409);
+      const result = await tx.execute(
+        `UPDATE ${quoteIdentifier(meta.tableName)} SET ${updateFields.map((field) => `${quoteIdentifier(field)}=?`).join(',')} WHERE ${quoteIdentifier(primary.name)}=?`,
+        [...updateFields.map((field) => row[field]), existing[primary.name]],
+      );
+      const after = await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(primary.name)}=?`, [existing[primary.name]]);
+      results.push({ ...result, entityId: existing[primary.name], before: existing, after });
+      continue;
+    }
     const insertSql = `INSERT INTO ${quoteIdentifier(meta.tableName)} (${fields.map(quoteIdentifier).join(',')}) VALUES (${fields.map(() => '?').join(',')})`;
-    const updateFields = fields.filter((field) => !primaryNames.has(field));
-    const sql = mode === 'upsert' && updateFields.length
-      ? `${insertSql} ON DUPLICATE KEY UPDATE ${updateFields.map((field) => `${quoteIdentifier(field)}=VALUES(${quoteIdentifier(field)})`).join(',')}`
-      : insertSql;
-    results.push(await tx.execute(sql, values));
+    const result = await tx.execute(insertSql, values);
+    const primary = meta.primaryColumns.length === 1 ? meta.primaryColumns[0] : null;
+    const entityId = primary ? (row[primary.name] ?? result.insertId) : null;
+    const after = primary && entityId
+      ? await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(primary.name)}=?`, [entityId])
+      : null;
+    results.push({ ...result, entityId: entityId || null, before: null, after });
   }
   return results;
 }
 
-function checksumRows(rows) {
-  return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().flatMap((key) => (
+      value[key] === undefined ? [] : [[key, stableJsonValue(value[key])]]
+    )));
+  }
+  return value;
+}
+
+export function checksumRows(rows) {
+  return createHash('sha256').update(JSON.stringify(stableJsonValue(rows))).digest('hex');
+}
+
+async function writeDatabaseCatalogChange(tx, {
+  meta, actorUserId, operation, entityId, before = null, after = null,
+}) {
+  const safeBefore = before ? redactDatabaseRow(before, meta.columns) : null;
+  const safeAfter = after ? redactDatabaseRow(after, meta.columns) : null;
+  const fields = [...new Set([...Object.keys(safeBefore || {}), ...Object.keys(safeAfter || {})])]
+    .filter((field) => JSON.stringify(safeBefore?.[field]) !== JSON.stringify(safeAfter?.[field]));
+  await tx.execute(`INSERT INTO catalog_change_log(
+    entity_type,entity_id,operation,changed_fields_json,before_json,after_json,source_document_id,actor_user_id
+  ) VALUES(?,?,?,?,?,?,?,?)`, [
+    meta.tableName,
+    String(entityId ?? 'unknown').slice(0, 128),
+    operation,
+    JSON.stringify(fields),
+    safeBefore ? JSON.stringify(safeBefore) : null,
+    safeAfter ? JSON.stringify(safeAfter) : null,
+    safeAfter?.source_document_id ?? safeBefore?.source_document_id ?? null,
+    actorUserId,
+  ]);
 }
 
 function responseFileName(tableName, format) {
@@ -598,11 +813,17 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
+      requireReadableDatabaseTable(meta);
       return res.json({
         table: meta.table,
         primaryKey: meta.primaryColumns.map((column) => column.name),
-        writeBlocked: WRITE_BLOCKED_TABLES.has(meta.tableName),
-        columns: meta.columns,
+        writeBlocked: !DATABASE_WRITE_ALLOWED_TABLES.has(meta.tableName),
+        columns: meta.columns.map((column) => ({
+          ...column,
+          writable: DATABASE_WRITE_ALLOWED_TABLES.has(meta.tableName)
+            && !column.sensitive && !column.autoIncrement && !column.primaryKey
+            && !SERVER_MANAGED_COLUMNS.has(column.name),
+        })),
       });
     } catch (error) { return next(error); }
   });
@@ -614,6 +835,7 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
+      requireReadableDatabaseTable(meta);
       const pagination = parsePagination(req.query);
       const keyword = parseOptionalText(req.query.keyword, 'keyword', 100);
       const where = whereForKeyword(keyword, meta.columns);
@@ -632,7 +854,7 @@ export function createAdminDatabaseRouter({
         totalPages: total === 0 ? 0 : Math.ceil(total / pagination.pageSize),
         primaryKey: meta.primaryColumns.map((column) => column.name),
         columns: meta.columns,
-        data: rows.map((row) => redactRow(row, meta.columns)),
+        data: rows.map((row) => redactDatabaseRow(row, meta.columns)),
       });
     } catch (error) { return next(error); }
   });
@@ -644,8 +866,8 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
-      if (WRITE_BLOCKED_TABLES.has(meta.tableName)) throw requestError('该系统表不允许通过数据库工作台写入', 403);
-      const row = normalizeInputRow(req.body?.row || req.body, meta, { importMode: true });
+      requireWritableDatabaseTable(meta);
+      const row = normalizeDatabaseRow(req.body?.row || req.body, meta, { importMode: false });
       const created = await db.transaction(async (tx) => {
         const fields = Object.keys(row);
         const result = await tx.execute(
@@ -655,17 +877,20 @@ export function createAdminDatabaseRouter({
         const pk = meta.primaryColumns.length === 1 ? meta.primaryColumns[0] : null;
         const id = pk && (row[pk.name] ?? result.insertId);
         const after = id ? await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(pk.name)}=?`, [id]) : null;
+        await writeDatabaseCatalogChange(tx, {
+          meta, actorUserId: actor.id, operation: 'create', entityId: id ?? result.insertId, after: after || row,
+        });
         await writeAdminAudit(tx, {
           actorUserId: actor.id,
           action: 'database.row.create',
           resourceType: 'database_table',
           resourceId: meta.tableName,
-          after: after ? redactRow(after, meta.columns) : safeAuditSnapshot(row),
+          after: after ? redactDatabaseRow(after, meta.columns) : safeAuditSnapshot(row),
           metadata: { ...requestAuditMetadata(req), table: meta.tableName, columns: fields },
         });
         return { result, after };
       });
-      return res.status(201).json({ affectedRows: toNumber(created.result.affectedRows, 1), data: created.after ? redactRow(created.after, meta.columns) : null });
+      return res.status(201).json({ affectedRows: toNumber(created.result.affectedRows, 1), data: created.after ? redactDatabaseRow(created.after, meta.columns) : null });
     } catch (error) { return next(error); }
   });
 
@@ -676,9 +901,9 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
-      if (WRITE_BLOCKED_TABLES.has(meta.tableName)) throw requestError('该系统表不允许通过数据库工作台写入', 403);
+      requireWritableDatabaseTable(meta);
       const pk = primaryKey(meta);
-      const patch = normalizeInputRow(req.body?.row || req.body, meta, { importMode: false });
+      const patch = normalizeDatabaseRow(req.body?.row || req.body, meta, { importMode: false });
       const updated = await db.transaction(async (tx) => {
         const before = await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(pk.name)}=? FOR UPDATE`, [req.params.id]);
         if (!before) throw requestError('记录不存在', 404);
@@ -688,18 +913,21 @@ export function createAdminDatabaseRouter({
           [...fields.map((field) => patch[field]), req.params.id],
         );
         const after = await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(pk.name)}=?`, [req.params.id]);
+        await writeDatabaseCatalogChange(tx, {
+          meta, actorUserId: actor.id, operation: 'update', entityId: req.params.id, before, after,
+        });
         await writeAdminAudit(tx, {
           actorUserId: actor.id,
           action: 'database.row.update',
           resourceType: 'database_table',
           resourceId: meta.tableName,
-          before: redactRow(before, meta.columns),
-          after: redactRow(after, meta.columns),
+          before: redactDatabaseRow(before, meta.columns),
+          after: redactDatabaseRow(after, meta.columns),
           metadata: { ...requestAuditMetadata(req), table: meta.tableName, primaryKey: pk.name, id: String(req.params.id), columns: fields },
         });
         return { result, after };
       });
-      return res.json({ affectedRows: toNumber(updated.result.affectedRows), data: redactRow(updated.after, meta.columns) });
+      return res.json({ affectedRows: toNumber(updated.result.affectedRows), data: redactDatabaseRow(updated.after, meta.columns) });
     } catch (error) { return next(error); }
   });
 
@@ -710,18 +938,22 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
-      if (WRITE_BLOCKED_TABLES.has(meta.tableName)) throw requestError('该系统表不允许通过数据库工作台删除', 403);
+      requireWritableDatabaseTable(meta);
+      requireDeletableDatabaseTable(meta);
       const pk = primaryKey(meta);
       const deleted = await db.transaction(async (tx) => {
         const before = await tx.one(`SELECT * FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(pk.name)}=? FOR UPDATE`, [req.params.id]);
         if (!before) throw requestError('记录不存在', 404);
         const result = await tx.execute(`DELETE FROM ${quoteIdentifier(meta.tableName)} WHERE ${quoteIdentifier(pk.name)}=?`, [req.params.id]);
+        await writeDatabaseCatalogChange(tx, {
+          meta, actorUserId: actor.id, operation: 'delete', entityId: req.params.id, before,
+        });
         await writeAdminAudit(tx, {
           actorUserId: actor.id,
           action: 'database.row.delete',
           resourceType: 'database_table',
           resourceId: meta.tableName,
-          before: redactRow(before, meta.columns),
+          before: redactDatabaseRow(before, meta.columns),
           metadata: { ...requestAuditMetadata(req), table: meta.tableName, primaryKey: pk.name, id: String(req.params.id) },
         });
         return result;
@@ -737,6 +969,7 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
+      requireReadableDatabaseTable(meta);
       const format = parseFormat(req.query.format || 'csv', EXPORT_FORMATS);
       const limit = parseLimit(req.query);
       const keyword = parseOptionalText(req.query.keyword, 'keyword', 100);
@@ -746,7 +979,7 @@ export function createAdminDatabaseRouter({
         offset: 0,
         orderBy: parseOptionalText(req.query.orderBy, 'orderBy', 64),
         orderDir: parseOptionalText(req.query.orderDir, 'orderDir', 8),
-      })).map((row) => redactRow(row, meta.columns));
+      })).map((row) => redactDatabaseRow(row, meta.columns));
       const columns = exportableColumns(meta.columns);
       const filename = responseFileName(meta.tableName, format);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -774,9 +1007,12 @@ export function createAdminDatabaseRouter({
       if (!actor) return;
       requireDatabaseOperator(actor);
       const meta = await loadTableMetadata(db, req.params.table);
-      if (WRITE_BLOCKED_TABLES.has(meta.tableName)) throw requestError('该系统表不允许通过数据库工作台导入', 403);
+      requireWritableDatabaseTable(meta);
       const format = parseFormat(req.body?.format, IMPORT_FORMATS);
       const dryRun = parseBoolean(req.body?.dryRun, true);
+      if (!dryRun) {
+        throw requestError('直接导入已关闭，请在数据库管理 Agent 中审核并确认后写入', 409);
+      }
       const mode = String(req.body?.mode || 'insert').trim().toLowerCase();
       if (!['insert', 'upsert'].includes(mode)) throw requestError('mode 必须是 insert 或 upsert');
       const rows = await normalizeImportRows(req.body || {}, format, meta);
@@ -788,34 +1024,18 @@ export function createAdminDatabaseRouter({
         rowCount: rows.length,
         columns: [...new Set(rows.flatMap((row) => Object.keys(row)))],
         checksum: checksumRows(rows),
-        preview: rows.slice(0, 10).map((row) => redactRow(row, meta.columns)),
+        preview: rows.slice(0, 10).map((row) => redactDatabaseRow(row, meta.columns)),
         review: {
           agentType: DATABASE_MANAGER_AGENT_TYPE,
           displayName: '数据库管理 Agent',
-          status: dryRun ? 'waiting_for_confirmation' : 'imported_without_model_review',
-          modelReady: false,
+          status: 'preview_only',
+          modelReady: Boolean(process.env.LLM_API_KEY),
           capabilities: ['import_review', 'duplicate_detection', 'field_anomaly_check', 'referential_consistency_check', 'repair_plan'],
           requiresHumanConfirmation: true,
-          note: '后续服务器小模型可作为数据库管理 Agent 复用本次解析结果进行来源核对、字段异常检测、重复记录审核和修复计划生成；模型不直接写库。',
+          note: '此接口只提供兼容预览。请进入数据库管理 Agent 创建持久化审核任务，确认校验和后再写入。',
         },
       };
-      if (dryRun) return res.json(summary);
-
-      const importResult = await db.transaction(async (tx) => {
-        const results = await insertRows(tx, meta, rows, mode);
-        await writeAdminAudit(tx, {
-          actorUserId: actor.id,
-          action: 'database.table.import',
-          resourceType: 'database_table',
-          resourceId: meta.tableName,
-          metadata: { ...requestAuditMetadata(req), ...summary, preview: undefined },
-        });
-        return results;
-      });
-      return res.status(201).json({
-        ...summary,
-        affectedRows: importResult.reduce((sum, result) => sum + toNumber(result.affectedRows, 1), 0),
-      });
+      return res.json(summary);
     } catch (error) { return next(error); }
   });
 
