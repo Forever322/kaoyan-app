@@ -6,6 +6,7 @@ import {
   isAgentModelConfigured,
   normalizeChatAgentType,
   validateChatReplyPayload,
+  validateDatabaseTableSelectionPayload,
   validateProposalPayload,
 } from './agent-service.js';
 import { KAOYAN_COACH_POLICY_VERSION } from './kaoyan-coach-policy.js';
@@ -86,4 +87,23 @@ test('未知智能体类型不会降级为未审核提示词', () => {
 test('后台解析出的模型凭据优先于进程环境回退', () => {
   assert.equal(isAgentModelConfigured({ apiKey: 'db-managed-key' }), true);
   assert.equal(isAgentModelConfigured({ apiKey: '' }), false);
+});
+
+test('数据库表识别结果只能选择服务器允许的表且必须有最低置信度', () => {
+  const selection = validateDatabaseTableSelectionPayload({
+    table: 'universities',
+    confidence: 0.72,
+    reason: '字段匹配 name/province/zone',
+  }, ['universities', 'programs']);
+
+  assert.equal(selection.table, 'universities');
+  assert.equal(selection.confidence, 0.72);
+  assert.throws(() => validateDatabaseTableSelectionPayload({
+    table: 'users',
+    confidence: 0.9,
+  }, ['universities']), (error) => error instanceof AgentServiceError && error.code === 'invalid_model_operation');
+  assert.throws(() => validateDatabaseTableSelectionPayload({
+    table: 'universities',
+    confidence: 0.2,
+  }, ['universities']), (error) => error instanceof AgentServiceError && error.code === 'database_table_ambiguous');
 });

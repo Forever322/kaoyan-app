@@ -53,7 +53,7 @@ docker compose -f docker-compose.backend.yml --profile tools run --rm \
 | `DELETE /api/admin/database/tables/:table/rows/:id` | 仅允许少量叶子参考表硬删除；院校等主实体必须走归档接口；仅 `super_admin`。 |
 | `GET /api/admin/database/tables/:table/export?format=csv\|txt\|sql\|xlsx&limit=5000` | 导出表数据，支持 CSV、TAB 分隔 TXT、INSERT SQL、XLSX；敏感列不导出；仅 `super_admin`。 |
 | `POST /api/admin/database/tables/:table/import` | 兼容导入预览，仅接受 `dryRun=true`；实际写入必须经过下面的 Agent 审核任务。 |
-| `POST /api/admin/database-agent/reviews` | 将口述文本或 CSV/TXT/JSON/SQL/XLSX/DB 文件解析为持久化待审任务，执行规则与模型内容审核；仅 `super_admin`。 |
+| `POST /api/admin/database-agent/reviews` | 将口述文本或 CSV/TXT/JSON/SQL/XLSX/DB 文件解析为持久化待审任务；`table` 可留空由 Agent 在可写白名单表内自动识别，随后执行规则、联网证据和模型内容审核；仅 `super_admin`。 |
 | `GET /api/admin/database-agent/jobs?page=1&pageSize=20&status=` | 查询审核队列与前 20 行脱敏预览；仅 `super_admin`。 |
 | `GET /api/admin/database-agent/jobs/:id` | 查询单个审核任务、风险项、checksum 和状态。 |
 | `GET /api/admin/database-agent/jobs/:id/export` | 下载完整暂存 JSON，用于核对界面预览之外的全部行；仅 `super_admin`。 |
@@ -98,20 +98,35 @@ docker compose -f docker-compose.backend.yml --profile tools run --rm \
 
 直接数据库工作台用于受控运维和批量数据治理，不替代领域接口。`admin` 只能查看数据库状态；`super_admin` 也只能浏览院校目录与治理只读白名单，用户正文、令牌、Agent 配置、功能开关、审计、任务和告警必须走专用安全 DTO。通用写入另有更小的院校参考数据白名单，来源、核验、目录状态、自动列和控制字段均由服务端管理。所有直接目录变更同时写 `catalog_change_log` 与管理审计。
 
-`database-manager` 后台 Agent 已接入自然语言抽取、文件解析、严格类型/枚举/范围检查、批内与库内重复检测、外键一致性检查和模型语义审核。`writeAccess=false` 与 `requiresHumanConfirmation=true` 是服务端不可关闭的安全边界：模型只能产生结构化待审行，不能产生 SQL 或直接写库。服务端先以短事务建立来源/批次证据；超级管理员确认同一份 64 位 checksum 和行数后，apply 会锁定唯一键、复核数据库快照与当前策略，再以显式 INSERT/UPDATE 在单个事务中写入业务数据、完整 before/after 变更日志、批次状态和管理员审计。
+`database-manager` 后台 Agent 已接入自然语言抽取、文件解析、自动目标表识别、严格类型/枚举/范围检查、批内与库内重复检测、外键一致性检查、可选公网资料核验和模型语义审核。`writeAccess=false` 与 `requiresHumanConfirmation=true` 是服务端不可关闭的安全边界：模型只能产生结构化待审行，不能产生 SQL 或直接写库。服务端先以短事务建立来源/批次证据；超级管理员确认同一份 64 位 checksum 和行数后，apply 会锁定唯一键、复核数据库快照与当前策略，再以显式 INSERT/UPDATE 在单个事务中写入业务数据、完整 before/after 变更日志、批次状态和管理员审计。
 
 口述审核请求示例：
 
 ```json
 {
-  "table": "universities",
+  "table": "",
   "sourceType": "voice",
   "mode": "insert",
-  "instruction": "新增测试大学，位于北京，A区，双非，综合类。"
+  "instruction": "新增测试大学，位于北京，A区，双非，综合类。",
+  "webSearch": true
 }
 ```
 
-`sourceType` 支持 `text`、`voice`（浏览器先转为可编辑文字）和 `file`。文件请求增加 `format`、`sourceName` 与 `content`/`contentBase64`；XLSX、DB 使用 Base64，DB 可用 `sourceTable` 指定源表。单任务默认最多 500 行；硬规则检查全部行，模型对大批次按首尾均匀抽取最多 50 行进行语义审核，界面会明确提示并提供完整 JSON 下载。只有 `status=awaiting_confirmation` 才可 apply；模型调用失败会阻断而不是降级放行。任务默认 24 小时过期，暂存原文/行会清除，关联批次与来源同步归档，但有界审核证据会保留。
+`table` 留空时，服务端先使用字段覆盖率、唯一键、必填列和考研业务语义线索选择目标表；无法可靠判断时，再让模型只能在可写表白名单内选择，并把 `tableSelection` 写入审核 JSON。文件请求增加 `format`、`sourceName` 与 `content`/`contentBase64`；XLSX、DB 使用 Base64，DB 可用 `sourceTable` 指定源表。SQL/DB 文件若包含多个源表，仍需要人工指定源表或拆分文件，避免把跨表数据错误合并成一个任务。
+
+`webSearch=true` 只是允许本次任务使用联网证据；实际出站能力必须由服务器环境开启：
+
+```dotenv
+ADMIN_AGENT_WEB_RESEARCH_ENABLED=true
+ADMIN_AGENT_WEB_SEARCH_PROVIDER=generic # generic / bing / brave / serper
+ADMIN_AGENT_WEB_SEARCH_ENDPOINT=https://search.example.com/api?q={query}
+ADMIN_AGENT_WEB_SEARCH_API_KEY=server-side-secret
+ADMIN_AGENT_WEB_FETCH_ALLOWED_HOSTS=yz.chsi.com.cn,edu.cn
+```
+
+`websearch` 只读取 JSON 搜索结果，`webfetch` 只抓取 HTTP(S) 公网页面摘要，并拒绝 localhost、内网/保留 IP、内部域名、超时、超大小和危险重定向。联网结果以 `review.webEvidence` 形式保存为审核参考；它不会把资料标记为 verified，也不会绕过人工确认。
+
+`sourceType` 支持 `text`、`voice`（浏览器先转为可编辑文字）和 `file`。单任务默认最多 500 行；硬规则检查全部行，模型对大批次按首尾均匀抽取最多 50 行进行语义审核，界面会明确提示并提供完整 JSON 下载。只有 `status=awaiting_confirmation` 才可 apply；模型调用失败会阻断而不是降级放行。任务默认 24 小时过期，暂存原文/行会清除，关联批次与来源同步归档，但有界审核证据会保留。
 
 管理访问日志由服务端生成 request ID，只记录操作者、方法、无查询字符串的路径、状态码、耗时、最小化 IP 和 User-Agent；不会记录 Authorization、请求正文、口述原文或导入文件，默认保留 90 天。告警目前为超级管理员站内队列，覆盖审核阻断、语义审核失败、Agent 落库失败和已认证管理接口的 5xx；启动与每小时对账会补建事务后意外漏写的任务告警。邮件/Webhook 投递可在后续通过 Outbox 扩展。
 

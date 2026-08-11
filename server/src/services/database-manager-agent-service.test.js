@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   agentWritableColumns,
+  rankDatabaseTableCandidates,
   mergeDatabaseReviews,
   runDeterministicDatabaseReview,
+  selectDatabaseTableByHeuristic,
 } from './database-manager-agent-service.js';
 
 function column(name, {
@@ -243,4 +245,42 @@ test('模型可见字段排除敏感、服务端时间戳和来源核验字段',
     ],
   });
   assert.deepEqual(writable.map((item) => item.name), ['name']);
+});
+
+test('自动表识别优先使用字段覆盖率和考研业务语义线索', () => {
+  const metas = [
+    {
+      tableName: 'national_lines',
+      columns: [
+        column('year', { nullable: false }),
+        column('degree', { nullable: false }),
+        column('category', { nullable: false }),
+        column('zone', { nullable: false }),
+        column('score', { nullable: false }),
+      ],
+      primaryColumns: [],
+      uniqueKeys: [{ name: 'uq_national_lines_lookup', fields: ['year', 'degree', 'category', 'zone'] }],
+      foreignKeys: [],
+    },
+    {
+      tableName: 'universities',
+      columns: [
+        column('name', { nullable: false }),
+        column('province', { nullable: false }),
+        column('zone', { nullable: false }),
+        column('level', { nullable: false }),
+        column('type'),
+      ],
+      primaryColumns: [],
+      uniqueKeys: [{ name: 'uq_universities_name', fields: ['name'] }],
+      foreignKeys: [],
+    },
+  ];
+  const rows = [{ year: 2026, degree: '学硕', category: '工学', zone: 'A', score: 254 }];
+  const ranked = rankDatabaseTableCandidates(metas, { instruction: '2026 年考研国家线', rows });
+  const selected = selectDatabaseTableByHeuristic(metas, { instruction: '2026 年考研国家线', rows });
+
+  assert.equal(ranked[0].table, 'national_lines');
+  assert.equal(selected.table, 'national_lines');
+  assert.ok(selected.confidence > 0.6);
 });

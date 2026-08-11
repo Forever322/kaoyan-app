@@ -142,7 +142,7 @@ function publicTable(row) {
 function publicColumn(row) {
   const name = row.column_name || row.COLUMN_NAME || '';
   const dataType = String(row.data_type || row.DATA_TYPE || '').toLowerCase();
-  const columnType = String(row.column_type || row.COLUMN_TYPE || dataType).toLowerCase();
+  const columnType = String(row.column_type || row.COLUMN_TYPE || dataType);
   const extra = String(row.extra || row.EXTRA || '').toLowerCase();
   const primaryKey = String(row.column_key || row.COLUMN_KEY || '') === 'PRI';
   const autoIncrement = extra.includes('auto_increment');
@@ -345,7 +345,7 @@ function normalizeCellValue(value, column) {
   if (DATE_TYPES.has(column.dataType)) return normalizeDateValue(value, column);
   if (NUMBER_TYPES.has(column.dataType)) {
     if (value === '' && column.nullable) return null;
-    if (column.columnType === 'tinyint(1)' || BOOLEAN_COLUMN.test(column.name)) {
+    if (String(column.columnType || '').toLowerCase() === 'tinyint(1)' || BOOLEAN_COLUMN.test(column.name)) {
       if (typeof value === 'boolean') return value ? 1 : 0;
       const text = String(value).trim().toLowerCase();
       if (['true', 'yes', 'y'].includes(text)) return 1;
@@ -605,19 +605,24 @@ function parseSqlValueList(source) {
   return rows;
 }
 
-function parseSqlImport(content, expectedTable) {
+function parseSqlImport(content, expectedTable = '') {
   const rows = [];
+  const tables = new Set();
   for (const statement of splitSqlStatements(content)) {
     const match = statement.match(/^INSERT\s+INTO\s+`?([A-Za-z0-9_]+)`?\s*\(([^)]+)\)\s*VALUES\s*(.+)$/isu);
     if (!match) throw requestError('SQL 导入仅支持 INSERT INTO table (columns) VALUES (...) 语句');
     const [, tableName, rawColumns, rawValues] = match;
-    if (tableName !== expectedTable) throw requestError(`SQL 导入表名 ${tableName} 与目标表 ${expectedTable} 不一致`);
+    tables.add(tableName);
+    if (expectedTable && tableName !== expectedTable) throw requestError(`SQL 导入表名 ${tableName} 与目标表 ${expectedTable} 不一致`);
     const columns = rawColumns.split(',').map((column) => column.trim().replace(/^`|`$/gu, ''));
     const valueRows = parseSqlValueList(rawValues.trim());
     for (const values of valueRows) {
       if (values.length !== columns.length) throw requestError('SQL 导入字段数量与值数量不一致');
       rows.push(Object.fromEntries(columns.map((column, index) => [column, values[index]])));
     }
+  }
+  if (!expectedTable && tables.size > 1) {
+    throw requestError(`SQL 导入包含多个表（${[...tables].slice(0, 10).join('、')}），请先指定目标表`);
   }
   return rows;
 }
@@ -634,13 +639,20 @@ async function sqliteObjects(database, sql, params = []) {
   return rows;
 }
 
-async function parseDbImport(content, expectedTable, sourceTable = expectedTable) {
-  const sourceName = tableNameFromParam(sourceTable || expectedTable);
+async function parseDbImport(content, expectedTable = '', sourceTable = expectedTable) {
   const SQL = await initSqlJs();
   const database = new SQL.Database(content);
   try {
     const tables = await sqliteObjects(database, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name ASC");
     const tableNames = tables.map((table) => String(table.name || ''));
+    const sourceName = sourceTable || expectedTable
+      ? tableNameFromParam(sourceTable || expectedTable)
+      : tableNames.length === 1
+        ? tableNames[0]
+        : '';
+    if (!sourceName) {
+      throw requestError(`DB 文件包含多个表，请填写 DB 源表名。可用表：${tableNames.slice(0, 20).join('、') || '无'}`);
+    }
     if (!tableNames.includes(sourceName)) {
       throw requestError(`DB 文件中找不到表 ${sourceName}，可用表：${tableNames.slice(0, 20).join('、') || '无'}`);
     }
@@ -665,7 +677,7 @@ function contentFromBody(body = {}, format) {
   throw requestError('请提供 content、contentBase64 或 rows');
 }
 
-async function rowsFromImportBody(body, format, tableName) {
+export async function parseImportRows(body, format, tableName = '') {
   if (Array.isArray(body.rows)) return body.rows;
   const content = contentFromBody(body, format);
   if (format === 'csv') return parseDelimited(content, ',');
@@ -689,7 +701,7 @@ async function rowsFromImportBody(body, format, tableName) {
 }
 
 export async function normalizeImportRows(body, format, meta) {
-  const rows = await rowsFromImportBody(body, format, meta.tableName);
+  const rows = await parseImportRows(body, format, meta.tableName);
   if (!Array.isArray(rows) || rows.length === 0) throw requestError('导入文件没有数据行');
   if (rows.length > MAX_IMPORT_ROWS) throw requestError(`单次最多导入 ${MAX_IMPORT_ROWS} 行`);
   return rows.map((row) => normalizeDatabaseRow(row, meta, { importMode: true }));

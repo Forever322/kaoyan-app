@@ -9,15 +9,17 @@ import {
   insertRows,
   loadTableMetadata,
   normalizeDatabaseRow,
-  normalizeImportRows,
+  parseImportRows,
   redactDatabaseRow,
   requireWritableDatabaseTable,
+  DATABASE_WRITE_ALLOWED_TABLES,
 } from './admin-database.js';
 import {
   DATABASE_REVIEW_SAMPLE_LIMIT,
   generateDatabaseRows,
   isAgentModelConfigured,
   reviewDatabaseContent,
+  selectDatabaseTable,
 } from '../services/agent-service.js';
 import { resolveAgentModelRuntime } from '../services/agent-model-settings-service.js';
 import { runAuditedAgentCall } from '../services/agent-run-service.js';
@@ -25,12 +27,15 @@ import { assertAgentCapabilityEnabled } from '../services/agent-runtime-policy.j
 import {
   agentWritableColumns,
   databaseStateSnapshot,
+  describeDatabaseTable,
   inspectDatabaseState,
   mergeDatabaseReviews,
   runDeterministicDatabaseReview,
+  selectDatabaseTableByHeuristic,
 } from '../services/database-manager-agent-service.js';
 import { requestAuditMetadata, writeAdminAudit } from '../services/admin-audit-service.js';
 import { adminAlertKey, publicAdminAlert, upsertAdminAlert } from '../services/admin-alert-service.js';
+import { collectAdminAgentWebEvidence } from '../services/web-research-service.js';
 
 const DATABASE_MANAGER_AGENT_TYPE = 'database-manager';
 const FILE_FORMATS = new Set(['csv', 'txt', 'json', 'sql', 'xlsx', 'db']);
@@ -43,7 +48,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MAX_INSTRUCTION_LENGTH = 8_000;
 const MAX_AGENT_ROWS = Math.min(1_000, Math.max(1, Number(process.env.ADMIN_AGENT_MAX_ROWS || 500)));
-const DATABASE_REVIEW_POLICY_VERSION = '2026-08-11.3';
+const DATABASE_REVIEW_POLICY_VERSION = '2026-08-11.4';
 const STAGING_TTL_HOURS = Math.min(168, Math.max(1, Number(process.env.ADMIN_AGENT_STAGING_TTL_HOURS || 24)));
 const ADMIN_AGENT_REQUESTS_PER_MINUTE = Math.min(30, Math.max(1, Number(process.env.ADMIN_AGENT_REQUESTS_PER_MINUTE || 6)));
 const generationRateLimiter = createRateLimiter({ windowMs: 60_000, max: ADMIN_AGENT_REQUESTS_PER_MINUTE });
@@ -137,6 +142,16 @@ function normalizeFormat(value) {
   const format = String(value || '').trim().toLowerCase();
   if (!FILE_FORMATS.has(format)) throw requestError(`format 必须是 ${[...FILE_FORMATS].join(' / ')}`);
   return format;
+}
+
+function wantsWebResearch(body) {
+  return body?.webSearch !== false && body?.webResearch !== false;
+}
+
+function requestedWebQueries(body) {
+  return Array.isArray(body?.webQueries)
+    ? body.webQueries.filter((query) => typeof query === 'string').slice(0, 8)
+    : [];
 }
 
 function requireSuperAdministrator(actor) {
@@ -360,11 +375,81 @@ function paginationPayload(page, pageSize, total) {
   return { page, pageSize, total, totalPages: total ? Math.ceil(total / pageSize) : 0 };
 }
 
+async function loadWritableTableMetas(db) {
+  const rows = await db.all(`SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema=DATABASE() AND table_type='BASE TABLE'
+    ORDER BY table_name ASC`);
+  const tableNames = rows
+    .map((row) => String(row.table_name || row.TABLE_NAME || ''))
+    .filter((name) => DATABASE_WRITE_ALLOWED_TABLES.has(name));
+  const metas = [];
+  for (const tableName of tableNames) {
+    try {
+      const meta = await loadTableMetadata(db, tableName);
+      requireWritableDatabaseTable(meta);
+      metas.push(meta);
+    } catch (error) {
+      if (error?.status === 404 || error?.status === 403) continue;
+      throw error;
+    }
+  }
+  return metas;
+}
+
+function publicTableSelection(selection, method = 'explicit') {
+  if (!selection) return null;
+  return {
+    table: selection.table,
+    method,
+    confidence: Number(selection.confidence ?? 1),
+    reason: bounded(selection.reason, 1000),
+    candidates: Array.isArray(selection.candidates)
+      ? selection.candidates.slice(0, 5).map((candidate) => ({
+        table: candidate.table,
+        score: Number(candidate.score || 0),
+        coverage: Number(candidate.coverage || 0),
+      }))
+      : [],
+  };
+}
+
+function publicWebEvidence(evidence) {
+  if (!evidence) return null;
+  return {
+    enabled: evidence.enabled === true,
+    searchEnabled: evidence.searchEnabled === true,
+    fetchEnabled: evidence.fetchEnabled === true,
+    queries: Array.isArray(evidence.queries) ? evidence.queries.slice(0, 8).map((query) => bounded(query, 240)) : [],
+    results: Array.isArray(evidence.results) ? evidence.results.slice(0, 10).map((result) => ({
+      title: bounded(result.title, 300),
+      url: bounded(result.url, 500),
+      snippet: bounded(result.snippet, 600),
+      provider: bounded(result.provider, 32),
+    })) : [],
+    pages: Array.isArray(evidence.pages) ? evidence.pages.slice(0, 6).map((page) => ({
+      url: bounded(page.url, 500),
+      title: bounded(page.title, 300),
+      status: Number(page.status || 0),
+      contentType: bounded(page.contentType, 120),
+      excerpt: bounded(page.excerpt, 2_000),
+    })) : [],
+    errors: Array.isArray(evidence.errors) ? evidence.errors.slice(0, 12).map((error) => ({
+      stage: bounded(error.stage, 24),
+      query: bounded(error.query, 240),
+      url: bounded(error.url, 500),
+      message: bounded(error.message, 300),
+    })) : [],
+  };
+}
+
 export function createAdminAgentRouter({
   database = getDB,
   authenticate = requireAdministrator,
   generateRows = generateDatabaseRows,
   reviewContent = reviewDatabaseContent,
+  selectTable = selectDatabaseTable,
+  collectWebEvidence = collectAdminAgentWebEvidence,
   resolveModelRuntime = resolveAgentModelRuntime,
   audit = writeAdminAudit,
 } = {}) {
@@ -385,15 +470,24 @@ export function createAdminAgentRouter({
         capability: 'admin_review',
       });
       const sourceType = normalizeSourceType(req.body?.sourceType);
-      const targetTable = bounded(req.body?.table, 64);
-      if (!targetTable) throw requestError('请选择目标表');
-      const meta = await loadTableMetadata(db, targetTable);
-      requireWritableDatabaseTable(meta);
+      const requestedTable = bounded(req.body?.table, 64);
       const instruction = String(req.body?.instruction ?? '').trim();
       if (instruction.length > MAX_INSTRUCTION_LENGTH) {
         throw requestError(`instruction 不能超过 ${MAX_INSTRUCTION_LENGTH} 个字符`);
       }
       if (['text', 'voice'].includes(sourceType) && !instruction) throw requestError('请输入或口述要写入的数据');
+      const format = sourceType === 'file' ? normalizeFormat(req.body?.format) : '';
+      const mode = normalizeMode(req.body?.mode);
+      const sourceName = bounded(req.body?.sourceName, 255);
+      let rawImportRows = null;
+      if (sourceType === 'file') {
+        rawImportRows = await parseImportRows(req.body || {}, format, requestedTable || bounded(req.body?.sourceTable, 64));
+        if (!Array.isArray(rawImportRows) || rawImportRows.length === 0) throw requestError('导入文件没有数据行');
+        if (rawImportRows.length > MAX_AGENT_ROWS) {
+          throw requestError(`单个 Agent 审核任务最多 ${MAX_AGENT_ROWS} 行，请拆分文件后重试`);
+        }
+      }
+
       let modelRuntime = null;
       try {
         modelRuntime = await resolveModelRuntime(db);
@@ -404,9 +498,58 @@ export function createAdminAgentRouter({
       if (['text', 'voice'].includes(sourceType) && !isAgentModelConfigured(modelRuntime)) {
         throw requestError('后台尚未配置模型 API Key，暂时无法解析口述内容', 503, 'missing_llm_key');
       }
-      const format = sourceType === 'file' ? normalizeFormat(req.body?.format) : '';
-      const mode = normalizeMode(req.body?.mode);
-      const sourceName = bounded(req.body?.sourceName, 255);
+
+      let meta;
+      let tableSelection;
+      if (requestedTable) {
+        meta = await loadTableMetadata(db, requestedTable);
+        requireWritableDatabaseTable(meta);
+        tableSelection = publicTableSelection({
+          table: meta.tableName,
+          confidence: 1,
+          reason: '管理员明确指定目标表',
+        });
+      } else {
+        const candidateMetas = await loadWritableTableMetas(db);
+        if (!candidateMetas.length) throw requestError('没有可供数据库管理 Agent 写入的参考数据表', 503);
+        const heuristic = selectDatabaseTableByHeuristic(candidateMetas, {
+          instruction,
+          rows: rawImportRows || [],
+        });
+        if (heuristic) {
+          meta = candidateMetas.find((candidate) => candidate.tableName === heuristic.table);
+          tableSelection = publicTableSelection(heuristic, 'heuristic');
+        } else {
+          if (!isAgentModelConfigured(modelRuntime)) {
+            throw requestError('无法自动识别目标数据表，请补充目标表或配置模型服务', 422, 'database_table_ambiguous');
+          }
+          const tableCatalog = candidateMetas.map(describeDatabaseTable);
+          const selection = await runAuditedAgentCall(db, {
+            userId: actor.id,
+            runType: 'admin_table_select',
+            model: modelRuntime.model,
+            input: {
+              sourceType,
+              sourceName,
+              instruction,
+              fields: (rawImportRows || []).slice(0, 10).map((row) => Object.keys(row || {})),
+              candidates: tableCatalog.map((candidate) => candidate.table),
+            },
+            run: () => selectTable({
+              sourceType,
+              sourceName,
+              instruction,
+              rows: (rawImportRows || []).slice(0, 10),
+              candidates: tableCatalog,
+              modelRuntime,
+            }),
+          });
+          meta = candidateMetas.find((candidate) => candidate.tableName === selection.table);
+          if (!meta) throw requestError('自动识别的目标表不可写入，请手动选择表后重试', 422, 'database_table_ambiguous');
+          tableSelection = publicTableSelection(selection, 'model');
+        }
+      }
+
       const rawChecksum = sourceChecksum(req.body || {}, sourceType);
       const inserted = await db.execute(`INSERT INTO admin_agent_jobs(
         actor_user_id,target_table,source_type,source_name,instruction_text,input_format,operation_mode,expires_at
@@ -417,8 +560,18 @@ export function createAdminAgentRouter({
 
       let rows;
       let extractionSummary = '';
+      let webEvidence = null;
+      const useWebResearch = wantsWebResearch(req.body);
+      if (useWebResearch && ['text', 'voice'].includes(sourceType)) {
+        webEvidence = await collectWebEvidence({
+          instruction,
+          table: meta.tableName,
+          queries: requestedWebQueries(req.body),
+        });
+      }
       if (sourceType === 'file') {
-        rows = await normalizeImportRows(req.body || {}, format, meta);
+        rows = rawImportRows
+          .map((row) => normalizeDatabaseRow(row, meta, { importMode: true }));
         extractionSummary = `已从 ${sourceName || format.toUpperCase()} 解析 ${rows.length} 行`;
       } else {
         const draft = await runAuditedAgentCall(db, {
@@ -432,6 +585,7 @@ export function createAdminAgentRouter({
             table: meta.tableName,
             columns: agentWritableColumns(meta),
             mode,
+            webEvidence: publicWebEvidence(webEvidence),
             modelRuntime,
           }),
         });
@@ -443,6 +597,14 @@ export function createAdminAgentRouter({
       assertSafeAgentUpsert(meta, rows, mode);
       if (rows.length > MAX_AGENT_ROWS) {
         throw requestError(`单个 Agent 审核任务最多 ${MAX_AGENT_ROWS} 行，请拆分文件后重试`);
+      }
+      if (useWebResearch && sourceType === 'file') {
+        webEvidence = await collectWebEvidence({
+          instruction,
+          table: meta.tableName,
+          rows,
+          queries: requestedWebQueries(req.body),
+        });
       }
 
       const provenance = await createImportProvenance(db, {
@@ -502,6 +664,7 @@ export function createAdminAgentRouter({
               rows: rows.map((row) => redactDatabaseRow(row, meta.columns)),
               deterministicIssues: deterministic.issues,
               instruction,
+              webEvidence: publicWebEvidence(webEvidence),
               modelRuntime,
             }),
           });
@@ -511,6 +674,8 @@ export function createAdminAgentRouter({
       }
       const review = mergeDatabaseReviews(deterministic, modelReview);
       review.extractionSummary = extractionSummary;
+      review.tableSelection = tableSelection;
+      review.webEvidence = publicWebEvidence(webEvidence);
       review.sourceChecksum = rawChecksum;
       review.databaseStateChecksum = databaseStateChecksum;
       review.policyVersion = DATABASE_REVIEW_POLICY_VERSION;

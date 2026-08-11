@@ -228,6 +228,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .admin-agent-review-empty span { max-width: 420px; line-height: 1.65; }
 .admin-agent-form { display: grid; gap: 15px; }
 .admin-agent-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.admin-agent-option { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #e5eee7; border-radius: 12px; padding: 11px 12px; background: #f8fbf9; }
+.admin-agent-option input { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; accent-color: #2b7652; }
+.admin-agent-option strong, .admin-agent-option small { display: block; }
+.admin-agent-option strong { color: #2c4939; font-size: 11px; }
+.admin-agent-option small { margin-top: 3px; color: var(--admin-muted); font-size: 10px; line-height: 1.5; }
 .admin-field-help { color: var(--admin-muted); font-size: 10px; line-height: 1.6; }
 .admin-dictation { position: relative; }
 .admin-dictation textarea { min-height: 154px; padding-bottom: 54px; line-height: 1.65; }
@@ -257,6 +262,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .admin-agent-review-copy p, .admin-agent-review-copy ul { margin: 0; color: var(--admin-muted); font-size: 11px; line-height: 1.65; }
 .admin-agent-review-copy ul { padding-left: 17px; }
 .admin-agent-review-copy small { display: block; margin-top: 8px; color: #496657; font-size: 10px; line-height: 1.6; }
+.admin-agent-web-evidence { display: grid; gap: 7px; border-bottom: 1px solid #edf2ee; padding: 12px 18px; background: #f7fbf8; }
+.admin-agent-web-evidence strong { color: #2c4939; font-size: 11px; }
+.admin-agent-web-evidence span, .admin-agent-web-evidence small { color: var(--admin-muted); font-size: 10px; line-height: 1.5; }
+.admin-agent-web-evidence div { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-agent-web-evidence a { max-width: 300px; overflow: hidden; border: 1px solid #dde8e1; border-radius: 999px; padding: 5px 8px; background: #fff; color: #2b7652; font-size: 9px; font-weight: 850; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .admin-agent-preview { max-height: 360px; border-bottom: 1px solid #edf2ee; }
 .admin-agent-preview .admin-table { min-width: 720px; }
 .admin-agent-preview td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
