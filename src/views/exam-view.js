@@ -49,9 +49,9 @@ function renderQuestionCard(q) {
       </div>
       <div class="exam-question-body">
         <p class="exam-q-topic">${q.chapter} · ${q.topic}${q.subject ? ` · ${q.subject}` : ''}</p>
+        ${q.passage ? `<p class="exam-q-passage">${q.passage}</p>` : ''}
         <p class="exam-q-text">${q.question}</p>
         ${q.options ? q.options.map((o, i) => `<p class="exam-q-option">${o}</p>`).join('') : ''}
-        ${q.passage ? `<p class="exam-q-passage">${q.passage}</p>` : ''}
       </div>
       <div class="exam-question-answer" style="display:none">
         <div class="exam-answer-divider"></div>
