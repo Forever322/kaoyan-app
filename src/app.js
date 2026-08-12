@@ -281,6 +281,12 @@ let admissionPlanState = { plan: {}, revision: 0, updatedAt: null };
 let studyTimerStartedAt = null;
 let studySummaryState = { today: null, week: null };
 let agentChatLoading = false;
+
+// AI 悬浮窗状态
+let _aiFloatOpen = false;
+let _aiFloatDock = localStorage.getItem('ai_dock_side') || 'right';
+let _aiFloatView = 'chat';
+let _aiFloatCloseTimer = null;
 let studyPlanSaving = false;
 let admissionPlanSaving = false;
 let authenticatedDataLoadVersion = 0;
@@ -495,7 +501,6 @@ function renderAgentStudyOverview() {
   const topSubject = week?.bySubject?.[0]?.subject || '暂无';
   const hasStudyData = weekSeconds > 0 || sessions > 0;
   setText('agentStatus', user ? (hasStudyData ? '✦ 已同步' : '✦ 待记录') : '✦ 待登录');
-  setText('agentChatStatus', user ? '已登录 · 等待同步最新数据' : '登录后同步云端学习数据');
 
   setText('agentWeekHeadline', user
     ? (hasStudyData ? '已根据你的真实学习记录生成概览' : '先记录一次学习，再生成个性化建议')
@@ -695,8 +700,7 @@ async function toggleStudyTimer() {
 function updateFooterNav(screen) {
   let activeNav = 'openFilterNavBtn';
   if (screen === 'home') activeNav = 'homeNavBtn';
-  if (screen === 'prep') activeNav = 'prepNavBtn';
-  if (screen === 'agentChat' || screen === 'agentProposal') activeNav = 'prepNavBtn';
+  if (screen === 'prep' || _aiFloatOpen) activeNav = 'prepNavBtn';
   if (screen === 'practice' || screen === 'word' || screen === 'exam') activeNav = 'practiceNavBtn';
   if (screen === 'my') activeNav = 'profileNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
@@ -844,6 +848,109 @@ function openMyScreen() {
     renderMyPage();
   } catch (error) {
     console.warn('[My] 数据渲染失败，已展示静态页面：', error);
+  }
+}
+
+function openAiFloat(view = 'chat') {
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const backdrop = document.getElementById('agentFloatingBackdrop');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  if (!fab || !panel || !backdrop) return;
+
+  hideDetail();
+  hideModal();
+  closeFilterSheet();
+
+  _aiFloatOpen = true;
+  _aiFloatView = view;
+
+  const dockClass = `is-docked-${_aiFloatDock}`;
+  fab.className = `agent-fab is-open ${dockClass}`;
+  panel.className = `agent-floating-panel ${dockClass}`;
+
+  const welcomed = localStorage.getItem('ai_float_welcomed');
+  if (!welcomed && bubble) {
+    bubble.className = `agent-welcome-bubble ${dockClass}`;
+  } else if (bubble) {
+    bubble.className = 'agent-welcome-bubble is-faded';
+  }
+
+  backdrop.classList.remove('hidden');
+  panel.classList.remove('hidden', 'is-closing');
+
+  switchAiFloatView(view);
+
+  if (view === 'chat' && !welcomed) {
+    const messages = document.getElementById('agentMessages');
+    if (messages) {
+      const firstMsg = messages.querySelector('.agent-message.is-assistant p');
+      if (firstMsg) {
+        firstMsg.textContent = '欢迎使用您的AI考研助手！我是你的考研复习规划教练，可以帮你：分析目标院校的报录数据、制定个性化备考计划、解答考研政策与流程疑问。随时点击气泡和我聊聊吧～';
+      }
+    }
+    localStorage.setItem('ai_float_welcomed', '1');
+  }
+}
+
+function closeAiFloat() {
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const backdrop = document.getElementById('agentFloatingBackdrop');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  if (!panel || panel.classList.contains('hidden')) return;
+
+  _aiFloatOpen = false;
+
+  panel.classList.add('is-closing');
+  backdrop.classList.add('hidden');
+  if (bubble) bubble.classList.add('is-faded');
+
+  clearTimeout(_aiFloatCloseTimer);
+  _aiFloatCloseTimer = setTimeout(() => {
+    panel.classList.add('hidden');
+    panel.classList.remove('is-closing');
+    if (fab) {
+      fab.className = `agent-fab is-idle is-docked-${_aiFloatDock}`;
+    }
+  }, 240);
+}
+
+function toggleAiFloat() {
+  if (_aiFloatOpen) { closeAiFloat(); }
+  else { openAiFloat('chat'); }
+}
+
+function switchAiDock() {
+  _aiFloatDock = _aiFloatDock === 'right' ? 'left' : 'right';
+  localStorage.setItem('ai_dock_side', _aiFloatDock);
+
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  const dockClass = `is-docked-${_aiFloatDock}`;
+
+  if (fab) fab.className = `agent-fab is-open ${dockClass}`;
+  if (panel) panel.className = `agent-floating-panel ${dockClass}`;
+  if (bubble && !bubble.classList.contains('is-faded')) {
+    bubble.className = `agent-welcome-bubble ${dockClass}`;
+  }
+}
+
+function switchAiFloatView(view) {
+  _aiFloatView = view;
+  const chatView = document.getElementById('agentChatView');
+  const proposalView = document.getElementById('agentProposalView');
+  if (!chatView || !proposalView) return;
+
+  if (view === 'proposal') {
+    chatView.classList.remove('is-active');
+    proposalView.classList.add('is-active');
+    renderAgentProposal();
+  } else {
+    proposalView.classList.remove('is-active');
+    chatView.classList.add('is-active');
+    renderAgentStudyOverview();
   }
 }
 
@@ -1002,9 +1109,8 @@ async function openAgentChat() {
     promptAgentLogin();
     return;
   }
-  navigateTo('agentChat');
+  openAiFloat('chat');
   setText('agentStatus', '✦ 同步中');
-  setText('agentChatStatus', '正在同步对话与学习数据');
   const list = document.getElementById('agentMessages');
   if (list) list.innerHTML = '<article class="agent-message is-assistant"><i>✦</i><p>正在同步对话与学习数据…</p></article>';
   try {
@@ -1012,10 +1118,8 @@ async function openAgentChat() {
     renderAgentConversation(conversation?.messages || []);
     updateAgentContext(context?.context);
     setText('agentStatus', '✦ 已同步');
-    setText('agentChatStatus', '已同步 · 当前对话保存到云端');
   } catch (error) {
     setText('agentStatus', '✦ 未同步');
-    setText('agentChatStatus', '暂时无法连接云端服务');
     const section = document.querySelector('.agent-context');
     if (section) {
       const title = section.querySelector('b');
@@ -1083,7 +1187,8 @@ async function generateAgentProposal(proposalType = activeAgentProposalType) {
     rationale: '模型建议不会直接修改任何数据，生成后仍需由你确认。',
   };
   renderAgentProposal(activeAgentProposal);
-  navigateTo('agentProposal');
+  switchAiFloatView('proposal');
+  if (!_aiFloatOpen) openAiFloat('proposal');
   try {
     const response = await createAgentProposal({
       proposalType: type,
@@ -1118,7 +1223,7 @@ async function openAgentProposal() {
     promptAgentLogin();
     return;
   }
-  navigateTo('agentProposal');
+  openAiFloat('proposal');
   try {
     renderAgentProposal(await loadLatestAgentProposal());
   } catch (error) {
@@ -1500,24 +1605,24 @@ function bindEvents() {
     button.textContent = '✓ 已打卡（本机）';
     button.disabled = true;
   });
-  document.getElementById('prepStatsBtn').addEventListener('click', openAgentProposal);
-  document.getElementById('agentChatBackBtn').addEventListener('click', () => navigateTo('agentProposal'));
-  document.getElementById('agentProposalBackBtn').addEventListener('click', () => navigateTo('prep'));
+  document.getElementById('prepStatsBtn').addEventListener('click', () => openAiFloat('proposal'));
   document.getElementById('agentPlanLink')?.addEventListener('click', () => generateAgentProposal());
-  document.getElementById('agentMessages').addEventListener('click', (event) => {
+  document.getElementById('agentMessages')?.addEventListener('click', (event) => {
     if (event.target.closest('[data-create-agent-proposal]')) generateAgentProposal();
   });
-  document.getElementById('agentOpenChatBtn').addEventListener('click', openAgentChat);
+  document.getElementById('agentOpenChatBtn')?.addEventListener('click', () => switchAiFloatView('chat'));
   document.querySelectorAll('[data-agent-prompt]').forEach((button) => {
     button.addEventListener('click', () => askAgent(button.dataset.agentPrompt, button.dataset.agentProposalType));
   });
-  document.getElementById('agentChatForm').addEventListener('submit', (event) => {
+  document.getElementById('agentChatForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
-    askAgent(document.getElementById('agentChatInput').value);
+    const input = document.getElementById('agentChatInput');
+    if (input) askAgent(input.value);
   });
-  document.getElementById('agentAdjustProposalBtn').addEventListener('click', openAgentChat);
-  document.getElementById('agentApplyProposalBtn').addEventListener('click', async () => {
+  document.getElementById('agentAdjustProposalBtn')?.addEventListener('click', openAgentChat);
+  document.getElementById('agentApplyProposalBtn')?.addEventListener('click', async () => {
     const button = document.getElementById('agentApplyProposalBtn');
+    if (!button) return;
     if (!activeAgentProposal?.id || activeAgentProposal.status !== 'pending') return;
     button.disabled = true;
     button.textContent = '正在应用…';
@@ -1545,6 +1650,57 @@ function bindEvents() {
       alert(error instanceof Error ? error.message : '应用计划失败，请稍后再试。');
     }
   });
+
+  // AI 悬浮窗事件
+  const agentFab = document.getElementById('agentFloatingFab');
+  const agentBackdrop = document.getElementById('agentFloatingBackdrop');
+  const agentPanel = document.getElementById('agentFloatingPanel');
+
+  if (agentFab) {
+    agentFab.addEventListener('click', () => {
+      if (_aiFloatOpen) { closeAiFloat(); }
+      else { openAgentChat(); }
+    });
+  }
+
+  if (agentBackdrop) {
+    agentBackdrop.addEventListener('click', closeAiFloat);
+  }
+
+  // 点击气泡直接关闭
+  const welcomeBubble = document.getElementById('agentWelcomeBubble');
+  if (welcomeBubble) {
+    welcomeBubble.addEventListener('click', () => {
+      clearTimeout(_aiFloatCloseTimer);
+      welcomeBubble.classList.add('is-faded');
+      localStorage.setItem('ai_float_welcomed', '1');
+    });
+  }
+
+  if (agentPanel) {
+    agentPanel.addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action]')?.dataset?.action;
+      if (action === 'switch-dock') switchAiDock();
+      if (action === 'close-float') closeAiFloat();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _aiFloatOpen) closeAiFloat();
+  });
+
+  // prepNavBtn: float 展开时先关闭，再进入备考页
+  const prepNavBtnEl = document.getElementById('prepNavBtn');
+  if (prepNavBtnEl) {
+    prepNavBtnEl.addEventListener('click', (e) => {
+      if (_aiFloatOpen) {
+        e.stopImmediatePropagation();
+        closeAiFloat();
+        setTimeout(() => navigateTo('prep'), 260);
+      }
+    }, true);
+  }
+
   document.getElementById('themeToggleBtn').addEventListener('click', toggleStudyTheme);
   document.getElementById('myOpenAuthBtn').addEventListener('click', () => {
     document.getElementById('myAuthForm').classList.remove('hidden');
@@ -1837,6 +1993,10 @@ function bindEvents() {
   });
   document.getElementById('importBtn').addEventListener('click', handleImport);
 
+  // 初始化 FAB 位置
+  const fab = document.getElementById('agentFloatingFab');
+  if (fab) fab.className = `agent-fab is-idle is-docked-${_aiFloatDock}`;
+
 }
 
 // ==================== 搜索 ====================
@@ -1993,7 +2153,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'word', 'exam', 'agentChat', 'agentProposal'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'word', 'exam'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -2012,7 +2172,7 @@ function initWordSystem() {
   const wordResult = document.getElementById('wordResult');
   const sentenceResult = document.getElementById('sentenceResult');
 
-  if (!wordBackBtn) return;
+  if (!wordBackBtn || !wordLookupTab || !sentenceAnalyzeTab || !wordSearchForm || !wordSearchInput || !sentenceAnalyzeForm || !sentenceInput) return;
 
   wordBackBtn.addEventListener('click', () => navigateTo('practice'));
 
@@ -2047,22 +2207,46 @@ function initWordSystem() {
 
 async function lookupWord(word) {
   const resultEl = document.getElementById('wordResult');
-  const inputEl = document.getElementById('wordSearchInput');
+  if (!resultEl) return;
   resultEl.innerHTML = '<div class="word-loading">查询中...</div>';
 
   try {
-    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    const baseUrl = import.meta.env.DEV ? '/dict' : 'https://api.dictionaryapi.dev';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch(`${baseUrl}/api/v2/entries/en/${encodeURIComponent(word)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
     if (!resp.ok) {
-      throw new Error(resp.status === 404 ? `未查询到"${word}"的信息，请检查拼写是否正确。` : '查询失败，请稍后重试。');
+      throw new Error(resp.status === 404 ? `未查询到"${word}"的信息，请检查拼写是否正确。` : `查询失败(${resp.status})，请稍后重试。`);
     }
     const data = await resp.json();
     renderWordData(data[0]);
   } catch (err) {
-    resultEl.innerHTML = `<div class="word-error">${err.message}</div>`;
+    if (err.name === 'AbortError') {
+      resultEl.innerHTML = '<div class="word-error">查询超时，请检查网络连接后重试。</div>';
+    } else {
+      resultEl.innerHTML = `<div class="word-error">${err.message}</div>`;
+    }
+  }
+}
+
+async function translateEnToZh(text) {
+  try {
+    const baseUrl = import.meta.env.DEV ? '/translate' : 'https://api.mymemory.translated.net';
+    const resp = await fetch(`${baseUrl}/get?q=${encodeURIComponent(text)}&langpair=en|zh`);
+    if (!resp.ok) return '';
+    const data = await resp.json();
+    return data?.responseData?.translatedText || '';
+  } catch {
+    return '';
   }
 }
 
 function renderWordData(data) {
+  const el = document.getElementById('wordResult');
+  if (!el) return;
   const phonetic = data.phonetics?.find(p => p.text)?.text || '';
   const audioUrl = data.phonetics?.find(p => p.audio)?.audio || '';
   const meanings = data.meanings || [];
@@ -2100,6 +2284,7 @@ function renderWordData(data) {
   // Head
   html += '<div class="word-result-head">';
   html += `<h2>${data.word || ''}</h2>`;
+  html += '<span id="wordCnHead" class="word-cn-head">翻译中...</span>';
   if (phonetic) html += `<span>${phonetic}</span>`;
   if (audioUrl) {
     html += `<button class="word-speaker-btn" type="button" onclick="new Audio('${audioUrl}').play()">🔊</button>`;
@@ -2108,7 +2293,7 @@ function renderWordData(data) {
 
   // Definitions
   if (defLines.length) {
-    html += `<p class="word-result-defs"><strong>【释义】</strong><br>${defLines.map((d, i) => `${i + 1}. ${d}`).join('<br>')}</p>`;
+    html += `<p class="word-result-defs"><strong>【释义】</strong><br>${defLines.map((d, i) => `${i + 1}. ${d}<br><small class="word-cn" data-def-idx="${i}">翻译中...</small>`).join('<br>')}</p>`;
   }
 
   // Word forms
@@ -2136,7 +2321,21 @@ function renderWordData(data) {
   }
 
   html += '</div>';
-  document.getElementById('wordResult').innerHTML = html;
+  el.innerHTML = html;
+
+  // 异步获取中文翻译
+  translateEnToZh(data.word).then(zh => {
+    const headCn = el.querySelector('#wordCnHead');
+    if (headCn && zh) headCn.textContent = zh;
+  });
+  const defTexts = meanings.flatMap(m => m.definitions.slice(0, 2).map(d => d.definition));
+  if (defTexts.length) {
+    defTexts.forEach(async (defText, i) => {
+      const zh = await translateEnToZh(defText);
+      const cnEl = el.querySelector(`.word-cn[data-def-idx="${i}"]`);
+      if (cnEl && zh) cnEl.textContent = zh;
+    });
+  }
 }
 
 function analyzeSentence(sentence) {
@@ -2174,7 +2373,8 @@ function analyzeSentence(sentence) {
   html += '</div>';
 
   html += '</div>';
-  document.getElementById('sentenceResult').innerHTML = html;
+  const sentenceEl = document.getElementById('sentenceResult');
+  if (sentenceEl) sentenceEl.innerHTML = html;
 }
 
 function guessPartsOfSpeech(words) {
