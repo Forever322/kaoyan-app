@@ -20,11 +20,13 @@ function renderSubjectTabs(activeSubject) {
 
 function renderChapterNav(chapters) {
   if (!chapters || !chapters.length) return '';
-  return chapters.map((ch, i) => `
-    <button type="button" class="exam-chapter-chip ${i === 0 ? 'is-active' : ''}" data-chapter-id="${ch.id || i}">
+  const allChip = `<button type="button" class="exam-chapter-chip is-active" data-chapter-name="全部" data-chapter-all="true">全部</button>`;
+  const chapterChips = chapters.map((ch, i) => `
+    <button type="button" class="exam-chapter-chip" data-chapter-name="${ch.name}">
       ${ch.name}${ch.weight ? ` (${ch.weight})` : ''}
     </button>
   `).join('');
+  return allChip + chapterChips;
 }
 
 function renderTopicTags(topics) {
