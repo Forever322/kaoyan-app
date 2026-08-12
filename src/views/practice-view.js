@@ -1,14 +1,41 @@
-import { CHAPTER_MAP, DIFFICULTY_LEVELS, MISTAKE_BOOK_SCHEMA, CORE_TAGS } from '../data/brush-data.js';
+import { CHAPTER_MAP, DIFFICULTY_LEVELS, CORE_TAGS } from '../data/brush-data.js';
+
+function getMistakeStats() {
+  try {
+    const raw = localStorage.getItem('mistake_book_v2');
+    const book = raw ? JSON.parse(raw) : [];
+    const bySubject = {};
+    book.forEach(e => {
+      const s = e.subject || 'other';
+      if (!bySubject[s]) bySubject[s] = [];
+      bySubject[s].push(e);
+    });
+    return { total: book.length, bySubject };
+  } catch { return { total: 0, bySubject: {} }; }
+}
+
+function getPracticeCount() {
+  try {
+    const raw = localStorage.getItem('practice_progress_v1');
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p || !p.lastSubject) return null;
+    const sp = p.subjectProgress?.[p.lastSubject] || {};
+    return { subject: p.lastSubject, viewed: sp.viewed || 0, total: sp.total || 0, pct: sp.percentage || 0 };
+  } catch { return null; }
+}
 
 function renderPracticeEntries() {
   const tags = CORE_TAGS.slice(0, 4);
   const icons = ['📜', '📖', '📐', '📚'];
   const actions = ['历年真题', '专项刷题', '错题本', '单词系统'];
+  const { total: mistakeTotal } = getMistakeStats();
+  const practiceInfo = getPracticeCount();
   const subtitles = [
     '英语一 · 2010—2026',
     '按知识点智能组卷',
-    '126 题待复习',
-    '今日 120 / 200',
+    mistakeTotal > 0 ? `${mistakeTotal} 题待复习` : '暂无错题',
+    practiceInfo ? `已完成 ${practiceInfo.pct}%` : '今日 120 / 200',
   ];
   return tags.map((tag, i) => {
     const chapter = CHAPTER_MAP.find(c => c.name === tag);
@@ -21,16 +48,25 @@ function renderPracticeEntries() {
   }).join('');
 }
 
-function renderWrongQuestionPlaceholder() {
-  const sample = [
-    { subject: 'math', name: '极限与连续', meta: '数学 · 高数 · 计算错误', count: 12, iconClass: 'math' },
-    { subject: 'english', name: '长难句理解', meta: '英语 · 阅读 · 知识点不熟', count: 8, iconClass: 'english' },
-    { subject: 'politics', name: '唯物辩证法', meta: '政治 · 马原 · 审题错误', count: 6, iconClass: 'politics' },
-  ];
-  const schemaFields = MISTAKE_BOOK_SCHEMA.fields.map(f => f.desc).join(' · ');
-  return sample.map(item =>
-    `<button type="button" title="${schemaFields}"><i class="${item.iconClass}"></i><span><strong>${item.name}</strong><small>${item.meta}</small></span><em>${item.count}题</em></button>`
-  ).join('');
+function renderWrongQuestionList() {
+  const { total, bySubject } = getMistakeStats();
+  if (total === 0) {
+    return `<div class="practice-wrong-empty">暂无错题，继续加油 ✨</div>`;
+  }
+  const subjectMeta = {
+    math: { name: '数学', icon: '∑', iconClass: 'math' },
+    politics: { name: '政治', icon: '政', iconClass: 'politics' },
+    english: { name: '英语', icon: 'A', iconClass: 'english' },
+  };
+  return Object.entries(bySubject).map(([subject, items]) => {
+    const meta = subjectMeta[subject] || { name: subject, icon: '?', iconClass: '' };
+    const topics = [...new Set(items.map(e => e.topic || e.chapter).filter(Boolean))].slice(0, 3).join(' · ');
+    return `<button type="button" data-practice-action="错题本" data-subject="${subject}">
+      <i class="${meta.iconClass}">${meta.icon}</i>
+      <span><strong>${meta.name}错题</strong><small>${topics || '综合'}</small></span>
+      <em>${items.length}题</em>
+    </button>`;
+  }).join('');
 }
 
 function renderDifficultyLegend() {
@@ -59,7 +95,7 @@ export function practiceView() {
         <section class="study-section" aria-labelledby="wrongReviewTitle">
           <div class="study-section-heading"><h2 id="wrongReviewTitle">今日错题复习</h2><button id="allWrongBtn" type="button">查看全部</button></div>
           <div class="practice-wrong-list">
-            ${renderWrongQuestionPlaceholder()}
+            ${renderWrongQuestionList()}
           </div>
         </section>
         <button id="wrongAnalysisBtn" class="study-ai-tip" type="button"><b>✦</b><span><strong>AI 错题分析</strong><small>本月数学 36% 的错误来自计算失误，建议开启限时验算训练。</small></span></button>

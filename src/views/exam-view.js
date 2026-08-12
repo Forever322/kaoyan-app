@@ -1,5 +1,11 @@
 import { EXAM_SUBJECTS, EXAM_CHAPTERS, SAMPLE_MATH_QUESTIONS, SAMPLE_POLITICS_QUESTIONS, SAMPLE_ENGLISH_QUESTIONS } from '../data/exam-data.js';
 
+export const QUIZ_QUESTIONS = {
+  math: SAMPLE_MATH_QUESTIONS,
+  politics: SAMPLE_POLITICS_QUESTIONS,
+  english: SAMPLE_ENGLISH_QUESTIONS,
+};
+
 function renderSubjectTabs(activeSubject) {
   return EXAM_SUBJECTS.map(s => `
     <button type="button" class="exam-subject-tab ${s.id === activeSubject ? 'is-active' : ''}" data-subject="${s.id}">
@@ -36,43 +42,41 @@ function renderTopicTags(topics) {
   ).join('');
 }
 
-function renderQuestionCard(q) {
-  const typeIcons = { '选择': '📋', '填空': '✏️', '解答': '📐', '证明': '🔷' };
-  const diffLabels = { 'P0': '高频', 'P1': '中频', 'P2': '低频' };
-
+function renderQuizPanel(subject) {
+  const questions = QUIZ_QUESTIONS[subject] || [];
   return `
-    <div class="exam-question-card" data-question-id="${q.id}">
-      <div class="exam-question-head">
-        <span class="exam-q-type">${typeIcons[q.type] || '📝'} ${q.type}题</span>
-        <span class="exam-q-difficulty is-${q.difficulty?.toLowerCase()}">${diffLabels[q.difficulty] || q.difficulty}</span>
-        ${q.year ? `<span class="exam-q-year">${q.year}</span>` : ''}
+    <div class="exam-quiz-container" data-subject="${subject}">
+      <div class="exam-quiz-start">
+        <div class="exam-quiz-start-icon">📝</div>
+        <strong>共 ${questions.length} 道真题</strong>
+        <small>选择题 · 点击选项即可作答</small>
+        <button type="button" class="exam-start-btn" data-action="start-quiz">开始刷题</button>
       </div>
-      <div class="exam-question-body">
-        <p class="exam-q-topic">${q.chapter} · ${q.topic}${q.subject ? ` · ${q.subject}` : ''}</p>
-        ${q.passage ? `<p class="exam-q-passage">${q.passage}</p>` : ''}
-        <p class="exam-q-text">${q.question}</p>
-        ${q.options ? q.options.map((o, i) => `<p class="exam-q-option">${o}</p>`).join('') : ''}
+      <div class="exam-quiz-active hidden">
+        <div class="exam-quiz-progress">
+          <div class="exam-quiz-progress-bar"><i style="width:0%"></i></div>
+          <span class="exam-quiz-counter">1 / ${questions.length}</span>
+        </div>
+        <div class="exam-quiz-question"></div>
+        <div class="exam-quiz-options"></div>
+        <div class="exam-quiz-feedback hidden"></div>
+        <button type="button" class="exam-quiz-next hidden" data-action="next-question">下一题 ›</button>
       </div>
-      <div class="exam-question-answer" style="display:none">
-        <div class="exam-answer-divider"></div>
-        <p class="exam-a-answer"><strong>答案：</strong>${q.answer}</p>
-        <p class="exam-a-solution"><strong>解析：</strong>${q.solution}</p>
-        ${q.tips ? `<p class="exam-a-tips"><strong>易错提示：</strong>${q.tips}</p>` : ''}
+      <div class="exam-quiz-summary hidden">
+        <div class="exam-quiz-summary-icon"></div>
+        <strong class="exam-quiz-summary-title"></strong>
+        <small class="exam-quiz-summary-detail"></small>
+        <div class="exam-quiz-summary-actions">
+          <button type="button" class="exam-start-btn" data-action="retry-quiz">重新刷题</button>
+          <button type="button" class="exam-start-btn is-outline" data-action="review-mistakes">查看错题</button>
+        </div>
       </div>
-      <button type="button" class="exam-toggle-answer" data-question-id="${q.id}">
-        查看答案与解析 ▼
-      </button>
     </div>
   `;
 }
 
 function renderMathContent() {
   const chapters = EXAM_CHAPTERS.math;
-  const chapterQuestions = chapters.map(ch => {
-    const questions = SAMPLE_MATH_QUESTIONS.filter(q => q.chapter === ch.name);
-    return { chapter: ch, questions };
-  });
-
   return `
     <div class="exam-chapter-scroll">
       ${renderChapterNav(chapters)}
@@ -83,22 +87,7 @@ function renderMathContent() {
         ${renderTopicTags(chapters.flatMap(ch => ch.topics))}
       </div>
     </div>
-    <div class="exam-questions-section">
-      <div class="exam-section-heading">
-        <h2>精选真题</h2>
-        <select id="mathYearFilter" class="exam-year-select">
-          <option value="all">全部年份</option>
-          <option value="2025">2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-          <option value="2022">2022</option>
-          <option value="2021">2021</option>
-        </select>
-      </div>
-      <div id="mathQuestionsList" class="exam-questions-list">
-        ${SAMPLE_MATH_QUESTIONS.map(q => renderQuestionCard(q)).join('')}
-      </div>
-    </div>
+    ${renderQuizPanel('math')}
   `;
 }
 
@@ -124,20 +113,7 @@ function renderPoliticsContent() {
         ).join('') : ''}
       </div>
     </div>
-    <div class="exam-questions-section">
-      <div class="exam-section-heading">
-        <h2>精选真题</h2>
-        <select id="politicsYearFilter" class="exam-year-select">
-          <option value="all">全部年份</option>
-          <option value="2025">2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-        </select>
-      </div>
-      <div id="politicsQuestionsList" class="exam-questions-list">
-        ${SAMPLE_POLITICS_QUESTIONS.map(q => renderQuestionCard(q)).join('')}
-      </div>
-    </div>
+    ${renderQuizPanel('politics')}
   `;
 }
 
@@ -162,20 +138,7 @@ function renderEnglishContent() {
         ).join('')}
       </div>
     </div>
-    <div class="exam-questions-section">
-      <div class="exam-section-heading">
-        <h2>精选真题</h2>
-        <select id="englishYearFilter" class="exam-year-select">
-          <option value="all">全部年份</option>
-          <option value="2025">2025</option>
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-        </select>
-      </div>
-      <div id="englishQuestionsList" class="exam-questions-list">
-        ${SAMPLE_ENGLISH_QUESTIONS.map(q => renderQuestionCard(q)).join('')}
-      </div>
-    </div>
+    ${renderQuizPanel('english')}
   `;
 }
 
@@ -185,7 +148,6 @@ export function examView() {
       <header class="study-topbar">
         <button id="examBackBtn" class="study-icon-btn" type="button" aria-label="返回题库">←</button>
         <div><h1>历年真题</h1><p>考研数学 · 政治 · 英语真题训练</p></div>
-        <button id="examRandomBtn" class="study-icon-btn" type="button" aria-label="随机组卷">🎲</button>
       </header>
       <main class="study-main">
         <div class="exam-subject-tabs" role="tablist">

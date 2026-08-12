@@ -49,6 +49,7 @@ import {
   listFavoriteUniversities,
   removeFavoriteById,
 } from './favorites-api.js';
+import { SAMPLE_MATH_QUESTIONS, SAMPLE_POLITICS_QUESTIONS, SAMPLE_ENGLISH_QUESTIONS } from './data/exam-data.js';
 
 function bootstrapApp() {
   initStudyTheme();
@@ -1626,6 +1627,12 @@ function bindEvents() {
         navigateTo('word');
         return;
       }
+      if (action === '错题本') {
+        navigateTo('exam');
+        const subject = button.dataset.subject || 'math';
+        setTimeout(() => switchExamSubject(subject), 50);
+        return;
+      }
       alert(`${action || '题库功能'}正在准备中，学习记录会同步到这里。`);
     });
   });
@@ -2166,13 +2173,27 @@ function guessPartsOfSpeech(words) {
 }
 
 // ==================== 历年真题系统 ====================
+const QUIZ_BANK = { math: SAMPLE_MATH_QUESTIONS, politics: SAMPLE_POLITICS_QUESTIONS, english: SAMPLE_ENGLISH_QUESTIONS };
 let _examActiveSubject = 'math';
+
+// Per-subject quiz state
+const _quizState = {};
+
+function getQuizState(subject) {
+  if (!_quizState[subject]) {
+    _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false };
+  }
+  return _quizState[subject];
+}
+
+function resetQuizState(subject) {
+  _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false };
+}
 
 function initExamSystem() {
   const examScreen = document.getElementById('examScreen');
   if (!examScreen) return;
 
-  // Event delegation for all exam interactions
   examScreen.addEventListener('click', (e) => {
     const backBtn = e.target.closest('#examBackBtn');
     if (backBtn) { navigateTo('practice'); return; }
@@ -2194,46 +2215,29 @@ function initExamSystem() {
       return;
     }
 
-    const toggleBtn = e.target.closest('.exam-toggle-answer');
-    if (toggleBtn) {
-      const card = toggleBtn.closest('.exam-question-card');
-      if (!card) return;
-      const answer = card.querySelector('.exam-question-answer');
-      if (!answer) return;
-      const isOpen = answer.style.display !== 'none';
-      answer.style.display = isOpen ? 'none' : 'block';
-      toggleBtn.textContent = isOpen ? '查看答案与解析 ▼' : '收起解析 ▲';
-      toggleBtn.classList.toggle('is-open', !isOpen);
+    // Quiz action buttons (start, retry, review mistakes, next question)
+    const actionBtn = e.target.closest('[data-action]');
+    if (actionBtn) {
+      const action = actionBtn.dataset.action;
+      const quizContainer = actionBtn.closest('.exam-quiz-container');
+      const subject = quizContainer?.dataset.subject || _examActiveSubject;
+      if (action === 'start-quiz') startQuiz(subject);
+      if (action === 'next-question') nextQuestion(subject);
+      if (action === 'retry-quiz') retryQuiz(subject);
+      if (action === 'review-mistakes') reviewMistakes(subject);
       return;
     }
 
-    const randomBtn = e.target.closest('#examRandomBtn');
-    if (randomBtn) {
-      const allCards = document.querySelectorAll('.exam-panel:not(.hidden) .exam-question-card');
-      if (!allCards.length) return;
-      const idx = Math.floor(Math.random() * allCards.length);
-      allCards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const answer = allCards[idx].querySelector('.exam-question-answer');
-      const toggle = allCards[idx].querySelector('.exam-toggle-answer');
-      if (answer && answer.style.display === 'none' && toggle) toggle.click();
+    // Option clicks during quiz
+    const optionBtn = e.target.closest('.exam-quiz-option');
+    if (optionBtn) {
+      const quizContainer = optionBtn.closest('.exam-quiz-container');
+      const subject = quizContainer?.dataset.subject || _examActiveSubject;
+      const st = getQuizState(subject);
+      if (st.answered) return;
+      handleAnswer(subject, optionBtn.dataset.option);
     }
   });
-
-  // Year filter change events
-  ['mathYearFilter', 'politicsYearFilter', 'englishYearFilter'].forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    select.addEventListener('change', () => {
-      const year = select.value;
-      const listId = id.replace('YearFilter', 'QuestionsList');
-      document.querySelectorAll(`#${listId} .exam-question-card`).forEach(card => {
-        const qYear = card.querySelector('.exam-q-year');
-        card.style.display = (year === 'all' || (qYear && qYear.textContent === year)) ? '' : 'none';
-      });
-    });
-  });
-
-  setupPracticeTracking();
 }
 
 function switchExamSubject(subject) {
@@ -2245,6 +2249,230 @@ function switchExamSubject(subject) {
   const panelMap = { math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' };
   const panel = document.getElementById(panelMap[subject]);
   if (panel) panel.classList.remove('hidden');
+  // Reset quiz UI when switching subjects
+  const quizContainer = panel?.querySelector('.exam-quiz-container');
+  if (quizContainer) showQuizStart(quizContainer, subject);
+}
+
+// ========== Quiz Engine ==========
+
+function startQuiz(subject) {
+  resetQuizState(subject);
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+  const startEl = quizContainer.querySelector('.exam-quiz-start');
+  const activeEl = quizContainer.querySelector('.exam-quiz-active');
+  const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
+  if (startEl) startEl.classList.add('hidden');
+  if (summaryEl) summaryEl.classList.add('hidden');
+  if (activeEl) activeEl.classList.remove('hidden');
+  renderCurrentQuestion(quizContainer, subject);
+  updateProgress(subject);
+}
+
+function showQuizStart(quizContainer, subject) {
+  resetQuizState(subject);
+  const startEl = quizContainer.querySelector('.exam-quiz-start');
+  const activeEl = quizContainer.querySelector('.exam-quiz-active');
+  const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
+  if (startEl) startEl.classList.remove('hidden');
+  if (activeEl) activeEl.classList.add('hidden');
+  if (summaryEl) summaryEl.classList.add('hidden');
+}
+
+function renderCurrentQuestion(quizContainer, subject) {
+  const questions = QUIZ_BANK[subject] || [];
+  const st = getQuizState(subject);
+  const q = questions[st.index];
+  if (!q) return;
+
+  const questionEl = quizContainer.querySelector('.exam-quiz-question');
+  const optionsEl = quizContainer.querySelector('.exam-quiz-options');
+  const feedbackEl = quizContainer.querySelector('.exam-quiz-feedback');
+  const nextBtn = quizContainer.querySelector('.exam-quiz-next');
+  const typeLabel = { '选择': '单选', '多选': '多选', '填空': '填空', '解答': '解答', '证明': '证明', '阅读': '阅读', '完形': '完形', '翻译': '翻译', '新题型': '新题型', '写作': '写作' };
+  const typeIcons = { '解答': '📐', '证明': '🔷', '填空': '✏️', '选择': '📋', '多选': '📋', '阅读': '📖', '完形': '✏️', '翻译': '📝', '新题型': '📋', '写作': '✍️' };
+
+  if (feedbackEl) { feedbackEl.classList.add('hidden'); feedbackEl.innerHTML = ''; }
+  if (nextBtn) nextBtn.classList.add('hidden');
+  st.answered = false;
+
+  let questionHTML = '';
+  if (q.passage) {
+    questionHTML += `<div class="exam-quiz-passage">${q.passage}</div>`;
+  }
+  questionHTML += `<div class="exam-quiz-q-head">
+    <span class="exam-quiz-q-badge">${typeIcons[q.type] || '📝'} ${typeLabel[q.type] || q.type}题</span>
+    <span class="exam-quiz-q-topic">${q.chapter} · ${q.topic}</span>
+  </div>`;
+  questionHTML += `<p class="exam-quiz-q-text">${q.question}</p>`;
+  if (questionEl) questionEl.innerHTML = questionHTML;
+
+  if (optionsEl && q.options) {
+    const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+    optionsEl.innerHTML = q.options.map((o, i) => `
+      <button type="button" class="exam-quiz-option" data-option="${labels[i]}">
+        <span class="exam-quiz-option-letter">${labels[i]}</span>
+        <span class="exam-quiz-option-text">${o.replace(/^[A-F][.、]\s*/, '')}</span>
+      </button>
+    `).join('');
+    optionsEl.style.display = '';
+  } else if (optionsEl) {
+    optionsEl.style.display = 'none';
+  }
+}
+
+function handleAnswer(subject, selectedOption) {
+  const questions = QUIZ_BANK[subject] || [];
+  const st = getQuizState(subject);
+  const q = questions[st.index];
+  if (!q || st.answered) return;
+  st.answered = true;
+
+  const correctAnswer = String(q.answer).trim().toUpperCase();
+  const isCorrect = selectedOption === correctAnswer;
+
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+
+  // Highlight options
+  quizContainer.querySelectorAll('.exam-quiz-option').forEach(btn => {
+    btn.disabled = true;
+    const opt = btn.dataset.option;
+    if (opt === correctAnswer) btn.classList.add('is-correct');
+    if (opt === selectedOption && !isCorrect) btn.classList.add('is-wrong');
+  });
+
+  // Feedback
+  const feedbackEl = quizContainer.querySelector('.exam-quiz-feedback');
+  const nextBtn = quizContainer.querySelector('.exam-quiz-next');
+  if (isCorrect) {
+    st.score++;
+    if (feedbackEl) {
+      feedbackEl.classList.remove('hidden');
+      feedbackEl.innerHTML = `<div class="exam-quiz-correct-banner">✓ 回答正确！</div>
+        <div class="exam-quiz-explanation"><strong>解析：</strong>${q.solution}</div>
+        ${q.tips ? `<div class="exam-quiz-tips"><strong>💡 提示：</strong>${q.tips}</div>` : ''}`;
+    }
+    // Auto-advance after 2s
+    if (nextBtn) nextBtn.classList.add('hidden');
+    setTimeout(() => nextQuestion(subject), 2000);
+  } else {
+    st.wrongIds.add(q.id);
+    addToMistakeBook(questions[st.index], subject, selectedOption);
+    if (feedbackEl) {
+      feedbackEl.classList.remove('hidden');
+      feedbackEl.innerHTML = `<div class="exam-quiz-wrong-banner">✗ 回答错误</div>
+        <div class="exam-quiz-explanation"><strong>正确答案：${correctAnswer}</strong><br><strong>解析：</strong>${q.solution}</div>
+        ${q.tips ? `<div class="exam-quiz-tips"><strong>💡 提示：</strong>${q.tips}</div>` : ''}`;
+    }
+    if (nextBtn) nextBtn.classList.remove('hidden');
+  }
+
+  updateProgress(subject);
+  recordQuizProgress(subject, st);
+}
+
+function nextQuestion(subject) {
+  const questions = QUIZ_BANK[subject] || [];
+  const st = getQuizState(subject);
+  st.index++;
+
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+
+  if (st.index >= questions.length) {
+    showQuizSummary(quizContainer, subject);
+    return;
+  }
+
+  renderCurrentQuestion(quizContainer, subject);
+  updateProgress(subject);
+  quizContainer.querySelector('.exam-quiz-question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateProgress(subject) {
+  const questions = QUIZ_BANK[subject] || [];
+  const st = getQuizState(subject);
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+  const counter = quizContainer.querySelector('.exam-quiz-counter');
+  const bar = quizContainer.querySelector('.exam-quiz-progress-bar i');
+  if (counter) counter.textContent = `${Math.min(st.index + 1, questions.length)} / ${questions.length}`;
+  if (bar) bar.style.width = `${((st.index) / questions.length) * 100}%`;
+}
+
+function showQuizSummary(quizContainer, subject) {
+  const questions = QUIZ_BANK[subject] || [];
+  const st = getQuizState(subject);
+  const activeEl = quizContainer.querySelector('.exam-quiz-active');
+  const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
+  if (activeEl) activeEl.classList.add('hidden');
+  if (summaryEl) summaryEl.classList.remove('hidden');
+
+  const pct = Math.round((st.score / questions.length) * 100);
+  const icon = summaryEl.querySelector('.exam-quiz-summary-icon');
+  const title = summaryEl.querySelector('.exam-quiz-summary-title');
+  const detail = summaryEl.querySelector('.exam-quiz-summary-detail');
+
+  if (icon) icon.textContent = pct >= 80 ? '🎉' : pct >= 50 ? '📚' : '💪';
+  if (title) title.textContent = pct >= 80 ? `太棒了！正确率 ${pct}%` : pct >= 50 ? `继续加油！正确率 ${pct}%` : `再接再厉！正确率 ${pct}%`;
+  if (detail) detail.textContent = `${questions.length} 题中答对 ${st.score} 题${st.wrongIds.size > 0 ? `，${st.wrongIds.size} 道错题已加入错题本` : ''}`;
+
+  recordQuizProgress(subject, st);
+}
+
+function retryQuiz(subject) {
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+  const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
+  const activeEl = quizContainer.querySelector('.exam-quiz-active');
+  if (summaryEl) summaryEl.classList.add('hidden');
+  resetQuizState(subject);
+  if (activeEl) activeEl.classList.remove('hidden');
+  renderCurrentQuestion(quizContainer, subject);
+  updateProgress(subject);
+}
+
+function reviewMistakes(subject) {
+  navigateTo('practice');
+}
+
+// ========== Mistake Book ==========
+const MISTAKE_BOOK_KEY = 'mistake_book_v2';
+
+function loadMistakeBook() {
+  try {
+    const raw = localStorage.getItem(MISTAKE_BOOK_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function addToMistakeBook(question, subject, userAnswer) {
+  const book = loadMistakeBook();
+  // Don't add duplicates
+  if (book.some(e => e.questionId === question.id)) return;
+  book.push({
+    questionId: question.id,
+    subject,
+    chapter: question.chapter,
+    topic: question.topic,
+    type: question.type,
+    question: question.question,
+    options: question.options || [],
+    correctAnswer: question.answer,
+    userAnswer,
+    solution: question.solution,
+    tips: question.tips || '',
+    addedAt: Date.now(),
+  });
+  try {
+    localStorage.setItem(MISTAKE_BOOK_KEY, JSON.stringify(book));
+  } catch { /* quota exceeded */ }
+}
+
+function getMistakeCount() {
+  return loadMistakeBook().length;
 }
 
 // ==================== 练习进度追踪 ====================
@@ -2268,29 +2496,23 @@ function savePracticeProgress(data) {
   } catch { /* quota exceeded, silently skip */ }
 }
 
-function recordQuestionView(subject, chapter, questionId, totalInView) {
+function recordQuizProgress(subject, quizState) {
+  const questions = QUIZ_BANK[subject] || [];
+  const total = questions.length;
+  const viewed = quizState.index + 1;
   const progress = loadPracticeProgress() || {};
-  const viewed = progress.viewedQuestions || {};
-
-  if (!viewed[questionId]) {
-    viewed[questionId] = { viewedAt: Date.now(), subject, chapter };
-  }
-
-  const subjectViewed = Object.values(viewed).filter(v => v.subject === subject).length;
-  const subjectTotal = totalInView || countQuestionsBySubject(subject);
 
   const updated = {
     ...progress,
     lastSubject: subject,
-    lastChapter: chapter,
-    viewedQuestions: viewed,
     lastAccessTime: Date.now(),
     subjectProgress: {
       ...(progress.subjectProgress || {}),
       [subject]: {
-        viewed: subjectViewed,
-        total: subjectTotal,
-        percentage: subjectTotal > 0 ? Math.round((subjectViewed / subjectTotal) * 100) : 0,
+        viewed: Math.max(viewed, progress.subjectProgress?.[subject]?.viewed || 0),
+        total,
+        percentage: total > 0 ? Math.round((Math.max(viewed, progress.subjectProgress?.[subject]?.viewed || 0) / total) * 100) : 0,
+        score: quizState.score,
       },
     },
   };
@@ -2299,8 +2521,6 @@ function recordQuestionView(subject, chapter, questionId, totalInView) {
 }
 
 function countQuestionsBySubject(subject) {
-  const map = { math: 'SAMPLE_MATH_QUESTIONS', politics: 'SAMPLE_POLITICS_QUESTIONS', english: 'SAMPLE_ENGLISH_QUESTIONS' };
-  // Dynamic import of the constant isn't available, use hardcoded counts matching exam-data.js
   const counts = { math: 5, politics: 8, english: 6 };
   return counts[subject] || 0;
 }
@@ -2333,34 +2553,14 @@ function renderPracticeProgress() {
     ring.style.borderColor = pct >= 80 ? '#63ffc6' : pct >= 40 ? '#ffc66d' : '#d9ff42';
   }
   if (label) label.textContent = pct > 0 ? '继续上次练习' : '开始练习';
-  if (subject) subject.textContent = `${subjIcon} ${subjLabel}${progress.lastChapter ? ' · ' + progress.lastChapter : ''}`;
+  if (subject) subject.textContent = `${subjIcon} ${subjLabel}`;
   if (detail) {
+    const mc = getMistakeCount();
+    const scoreInfo = sp.score !== undefined ? `得分 ${sp.score}/${total}` : `${total} 道真题`;
     detail.textContent = pct > 0
-      ? `已练习 ${viewed}/${total} 题 · 完成度 ${pct}%`
+      ? `${scoreInfo} · 已完成 ${pct}%${mc > 0 ? ` · 错题 ${mc}` : ''}`
       : `${total} 道真题待练习`;
   }
-}
-
-function setupPracticeTracking() {
-  // Track question answer toggles on the exam page
-  document.querySelectorAll('.exam-toggle-answer').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const card = btn.closest('.exam-question-card');
-      const questionId = card?.dataset.questionId;
-      if (!questionId) return;
-
-      const panel = card.closest('.exam-panel');
-      let subject = 'math';
-      if (panel?.id === 'examPanelPolitics') subject = 'politics';
-      else if (panel?.id === 'examPanelEnglish') subject = 'english';
-
-      const chapter = card.querySelector('.exam-q-topic')?.textContent?.split(' · ')[0] || '';
-      const listEl = panel?.querySelector('.exam-questions-list');
-      const total = listEl?.querySelectorAll('.exam-question-card').length || 0;
-
-      recordQuestionView(subject, chapter, questionId, total);
-    });
-  });
 }
 
 // ==================== 自动更新检测 ====================
