@@ -9,6 +9,8 @@ import { prepView } from './prep-view.js';
 import { myView } from './my-view.js';
 import { practiceView } from './practice-view.js';
 import { agentView } from './agent-view.js';
+import { wordView } from './word-view.js';
+import { examView } from './exam-view.js';
 
 export function mountAppShell(root = document.getElementById('app')) {
   if (!root) throw new Error('应用挂载节点 #app 不存在');
@@ -20,6 +22,8 @@ export function mountAppShell(root = document.getElementById('app')) {
     practiceView(),
     myView(),
     agentView(),
+    wordView(),
+    examView(),
     filterView(),
     footerView(),
     detailView(),

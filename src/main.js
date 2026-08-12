@@ -11,6 +11,8 @@ import './styles/liquid-glass/my.css';
 import './styles/liquid-glass/practice.css';
 import './styles/liquid-glass/day-theme.css';
 import './styles/liquid-glass/agent.css';
+import './styles/liquid-glass/word.css';
+import './styles/liquid-glass/exam.css';
 import { mountAppShell } from './views/app-shell.js';
 
 // Vite 生产构建会把模块脚本提升到 head：必须先放入所有页面节点，

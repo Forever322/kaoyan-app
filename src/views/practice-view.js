@@ -48,9 +48,9 @@ export function practiceView() {
         <button class="study-icon-btn" type="button" aria-label="搜索题库">⌕</button>
       </header>
       <main class="study-main">
-        <button id="resumePracticeBtn" class="practice-resume" type="button">
-          <span class="practice-ring">85%</span>
-          <span><small>继续上次练习</small><strong>2022 英语一 · 阅读</strong><em>二刷 · 34 / 40 · 还剩 2 篇</em></span><b>›</b>
+        <button id="resumePracticeBtn" class="practice-resume" type="button" style="display:none">
+          <span id="resumeRing" class="practice-ring">0%</span>
+          <span><small id="resumeLabel">继续上次练习</small><strong id="resumeSubject">暂无记录</strong><em id="resumeDetail"></em></span><b>›</b>
         </button>
         <section class="practice-entry-grid" aria-label="题库功能">
           ${renderPracticeEntries()}

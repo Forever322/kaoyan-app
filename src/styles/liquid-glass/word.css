@@ -1,0 +1,78 @@
+.word-screen{min-height:100dvh;color:#18201c;background:#f5f7f6}
+.word-tab-bar{display:flex;gap:8px;margin-top:10px}
+.word-tab{flex:1;padding:10px 0;color:#000000;border:0;border-radius:14px;background:#fff;font-size:.68rem;font-weight:700;text-align:center;transition:all .18s ease}
+.word-tab.is-active{color:#fff;background:#2f6b50}
+.word-panel{margin-top:14px}
+.word-panel.hidden{display:none}
+.word-search-form{display:flex;gap:8px;align-items:center}
+.word-search-form input{min-width:0;flex:1;padding:12px 14px;color:#18201c;border:1px solid #dde7e0;border-radius:16px;background:#fff;font-size:.75rem;outline:none}
+.word-search-form textarea{min-width:0;flex:1;padding:12px 14px;color:#18201c;border:1px solid #dde7e0;border-radius:16px;background:#fff;font-size:.72rem;outline:none;resize:vertical;font-family:inherit;line-height:1.5}
+.word-search-form button{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;color:#fff;border:0;border-radius:14px;background:#2f6b50;font-size:1rem}
+.word-hint{margin-top:8px;color:#000000;font-size:.58rem;font-weight:600}
+.word-result{margin-top:14px}
+.word-result-card{display:grid;gap:12px;padding:16px;border-radius:18px;background:#fff;border:1px solid #e3e9e5;animation:wordFadeIn .28s ease-out}
+.word-result-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.word-result-head h2{margin:0;color:#18201c;font-size:1.44rem;font-weight:800;letter-spacing:-.02em}
+.word-result-head span{color:#000000;font-size:.72rem}
+.word-speaker-btn{padding:4px 8px;border:0;border-radius:8px;background:#e5f3e9;font-size:.8rem;cursor:pointer}
+.word-result-defs{color:#344139;font-size:.72rem;line-height:1.6;margin:0}
+.word-result-section h3{margin:0 0 6px;color:#2f6b50;font-size:.68rem;font-weight:750}
+.word-result-section>p{color:#344139;font-size:.64rem;line-height:1.55;margin:0}
+.word-forms-list{display:grid;gap:4px;margin:0}
+.word-forms-list div{display:flex;gap:6px;padding:6px 10px;border-radius:10px;background:#f5f8f6}
+.word-forms-list dt{color:#2f6b50;font-size:.6rem;font-weight:700;min-width:70px}
+.word-forms-list dd{margin:0;color:#344139;font-size:.62rem}
+.word-examples-list{margin:0;padding-left:16px;display:grid;gap:5px}
+.word-examples-list li{color:#344139;font-size:.62rem;line-height:1.5}
+.word-pos-list{display:grid;gap:4px;margin:0}
+.word-pos-list div{display:flex;gap:6px;padding:5px 10px;border-radius:10px;background:#f5f8f6}
+.word-pos-list dt{color:#2f6b50;font-size:.58rem;font-weight:700;min-width:60px}
+.word-pos-list dd{margin:0;color:#344139;font-size:.6rem}
+.word-result-translation{color:#344139;font-size:.68rem;line-height:1.5;margin:0;padding:8px 12px;border-radius:10px;background:#f5f8f6}
+.word-grammar-point{margin-bottom:10px}
+.word-grammar-point h4{margin:0 0 3px;color:#18201c;font-size:.65rem}
+.word-grammar-point p{margin:0;color:#344139;font-size:.6rem;line-height:1.5}
+.word-loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:28px;color:#2f6b50;font-size:.64rem}
+.word-loading::before{content:'';width:16px;height:16px;border:2px solid #dde7e0;border-top-color:#2f6b50;border-radius:50%;animation:wordSpin .6s linear infinite}
+.word-error{display:flex;align-items:center;gap:8px;padding:14px;color:#d96c5f;border-radius:14px;background:#fff5f5;font-size:.62rem}
+
+@keyframes wordFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes wordSpin{to{transform:rotate(360deg)}}
+
+/* Night theme - same dark gradient as practice/prep/my */
+body[data-study-theme='night'] .word-screen{color:#edf5ff;background:radial-gradient(circle at 92% 6%,rgba(54,144,255,.25),transparent 30%),radial-gradient(circle at 4% 75%,rgba(45,85,218,.2),transparent 34%),linear-gradient(160deg,#102a4b 0%,#071633 55%,#080f2d 100%)}
+body[data-study-theme='night'] .word-screen .study-topbar h1{color:#fff}
+body[data-study-theme='night'] .word-screen .study-topbar p{color:#c8d4eb}
+body[data-study-theme='night'] .word-tab{color:#c8d4eb;background:linear-gradient(135deg,rgba(123,185,255,.18),rgba(33,66,131,.15));border:1px solid rgba(194,222,255,.15)}
+body[data-study-theme='night'] .word-tab.is-active{color:#11233a;background:#d9ff42;border-color:#d9ff42}
+body[data-study-theme='night'] .word-search-form input,
+body[data-study-theme='night'] .word-search-form textarea{color:#edf5ff;border-color:rgba(231,244,255,.14);background:rgba(4,13,29,.42)}
+body[data-study-theme='night'] .word-search-form input::placeholder,
+body[data-study-theme='night'] .word-search-form textarea::placeholder{color:#95aac9}
+body[data-study-theme='night'] .word-search-form button{color:#11233a;background:#d9ff42}
+body[data-study-theme='night'] .word-hint{color:#c8d4eb}
+body[data-study-theme='night'] .word-result-card{background:linear-gradient(135deg,rgba(123,185,255,.18),rgba(33,66,131,.15));border:1px solid rgba(194,222,255,.15)}
+body[data-study-theme='night'] .word-result-head h2{color:#edf5ff}
+body[data-study-theme='night'] .word-result-head span{color:#c8d4eb}
+body[data-study-theme='night'] .word-speaker-btn{background:rgba(217,255,66,.13);color:#d9ff42}
+body[data-study-theme='night'] .word-result-defs,
+body[data-study-theme='night'] .word-result-section>p,
+body[data-study-theme='night'] .word-result-translation,
+body[data-study-theme='night'] .word-examples-list li,
+body[data-study-theme='night'] .word-forms-list dd,
+body[data-study-theme='night'] .word-pos-list dd{color:#edf5ff}
+body[data-study-theme='night'] .word-result-section h3{color:#d9ff42}
+body[data-study-theme='night'] .word-forms-list div,
+body[data-study-theme='night'] .word-pos-list div{background:rgba(255,255,255,.07)}
+body[data-study-theme='night'] .word-forms-list dt,
+body[data-study-theme='night'] .word-pos-list dt{color:#b9c7ff}
+body[data-study-theme='night'] .word-result-translation{background:rgba(255,255,255,.07)}
+body[data-study-theme='night'] .word-grammar-point h4{color:#edf5ff}
+body[data-study-theme='night'] .word-grammar-point p{color:#c8d4eb}
+body[data-study-theme='night'] .word-error{color:#ff8b9e;background:rgba(255,139,158,.1)}
+body[data-study-theme='night'] .word-loading{color:#d9ff42}
+
+@media (prefers-reduced-motion:reduce){
+  .word-result-card{animation:none}
+  .word-loading::before{animation:none}
+}

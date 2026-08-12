@@ -696,7 +696,7 @@ function updateFooterNav(screen) {
   if (screen === 'home') activeNav = 'homeNavBtn';
   if (screen === 'prep') activeNav = 'prepNavBtn';
   if (screen === 'agentChat' || screen === 'agentProposal') activeNav = 'prepNavBtn';
-  if (screen === 'practice') activeNav = 'practiceNavBtn';
+  if (screen === 'practice' || screen === 'word' || screen === 'exam') activeNav = 'practiceNavBtn';
   if (screen === 'my') activeNav = 'profileNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
   const activeIndex = Math.max(0, buttons.findIndex((button) => button.id === activeNav));
@@ -820,6 +820,7 @@ function setActiveScreen(screen) {
   }
   _activeScreen = screen;
   updateFooterNav(screen);
+  if (screen === 'practice') renderPracticeProgress();
   window.scrollTo(0, 0);
 }
 
@@ -1466,7 +1467,7 @@ function bindEvents() {
     navigateTo('home');
   });
   document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
-  document.getElementById('practiceNavBtn').addEventListener('click', () => navigateTo('practice'));
+  document.getElementById('practiceNavBtn').addEventListener('click', () => { navigateTo('practice'); renderPracticeProgress(); });
   const profileNavButton = document.getElementById('profileNavBtn');
   profileNavButton.addEventListener('pointerup', (event) => {
     if (event.button !== 0) return;
@@ -1607,9 +1608,30 @@ function bindEvents() {
     renderMyPage();
   });
   document.querySelectorAll('[data-practice-action], #resumePracticeBtn, #allWrongBtn, #wrongAnalysisBtn').forEach((button) => {
-    button.addEventListener('click', () => alert(`${button.dataset.practiceAction || '题库功能'}正在准备中，学习记录会同步到这里。`));
+    button.addEventListener('click', () => {
+      const action = button.dataset.practiceAction;
+      if (button.id === 'resumePracticeBtn') {
+        const progress = loadPracticeProgress();
+        if (progress?.lastSubject) {
+          navigateTo('exam');
+          setTimeout(() => switchExamSubject(progress.lastSubject), 50);
+        }
+        return;
+      }
+      if (action === '历年真题') {
+        navigateTo('exam');
+        return;
+      }
+      if (action === '单词系统') {
+        navigateTo('word');
+        return;
+      }
+      alert(`${action || '题库功能'}正在准备中，学习记录会同步到这里。`);
+    });
   });
   initializeFooterSlider();
+  initWordSystem();
+  initExamSystem();
   document.getElementById('resultsBackBtn').addEventListener('click', () => navigateTo('home'));
   document.getElementById('resultsFilterBtn').addEventListener('click', openFilterSheet);
   document.getElementById('resultContext').addEventListener('click', openFilterSheet);
@@ -1931,8 +1953,415 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'agentChat', 'agentProposal'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'word', 'exam', 'agentChat', 'agentProposal'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
+  });
+}
+
+// ==================== 单词系统 ====================
+function initWordSystem() {
+  const wordBackBtn = document.getElementById('wordBackBtn');
+  const wordLookupTab = document.getElementById('wordLookupTab');
+  const sentenceAnalyzeTab = document.getElementById('sentenceAnalyzeTab');
+  const wordLookupPanel = document.getElementById('wordLookupPanel');
+  const sentenceAnalyzePanel = document.getElementById('sentenceAnalyzePanel');
+  const wordSearchForm = document.getElementById('wordSearchForm');
+  const wordSearchInput = document.getElementById('wordSearchInput');
+  const sentenceAnalyzeForm = document.getElementById('sentenceAnalyzeForm');
+  const sentenceInput = document.getElementById('sentenceInput');
+  const wordResult = document.getElementById('wordResult');
+  const sentenceResult = document.getElementById('sentenceResult');
+
+  if (!wordBackBtn) return;
+
+  wordBackBtn.addEventListener('click', () => navigateTo('practice'));
+
+  wordLookupTab.addEventListener('click', () => {
+    wordLookupTab.classList.add('is-active');
+    sentenceAnalyzeTab.classList.remove('is-active');
+    wordLookupPanel.classList.remove('hidden');
+    sentenceAnalyzePanel.classList.add('hidden');
+  });
+
+  sentenceAnalyzeTab.addEventListener('click', () => {
+    sentenceAnalyzeTab.classList.add('is-active');
+    wordLookupTab.classList.remove('is-active');
+    wordLookupPanel.classList.add('hidden');
+    sentenceAnalyzePanel.classList.remove('hidden');
+  });
+
+  wordSearchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const word = wordSearchInput.value.trim().toLowerCase();
+    if (!word) return;
+    await lookupWord(word);
+  });
+
+  sentenceAnalyzeForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const sentence = sentenceInput.value.trim();
+    if (!sentence) return;
+    analyzeSentence(sentence);
+  });
+}
+
+async function lookupWord(word) {
+  const resultEl = document.getElementById('wordResult');
+  const inputEl = document.getElementById('wordSearchInput');
+  resultEl.innerHTML = '<div class="word-loading">查询中...</div>';
+
+  try {
+    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (!resp.ok) {
+      throw new Error(resp.status === 404 ? `未查询到"${word}"的信息，请检查拼写是否正确。` : '查询失败，请稍后重试。');
+    }
+    const data = await resp.json();
+    renderWordData(data[0]);
+  } catch (err) {
+    resultEl.innerHTML = `<div class="word-error">${err.message}</div>`;
+  }
+}
+
+function renderWordData(data) {
+  const phonetic = data.phonetics?.find(p => p.text)?.text || '';
+  const audioUrl = data.phonetics?.find(p => p.audio)?.audio || '';
+  const meanings = data.meanings || [];
+
+  // Definitions
+  const defLines = meanings.flatMap(m =>
+    m.definitions.slice(0, 2).map(d => `<span>${m.partOfSpeech}.</span> ${d.definition}`)
+  );
+
+  // Examples
+  const examples = [];
+  meanings.forEach(m => {
+    m.definitions.forEach(d => {
+      if (d.example) examples.push(d.example);
+    });
+  });
+
+  // Word forms from meanings
+  const formMap = {};
+  meanings.forEach(m => {
+    const pos = m.partOfSpeech.toLowerCase();
+    if (pos === 'adjective') formMap['形容词'] = data.word;
+    if (pos === 'adverb') formMap['副词'] = data.word;
+    if (pos === 'noun') formMap['名词'] = `${data.word}（${data.word.endsWith('s') ? '复数' : '可数/不可数'}）`;
+    if (pos === 'verb') {
+      formMap['动词过去式'] = `${data.word}${data.word.endsWith('e') ? 'd' : 'ed'}`;
+      formMap['过去分词'] = `${data.word}${data.word.endsWith('e') ? 'd' : 'ed'}`;
+      formMap['现在分词'] = `${data.word.endsWith('e') ? data.word.slice(0, -1) : data.word}ing`;
+      formMap['第三人称单数'] = `${data.word}s`;
+    }
+  });
+
+  let html = '<div class="word-result-card">';
+
+  // Head
+  html += '<div class="word-result-head">';
+  html += `<h2>${data.word || ''}</h2>`;
+  if (phonetic) html += `<span>${phonetic}</span>`;
+  if (audioUrl) {
+    html += `<button class="word-speaker-btn" type="button" onclick="new Audio('${audioUrl}').play()">🔊</button>`;
+  }
+  html += '</div>';
+
+  // Definitions
+  if (defLines.length) {
+    html += `<p class="word-result-defs"><strong>【释义】</strong><br>${defLines.map((d, i) => `${i + 1}. ${d}`).join('<br>')}</p>`;
+  }
+
+  // Word forms
+  const formEntries = Object.entries(formMap);
+  if (formEntries.length) {
+    html += '<div class="word-result-section"><h3>【形态变换】</h3><dl class="word-forms-list">';
+    formEntries.forEach(([k, v]) => {
+      html += `<div><dt>${k}:</dt><dd>${v}</dd></div>`;
+    });
+    html += '</dl></div>';
+  }
+
+  // Exam importance
+  html += '<div class="word-result-section"><h3>【考研重要性】</h3>';
+  html += '<p>频次等级: 中频（基于语料库估算，仅供参考）<br>常见考法: 同义替换 | 固定搭配 | 阅读完形</p>';
+  html += '</div>';
+
+  // Examples
+  if (examples.length) {
+    html += '<div class="word-result-section"><h3>【例句】</h3><ul class="word-examples-list">';
+    examples.slice(0, 4).forEach(ex => {
+      html += `<li>${ex}</li>`;
+    });
+    html += '</ul></div>';
+  }
+
+  html += '</div>';
+  document.getElementById('wordResult').innerHTML = html;
+}
+
+function analyzeSentence(sentence) {
+  const words = sentence.match(/[a-zA-Z]+(?:'\w+)?/g) || [];
+  const posTags = guessPartsOfSpeech(words);
+
+  let html = '<div class="word-result-card">';
+
+  // Sentence
+  html += '<div class="word-result-head"><h2>📝 句子分析</h2></div>';
+  html += `<p class="word-result-translation"><strong>原句：</strong>${sentence}</p>`;
+
+  // Structure hint
+  html += '<div class="word-result-section"><h3>【句子结构】</h3>';
+  const hasVerb = posTags.some(w => w.pos === 'verb');
+  if (hasVerb) {
+    const subject = posTags.find(w => w.pos === 'noun' || w.pos === 'pronoun')?.word || '—';
+    const verb = posTags.find(w => w.pos === 'verb')?.word || '—';
+    html += `<p>主干：${subject} + ${verb} + ...（请结合上下文确认完整结构）</p>`;
+  } else {
+    html += '<p>暂未检测到明显谓语结构，请确认是否为完整英语句子。</p>';
+  }
+  html += '</div>';
+
+  // Parts of speech
+  html += '<div class="word-result-section"><h3>【词性标注】</h3><dl class="word-pos-list">';
+  posTags.forEach(w => {
+    html += `<div><dt>${w.word}</dt><dd>— ${w.posCN} — ${w.hint || ''}</dd></div>`;
+  });
+  html += '</dl></div>';
+
+  // Grammar points hint
+  html += '<div class="word-result-section"><h3>【语法知识点】</h3>';
+  html += '<p>请结合句子实际结构，自行判断倒装、虚拟语气、从句等语法现象，或使用 AI 教练获取详细分析。</p>';
+  html += '</div>';
+
+  html += '</div>';
+  document.getElementById('sentenceResult').innerHTML = html;
+}
+
+function guessPartsOfSpeech(words) {
+  const commonNouns = new Set(['success', 'work', 'people', 'time', 'life', 'way', 'day', 'man', 'woman', 'child', 'world', 'school', 'student', 'teacher', 'book', 'problem', 'solution']);
+  const commonVerbs = new Set(['is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'can', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'achieve', 'make', 'take', 'get', 'go', 'come', 'see', 'know', 'think', 'say', 'find', 'give', 'work', 'understand', 'improve', 'leave', 'finish']);
+  const commonAdj = new Set(['good', 'great', 'important', 'significant', 'hard', 'difficult', 'easy', 'successful', 'only', 'new', 'old', 'high', 'low', 'small', 'large', 'better', 'best', 'first', 'last']);
+  const commonAdv = new Set(['only', 'very', 'also', 'just', 'now', 'then', 'there', 'here', 'always', 'never', 'often', 'usually', 'well', 'really', 'quite', 'too', 'hard']);
+  const commonPrep = new Set(['in', 'on', 'at', 'by', 'for', 'with', 'from', 'to', 'of', 'about', 'as', 'into', 'through', 'after', 'before', 'between', 'during', 'without', 'within', 'over', 'under']);
+  const commonPron = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our', 'their']);
+  const commonDet = new Set(['a', 'an', 'the', 'this', 'that', 'these', 'those', 'each', 'every', 'some', 'any', 'no', 'many', 'much', 'few']);
+  const commonConj = new Set(['and', 'or', 'but', 'so', 'because', 'if', 'when', 'while', 'although', 'though', 'unless', 'until', 'than', 'whether', 'not']);
+
+  return words.map(w => {
+    const lower = w.toLowerCase();
+    if (commonPron.has(lower)) return { word: w, pos: 'pronoun', posCN: '代词', hint: '' };
+    if (commonPrep.has(lower)) return { word: w, pos: 'preposition', posCN: '介词', hint: '' };
+    if (commonDet.has(lower)) return { word: w, pos: 'determiner', posCN: '限定词', hint: '' };
+    if (commonConj.has(lower)) return { word: w, pos: 'conjunction', posCN: '连词', hint: '' };
+    if (commonAdv.has(lower)) return { word: w, pos: 'adverb', posCN: '副词', hint: '' };
+    if (commonAdj.has(lower)) return { word: w, pos: 'adjective', posCN: '形容词', hint: '' };
+    if (commonVerbs.has(lower)) return { word: w, pos: 'verb', posCN: '动词', hint: '' };
+    if (commonNouns.has(lower)) return { word: w, pos: 'noun', posCN: '名词', hint: '' };
+    if (lower.endsWith('ly')) return { word: w, pos: 'adverb', posCN: '副词', hint: '-ly结尾' };
+    if (lower.endsWith('ing')) return { word: w, pos: 'verb/gerund', posCN: '动词/动名词', hint: '-ing形式' };
+    if (lower.endsWith('ed') && lower.length > 3) return { word: w, pos: 'verb/adj', posCN: '动词/形容词', hint: '-ed形式' };
+    if (lower.endsWith('tion') || lower.endsWith('sion') || lower.endsWith('ness') || lower.endsWith('ment')) return { word: w, pos: 'noun', posCN: '名词', hint: '名词后缀' };
+    return { word: w, pos: 'unknown', posCN: '未知', hint: '请手动判断' };
+  });
+}
+
+// ==================== 历年真题系统 ====================
+let _examActiveSubject = 'math';
+
+function initExamSystem() {
+  const examBackBtn = document.getElementById('examBackBtn');
+  if (!examBackBtn) return;
+
+  examBackBtn.addEventListener('click', () => navigateTo('practice'));
+
+  document.querySelectorAll('.exam-subject-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const subject = tab.dataset.subject;
+      if (!subject || subject === _examActiveSubject) return;
+      switchExamSubject(subject);
+    });
+  });
+
+  document.querySelectorAll('.exam-chapter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const container = chip.closest('.exam-panel');
+      container.querySelectorAll('.exam-chapter-chip').forEach(c => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+    });
+  });
+
+  document.querySelectorAll('.exam-toggle-answer').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.exam-question-card');
+      const answer = card.querySelector('.exam-question-answer');
+      const isOpen = answer.style.display !== 'none';
+      answer.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen ? '查看答案与解析 ▼' : '收起解析 ▲';
+      btn.classList.toggle('is-open', !isOpen);
+    });
+  });
+
+  ['mathYearFilter', 'politicsYearFilter', 'englishYearFilter'].forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      select.addEventListener('change', () => {
+        const year = select.value;
+        const listId = id.replace('YearFilter', 'QuestionsList');
+        const cards = document.querySelectorAll(`#${listId} .exam-question-card`);
+        cards.forEach(card => {
+          const qYear = card.querySelector('.exam-q-year');
+          if (year === 'all' || (qYear && qYear.textContent === year)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    }
+  });
+
+  // Random exam button
+  const randomBtn = document.getElementById('examRandomBtn');
+  if (randomBtn) {
+    randomBtn.addEventListener('click', () => {
+      const allCards = document.querySelectorAll('.exam-panel:not(.hidden) .exam-question-card');
+      if (!allCards.length) return;
+      const randomIndex = Math.floor(Math.random() * allCards.length);
+      allCards[randomIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const answer = allCards[randomIndex].querySelector('.exam-question-answer');
+      const btn = allCards[randomIndex].querySelector('.exam-toggle-answer');
+      if (answer && answer.style.display === 'none') {
+        btn.click();
+      }
+    });
+  }
+  setupPracticeTracking();
+}
+
+function switchExamSubject(subject) {
+  _examActiveSubject = subject;
+  document.querySelectorAll('.exam-subject-tab').forEach(t => {
+    t.classList.toggle('is-active', t.dataset.subject === subject);
+  });
+  document.querySelectorAll('.exam-panel').forEach(p => p.classList.add('hidden'));
+  const panelMap = { math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' };
+  const panel = document.getElementById(panelMap[subject]);
+  if (panel) panel.classList.remove('hidden');
+}
+
+// ==================== 练习进度追踪 ====================
+const PRACTICE_PROGRESS_KEY = 'practice_progress_v1';
+const SUBJECT_LABELS = { math: '数学', politics: '政治', english: '英语' };
+const SUBJECT_ICONS = { math: '∑', politics: '政', english: 'A' };
+
+function loadPracticeProgress() {
+  try {
+    const raw = localStorage.getItem(PRACTICE_PROGRESS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function savePracticeProgress(data) {
+  try {
+    localStorage.setItem(PRACTICE_PROGRESS_KEY, JSON.stringify({
+      ...data,
+      updatedAt: Date.now(),
+    }));
+  } catch { /* quota exceeded, silently skip */ }
+}
+
+function recordQuestionView(subject, chapter, questionId, totalInView) {
+  const progress = loadPracticeProgress() || {};
+  const viewed = progress.viewedQuestions || {};
+
+  if (!viewed[questionId]) {
+    viewed[questionId] = { viewedAt: Date.now(), subject, chapter };
+  }
+
+  const subjectViewed = Object.values(viewed).filter(v => v.subject === subject).length;
+  const subjectTotal = totalInView || countQuestionsBySubject(subject);
+
+  const updated = {
+    ...progress,
+    lastSubject: subject,
+    lastChapter: chapter,
+    viewedQuestions: viewed,
+    lastAccessTime: Date.now(),
+    subjectProgress: {
+      ...(progress.subjectProgress || {}),
+      [subject]: {
+        viewed: subjectViewed,
+        total: subjectTotal,
+        percentage: subjectTotal > 0 ? Math.round((subjectViewed / subjectTotal) * 100) : 0,
+      },
+    },
+  };
+  savePracticeProgress(updated);
+  renderPracticeProgress();
+}
+
+function countQuestionsBySubject(subject) {
+  const map = { math: 'SAMPLE_MATH_QUESTIONS', politics: 'SAMPLE_POLITICS_QUESTIONS', english: 'SAMPLE_ENGLISH_QUESTIONS' };
+  // Dynamic import of the constant isn't available, use hardcoded counts matching exam-data.js
+  const counts = { math: 5, politics: 8, english: 6 };
+  return counts[subject] || 0;
+}
+
+function renderPracticeProgress() {
+  const btn = document.getElementById('resumePracticeBtn');
+  if (!btn) return;
+
+  const progress = loadPracticeProgress();
+  const ring = document.getElementById('resumeRing');
+  const label = document.getElementById('resumeLabel');
+  const subject = document.getElementById('resumeSubject');
+  const detail = document.getElementById('resumeDetail');
+
+  if (!progress || !progress.lastSubject) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  btn.style.display = '';
+  const sp = progress.subjectProgress?.[progress.lastSubject] || {};
+  const pct = sp.percentage || 0;
+  const viewed = sp.viewed || 0;
+  const total = sp.total || 0;
+  const subjLabel = SUBJECT_LABELS[progress.lastSubject] || progress.lastSubject;
+  const subjIcon = SUBJECT_ICONS[progress.lastSubject] || '';
+
+  if (ring) {
+    ring.textContent = pct + '%';
+    ring.style.borderColor = pct >= 80 ? '#63ffc6' : pct >= 40 ? '#ffc66d' : '#d9ff42';
+  }
+  if (label) label.textContent = pct > 0 ? '继续上次练习' : '开始练习';
+  if (subject) subject.textContent = `${subjIcon} ${subjLabel}${progress.lastChapter ? ' · ' + progress.lastChapter : ''}`;
+  if (detail) {
+    detail.textContent = pct > 0
+      ? `已练习 ${viewed}/${total} 题 · 完成度 ${pct}%`
+      : `${total} 道真题待练习`;
+  }
+}
+
+function setupPracticeTracking() {
+  // Track question answer toggles on the exam page
+  document.querySelectorAll('.exam-toggle-answer').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.exam-question-card');
+      const questionId = card?.dataset.questionId;
+      if (!questionId) return;
+
+      const panel = card.closest('.exam-panel');
+      let subject = 'math';
+      if (panel?.id === 'examPanelPolitics') subject = 'politics';
+      else if (panel?.id === 'examPanelEnglish') subject = 'english';
+
+      const chapter = card.querySelector('.exam-q-topic')?.textContent?.split(' · ')[0] || '';
+      const listEl = panel?.querySelector('.exam-questions-list');
+      const total = listEl?.querySelectorAll('.exam-question-card').length || 0;
+
+      recordQuestionView(subject, chapter, questionId, total);
+    });
   });
 }
 
