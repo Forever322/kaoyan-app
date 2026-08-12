@@ -59,10 +59,14 @@ function renderQuizPanel(subject) {
           <div class="exam-quiz-progress-bar"><i style="width:0%"></i></div>
           <span class="exam-quiz-counter">1 / ${questions.length}</span>
         </div>
+        <div class="exam-quiz-navigator"></div>
         <div class="exam-quiz-question"></div>
         <div class="exam-quiz-options"></div>
         <div class="exam-quiz-feedback hidden"></div>
-        <button type="button" class="exam-quiz-next hidden" data-action="next-question">下一题 ›</button>
+        <div class="exam-quiz-nav-row">
+          <button type="button" class="exam-quiz-prev hidden" data-action="prev-question">‹ 上一题</button>
+          <button type="button" class="exam-quiz-next hidden" data-action="next-question">下一题 ›</button>
+        </div>
       </div>
       <div class="exam-quiz-summary hidden">
         <div class="exam-quiz-summary-icon"></div>
@@ -77,12 +81,52 @@ function renderQuizPanel(subject) {
   `;
 }
 
+function renderTopicSelectPanel(chapters, subject) {
+  if (!chapters || !chapters.length) return '';
+  return `
+    <div class="exam-topic-select-panel hidden" id="topicSelectPanel_${subject}">
+      <div class="exam-topic-select-header">
+        <strong>📖 选择知识点（可多选）</strong>
+        <small>勾选后只刷这些考点 · <button type="button" class="exam-topic-exit-btn" data-action="exit-topic-mode">返回真题浏览</button></small>
+      </div>
+      <div class="exam-topic-select-chapters">
+        ${chapters.map(ch => `
+          <details class="exam-topic-chapter-group">
+            <summary class="exam-topic-chapter-summary">
+              <span>${ch.name}</span>
+              <em>${ch.topics?.length || 0}个知识点</em>
+            </summary>
+            <div class="exam-topic-checkboxes">
+              ${(ch.topics || []).map(t => {
+                const topicName = t.name || t;
+                const p0Tags = Array.isArray(t.p0) ? t.p0 : [];
+                return `<label class="exam-topic-checkbox">
+                  <input type="checkbox" data-topic="${topicName}" data-subject="${subject}" data-chapter="${ch.name}">
+                  <span>
+                    <strong>${topicName}</strong>
+                    ${p0Tags.length ? `<small>${p0Tags.slice(0, 3).join(' · ')}</small>` : ''}
+                  </span>
+                </label>`;
+              }).join('')}
+            </div>
+          </details>
+        `).join('')}
+      </div>
+      <div class="exam-topic-select-actions">
+        <span class="exam-topic-select-count">已选 <b id="topicSelectCount_${subject}">0</b> 个知识点</span>
+        <button type="button" class="exam-start-btn" data-action="start-topic-quiz">开始专项刷题</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderMathContent() {
   const chapters = EXAM_CHAPTERS.math;
   return `
     <div class="exam-chapter-scroll">
       ${renderChapterNav(chapters)}
     </div>
+    ${renderTopicSelectPanel(chapters, 'math')}
     <div class="exam-topic-cloud">
       <p class="exam-topic-label">高频考点 (P0)</p>
       <div class="exam-topic-tags">
@@ -107,6 +151,7 @@ function renderPoliticsContent() {
     <div class="exam-chapter-scroll">
       ${renderChapterNav(chapters.map(ch => ({ id: ch.id, name: ch.name, desc: ch.desc })))}
     </div>
+    ${renderTopicSelectPanel(chapters, 'politics')}
     <div class="exam-topic-cloud">
       <p class="exam-topic-label">高频考点 (P0)</p>
       <div class="exam-topic-tags">
@@ -132,6 +177,7 @@ function renderEnglishContent() {
     <div class="exam-chapter-scroll">
       ${renderChapterNav(chapters.map(ch => ({ id: ch.id, name: ch.name, weight: ch.weight })))}
     </div>
+    ${renderTopicSelectPanel(chapters, 'english')}
     <div class="exam-topic-cloud">
       <p class="exam-topic-label">高频考点 (P0)</p>
       <div class="exam-topic-tags">

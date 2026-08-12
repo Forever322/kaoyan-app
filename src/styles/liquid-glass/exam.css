@@ -136,8 +136,21 @@ body[data-study-theme='night'] .exam-q-type{color:#d9ff42;background:rgba(217,25
 .exam-quiz-explanation strong{color:#2f6b50}
 .exam-quiz-tips{margin-top:6px;padding:8px 12px;border-radius:10px;background:#fff8e1;color:#a66b16;font-size:.56rem;line-height:1.45}
 
-/* Next button */
-.exam-quiz-next{display:block;width:100%;margin-top:8px;padding:11px 0;color:#fff;border:0;border-radius:14px;background:#2f6b50;font-size:.62rem;font-weight:700;transition:background .15s ease}
+/* Question navigator */
+.exam-quiz-navigator{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;padding:4px 0;overflow-x:auto;scrollbar-width:none}
+.exam-quiz-navigator::-webkit-scrollbar{display:none}
+.exam-quiz-nav-dot{display:grid;place-items:center;width:28px;height:28px;flex-shrink:0;border:1.5px solid #dde7e0;border-radius:8px;background:#fff;color:#5a6b60;font-size:.54rem;font-weight:700;transition:all .15s ease}
+.exam-quiz-nav-dot:active{transform:scale(.92)}
+.exam-quiz-nav-dot.is-current{border-color:#2f6b50;background:#2f6b50;color:#fff;box-shadow:0 0 0 3px rgba(47,107,80,.2)}
+.exam-quiz-nav-dot.is-correct{border-color:#4a9b6a;background:#e5f7ec;color:#2f6b50}
+.exam-quiz-nav-dot.is-wrong{border-color:#e07060;background:#fff0ee;color:#d9534f}
+
+/* Nav buttons row */
+.exam-quiz-nav-row{display:flex;gap:8px;margin-top:8px}
+.exam-quiz-prev,.exam-quiz-next{flex:1;padding:11px 0;color:#fff;border:0;border-radius:14px;font-size:.62rem;font-weight:700;transition:background .15s ease}
+.exam-quiz-prev{background:#5a6b60}
+.exam-quiz-prev:active{background:#404d45}
+.exam-quiz-next{background:#2f6b50}
 .exam-quiz-next:active{background:#25573f}
 
 /* Summary */
@@ -177,3 +190,56 @@ body[data-study-theme='night'] .exam-quiz-explanation strong{color:#d9ff42}
 body[data-study-theme='night'] .exam-quiz-tips{background:rgba(255,198,109,.1);color:#ffc66d}
 body[data-study-theme='night'] .exam-quiz-next{color:#11233a;background:#d9ff42}
 body[data-study-theme='night'] .exam-quiz-next:active{background:#c5e838}
+
+body[data-study-theme='night'] .exam-quiz-navigator{gap:4px}
+body[data-study-theme='night'] .exam-quiz-nav-dot{border-color:rgba(194,222,255,.15);background:rgba(123,185,255,.12);color:#c8d4eb}
+body[data-study-theme='night'] .exam-quiz-nav-dot.is-current{border-color:#d9ff42;background:#d9ff42;color:#11233a;box-shadow:0 0 0 3px rgba(217,255,66,.2)}
+body[data-study-theme='night'] .exam-quiz-nav-dot.is-correct{border-color:#7ee04a;background:rgba(126,224,74,.15);color:#7ee04a}
+body[data-study-theme='night'] .exam-quiz-nav-dot.is-wrong{border-color:#ff6b6b;background:rgba(255,107,107,.12);color:#ff6b6b}
+body[data-study-theme='night'] .exam-quiz-prev{color:#c8d4eb;background:rgba(123,185,255,.25)}
+body[data-study-theme='night'] .exam-quiz-prev:active{background:rgba(123,185,255,.4)}
+
+/* ===== Topic Select Panel ===== */
+.exam-topic-select-panel{margin-top:12px;padding:14px;border-radius:18px;background:#fff;border:1px solid #e3e9e5}
+.exam-topic-select-header{margin-bottom:10px}
+.exam-topic-select-header strong{display:block;color:#18201c;font-size:.7rem}
+.exam-topic-select-header small{color:#5a6b60;font-size:.54rem}
+.exam-topic-exit-btn{color:#2f6b50;border:0;background:none;font-size:.54rem;text-decoration:underline;cursor:pointer;padding:0}
+.exam-topic-select-chapters{display:grid;gap:6px;max-height:42vh;overflow-y:auto}
+.exam-topic-chapter-group{border:1px solid #e3e9e5;border-radius:12px;overflow:hidden}
+.exam-topic-chapter-group[open]{border-color:#a8d5bc}
+.exam-topic-chapter-summary{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;color:#18201c;font-size:.64rem;font-weight:700;list-style:none;cursor:pointer}
+.exam-topic-chapter-summary::-webkit-details-marker{display:none}
+.exam-topic-chapter-summary::before{content:'▸';margin-right:8px;font-size:.6rem;transition:transform .15s ease}
+.exam-topic-chapter-group[open]>.exam-topic-chapter-summary::before{transform:rotate(90deg)}
+.exam-topic-chapter-summary em{color:#5a6b60;font-size:.52rem;font-style:normal;font-weight:400}
+.exam-topic-checkboxes{display:grid;gap:4px;padding:0 12px 10px}
+.exam-topic-checkbox{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;transition:background .12s ease}
+.exam-topic-checkbox:has(:checked){background:#e5f3e9}
+.exam-topic-checkbox input[type="checkbox"]{width:18px;height:18px;accent-color:#2f6b50}
+.exam-topic-checkbox span{display:grid;gap:1px}
+.exam-topic-checkbox strong{color:#18201c;font-size:.62rem}
+.exam-topic-checkbox small{color:#5a6b60;font-size:.52rem}
+.exam-topic-select-actions{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #e3e9e5}
+.exam-topic-select-count{font-size:.58rem;color:#5a6b60}
+.exam-topic-select-count b{color:#2f6b50;font-weight:700}
+.exam-topic-select-actions .exam-start-btn{margin-top:0;padding:8px 20px;font-size:.6rem}
+.exam-topic-select-actions .exam-start-btn:disabled{opacity:.45;pointer-events:none}
+
+/* Night theme - Topic Select */
+body[data-study-theme='night'] .exam-topic-select-panel{background:linear-gradient(135deg,rgba(123,185,255,.18),rgba(33,66,131,.15));border-color:rgba(194,222,255,.15)}
+body[data-study-theme='night'] .exam-topic-select-header strong{color:#edf5ff}
+body[data-study-theme='night'] .exam-topic-select-header small{color:#c8d4eb}
+body[data-study-theme='night'] .exam-topic-chapter-group{border-color:rgba(194,222,255,.15)}
+body[data-study-theme='night'] .exam-topic-chapter-group[open]{border-color:#d9ff42}
+body[data-study-theme='night'] .exam-topic-chapter-summary{color:#edf5ff}
+body[data-study-theme='night'] .exam-topic-chapter-summary em{color:#c8d4eb}
+body[data-study-theme='night'] .exam-topic-checkbox:has(:checked){background:rgba(217,255,66,.1)}
+body[data-study-theme='night'] .exam-topic-checkbox input[type="checkbox"]{accent-color:#d9ff42}
+body[data-study-theme='night'] .exam-topic-checkbox strong{color:#edf5ff}
+body[data-study-theme='night'] .exam-topic-checkbox small{color:#c8d4eb}
+body[data-study-theme='night'] .exam-topic-select-actions{border-top-color:rgba(194,222,255,.15)}
+body[data-study-theme='night'] .exam-topic-select-count{color:#c8d4eb}
+body[data-study-theme='night'] .exam-topic-select-count b{color:#d9ff42}
+body[data-study-theme='night'] .exam-topic-select-actions .exam-start-btn{background:#d9ff42;color:#11233a}
+body[data-study-theme='night'] .exam-topic-select-actions .exam-start-btn:disabled{opacity:.45}
