@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 private val BrandBackground = Color(0xFF071525)
 
 private const val TAG = "KaoyanApp"
-private const val APP_URL = "file:///android_asset/index.html"
+private const val APP_URL = "https://kaoyan.dfnbxjj688.xyz/"
 private const val FALLBACK_URL = "file:///android_asset/index.html"
 
 @Composable
