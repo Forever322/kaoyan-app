@@ -2169,72 +2169,70 @@ function guessPartsOfSpeech(words) {
 let _examActiveSubject = 'math';
 
 function initExamSystem() {
-  const examBackBtn = document.getElementById('examBackBtn');
-  if (!examBackBtn) return;
+  const examScreen = document.getElementById('examScreen');
+  if (!examScreen) return;
 
-  examBackBtn.addEventListener('click', () => navigateTo('practice'));
+  // Event delegation for all exam interactions
+  examScreen.addEventListener('click', (e) => {
+    const backBtn = e.target.closest('#examBackBtn');
+    if (backBtn) { navigateTo('practice'); return; }
 
-  document.querySelectorAll('.exam-subject-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
+    const tab = e.target.closest('.exam-subject-tab');
+    if (tab) {
       const subject = tab.dataset.subject;
-      if (!subject || subject === _examActiveSubject) return;
-      switchExamSubject(subject);
-    });
-  });
+      if (subject && subject !== _examActiveSubject) switchExamSubject(subject);
+      return;
+    }
 
-  document.querySelectorAll('.exam-chapter-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
+    const chip = e.target.closest('.exam-chapter-chip');
+    if (chip) {
       const container = chip.closest('.exam-panel');
-      container.querySelectorAll('.exam-chapter-chip').forEach(c => c.classList.remove('is-active'));
-      chip.classList.add('is-active');
-    });
-  });
+      if (container) {
+        container.querySelectorAll('.exam-chapter-chip').forEach(c => c.classList.remove('is-active'));
+        chip.classList.add('is-active');
+      }
+      return;
+    }
 
-  document.querySelectorAll('.exam-toggle-answer').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const card = btn.closest('.exam-question-card');
+    const toggleBtn = e.target.closest('.exam-toggle-answer');
+    if (toggleBtn) {
+      const card = toggleBtn.closest('.exam-question-card');
+      if (!card) return;
       const answer = card.querySelector('.exam-question-answer');
+      if (!answer) return;
       const isOpen = answer.style.display !== 'none';
       answer.style.display = isOpen ? 'none' : 'block';
-      btn.textContent = isOpen ? '查看答案与解析 ▼' : '收起解析 ▲';
-      btn.classList.toggle('is-open', !isOpen);
-    });
-  });
+      toggleBtn.textContent = isOpen ? '查看答案与解析 ▼' : '收起解析 ▲';
+      toggleBtn.classList.toggle('is-open', !isOpen);
+      return;
+    }
 
-  ['mathYearFilter', 'politicsYearFilter', 'englishYearFilter'].forEach(id => {
-    const select = document.getElementById(id);
-    if (select) {
-      select.addEventListener('change', () => {
-        const year = select.value;
-        const listId = id.replace('YearFilter', 'QuestionsList');
-        const cards = document.querySelectorAll(`#${listId} .exam-question-card`);
-        cards.forEach(card => {
-          const qYear = card.querySelector('.exam-q-year');
-          if (year === 'all' || (qYear && qYear.textContent === year)) {
-            card.style.display = '';
-          } else {
-            card.style.display = 'none';
-          }
-        });
-      });
+    const randomBtn = e.target.closest('#examRandomBtn');
+    if (randomBtn) {
+      const allCards = document.querySelectorAll('.exam-panel:not(.hidden) .exam-question-card');
+      if (!allCards.length) return;
+      const idx = Math.floor(Math.random() * allCards.length);
+      allCards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const answer = allCards[idx].querySelector('.exam-question-answer');
+      const toggle = allCards[idx].querySelector('.exam-toggle-answer');
+      if (answer && answer.style.display === 'none' && toggle) toggle.click();
     }
   });
 
-  // Random exam button
-  const randomBtn = document.getElementById('examRandomBtn');
-  if (randomBtn) {
-    randomBtn.addEventListener('click', () => {
-      const allCards = document.querySelectorAll('.exam-panel:not(.hidden) .exam-question-card');
-      if (!allCards.length) return;
-      const randomIndex = Math.floor(Math.random() * allCards.length);
-      allCards[randomIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const answer = allCards[randomIndex].querySelector('.exam-question-answer');
-      const btn = allCards[randomIndex].querySelector('.exam-toggle-answer');
-      if (answer && answer.style.display === 'none') {
-        btn.click();
-      }
+  // Year filter change events
+  ['mathYearFilter', 'politicsYearFilter', 'englishYearFilter'].forEach(id => {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.addEventListener('change', () => {
+      const year = select.value;
+      const listId = id.replace('YearFilter', 'QuestionsList');
+      document.querySelectorAll(`#${listId} .exam-question-card`).forEach(card => {
+        const qYear = card.querySelector('.exam-q-year');
+        card.style.display = (year === 'all' || (qYear && qYear.textContent === year)) ? '' : 'none';
+      });
     });
-  }
+  });
+
   setupPracticeTracking();
 }
 
