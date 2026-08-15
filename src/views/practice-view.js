@@ -99,6 +99,18 @@ export function practiceView() {
           </div>
         </section>
         <button id="wrongAnalysisBtn" class="study-ai-tip" type="button"><b>✦</b><span><strong>AI 错题分析</strong><small>本月数学 36% 的错误来自计算失误，建议开启限时验算训练。</small></span></button>
+        <section class="study-section mistake-collection" aria-labelledby="mistakeCollectionTitle">
+          <div class="study-section-heading">
+            <h2 id="mistakeCollectionTitle">📋 错题集 <span id="mistakeTotalCount"></span></h2>
+          </div>
+          <div class="mistake-filter-tabs" id="mistakeFilterTabs">
+            <button type="button" class="mistake-filter-tab is-active" data-mistake-filter="all">全部</button>
+            <button type="button" class="mistake-filter-tab" data-mistake-filter="math">数学</button>
+            <button type="button" class="mistake-filter-tab" data-mistake-filter="politics">政治</button>
+            <button type="button" class="mistake-filter-tab" data-mistake-filter="english">英语</button>
+          </div>
+          <div id="mistakeDetailList" class="mistake-detail-list"></div>
+        </section>
       </main>
     </section>
   `;

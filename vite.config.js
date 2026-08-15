@@ -41,6 +41,16 @@ export default defineConfig({
           });
         },
       },
+      '/dict': {
+        target: 'https://api.dictionaryapi.dev',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/dict/, ''),
+      },
+      '/translate': {
+        target: 'https://api.mymemory.translated.net',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/translate/, ''),
+      },
     },
   },
 });

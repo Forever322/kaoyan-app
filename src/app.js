@@ -281,6 +281,12 @@ let admissionPlanState = { plan: {}, revision: 0, updatedAt: null };
 let studyTimerStartedAt = null;
 let studySummaryState = { today: null, week: null };
 let agentChatLoading = false;
+
+// AI 悬浮窗状态
+let _aiFloatOpen = false;
+let _aiFloatDock = localStorage.getItem('ai_dock_side') || 'right';
+let _aiFloatView = 'chat';
+let _aiFloatCloseTimer = null;
 let studyPlanSaving = false;
 let admissionPlanSaving = false;
 let authenticatedDataLoadVersion = 0;
@@ -495,7 +501,6 @@ function renderAgentStudyOverview() {
   const topSubject = week?.bySubject?.[0]?.subject || '暂无';
   const hasStudyData = weekSeconds > 0 || sessions > 0;
   setText('agentStatus', user ? (hasStudyData ? '✦ 已同步' : '✦ 待记录') : '✦ 待登录');
-  setText('agentChatStatus', user ? '已登录 · 等待同步最新数据' : '登录后同步云端学习数据');
 
   setText('agentWeekHeadline', user
     ? (hasStudyData ? '已根据你的真实学习记录生成概览' : '先记录一次学习，再生成个性化建议')
@@ -695,8 +700,7 @@ async function toggleStudyTimer() {
 function updateFooterNav(screen) {
   let activeNav = 'openFilterNavBtn';
   if (screen === 'home') activeNav = 'homeNavBtn';
-  if (screen === 'prep') activeNav = 'prepNavBtn';
-  if (screen === 'agentChat' || screen === 'agentProposal') activeNav = 'prepNavBtn';
+  if (screen === 'prep' || _aiFloatOpen) activeNav = 'prepNavBtn';
   if (screen === 'practice' || screen === 'word' || screen === 'exam') activeNav = 'practiceNavBtn';
   if (screen === 'my') activeNav = 'profileNavBtn';
   const buttons = [...document.querySelectorAll('.footer-nav-btn')];
@@ -821,7 +825,7 @@ function setActiveScreen(screen) {
   }
   _activeScreen = screen;
   updateFooterNav(screen);
-  if (screen === 'practice') renderPracticeProgress();
+  if (screen === 'practice') { renderPracticeProgress(); updateWrongAnalysis(); }
   window.scrollTo(0, 0);
 }
 
@@ -844,6 +848,109 @@ function openMyScreen() {
     renderMyPage();
   } catch (error) {
     console.warn('[My] 数据渲染失败，已展示静态页面：', error);
+  }
+}
+
+function openAiFloat(view = 'chat') {
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const backdrop = document.getElementById('agentFloatingBackdrop');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  if (!fab || !panel || !backdrop) return;
+
+  hideDetail();
+  hideModal();
+  closeFilterSheet();
+
+  _aiFloatOpen = true;
+  _aiFloatView = view;
+
+  const dockClass = `is-docked-${_aiFloatDock}`;
+  fab.className = `agent-fab is-open ${dockClass}`;
+  panel.className = `agent-floating-panel ${dockClass}`;
+
+  const welcomed = localStorage.getItem('ai_float_welcomed');
+  if (!welcomed && bubble) {
+    bubble.className = `agent-welcome-bubble ${dockClass}`;
+  } else if (bubble) {
+    bubble.className = 'agent-welcome-bubble is-faded';
+  }
+
+  backdrop.classList.remove('hidden');
+  panel.classList.remove('hidden', 'is-closing');
+
+  switchAiFloatView(view);
+
+  if (view === 'chat' && !welcomed) {
+    const messages = document.getElementById('agentMessages');
+    if (messages) {
+      const firstMsg = messages.querySelector('.agent-message.is-assistant p');
+      if (firstMsg) {
+        firstMsg.textContent = '欢迎使用您的AI考研助手！我是你的考研复习规划教练，可以帮你：分析目标院校的报录数据、制定个性化备考计划、解答考研政策与流程疑问。随时点击气泡和我聊聊吧～';
+      }
+    }
+    localStorage.setItem('ai_float_welcomed', '1');
+  }
+}
+
+function closeAiFloat() {
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const backdrop = document.getElementById('agentFloatingBackdrop');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  if (!panel || panel.classList.contains('hidden')) return;
+
+  _aiFloatOpen = false;
+
+  panel.classList.add('is-closing');
+  backdrop.classList.add('hidden');
+  if (bubble) bubble.classList.add('is-faded');
+
+  clearTimeout(_aiFloatCloseTimer);
+  _aiFloatCloseTimer = setTimeout(() => {
+    panel.classList.add('hidden');
+    panel.classList.remove('is-closing');
+    if (fab) {
+      fab.className = `agent-fab is-idle is-docked-${_aiFloatDock}`;
+    }
+  }, 240);
+}
+
+function toggleAiFloat() {
+  if (_aiFloatOpen) { closeAiFloat(); }
+  else { openAiFloat('chat'); }
+}
+
+function switchAiDock() {
+  _aiFloatDock = _aiFloatDock === 'right' ? 'left' : 'right';
+  localStorage.setItem('ai_dock_side', _aiFloatDock);
+
+  const fab = document.getElementById('agentFloatingFab');
+  const panel = document.getElementById('agentFloatingPanel');
+  const bubble = document.getElementById('agentWelcomeBubble');
+  const dockClass = `is-docked-${_aiFloatDock}`;
+
+  if (fab) fab.className = `agent-fab is-open ${dockClass}`;
+  if (panel) panel.className = `agent-floating-panel ${dockClass}`;
+  if (bubble && !bubble.classList.contains('is-faded')) {
+    bubble.className = `agent-welcome-bubble ${dockClass}`;
+  }
+}
+
+function switchAiFloatView(view) {
+  _aiFloatView = view;
+  const chatView = document.getElementById('agentChatView');
+  const proposalView = document.getElementById('agentProposalView');
+  if (!chatView || !proposalView) return;
+
+  if (view === 'proposal') {
+    chatView.classList.remove('is-active');
+    proposalView.classList.add('is-active');
+    renderAgentProposal();
+  } else {
+    proposalView.classList.remove('is-active');
+    chatView.classList.add('is-active');
+    renderAgentStudyOverview();
   }
 }
 
@@ -1002,9 +1109,8 @@ async function openAgentChat() {
     promptAgentLogin();
     return;
   }
-  navigateTo('agentChat');
+  openAiFloat('chat');
   setText('agentStatus', '✦ 同步中');
-  setText('agentChatStatus', '正在同步对话与学习数据');
   const list = document.getElementById('agentMessages');
   if (list) list.innerHTML = '<article class="agent-message is-assistant"><i>✦</i><p>正在同步对话与学习数据…</p></article>';
   try {
@@ -1012,10 +1118,8 @@ async function openAgentChat() {
     renderAgentConversation(conversation?.messages || []);
     updateAgentContext(context?.context);
     setText('agentStatus', '✦ 已同步');
-    setText('agentChatStatus', '已同步 · 当前对话保存到云端');
   } catch (error) {
     setText('agentStatus', '✦ 未同步');
-    setText('agentChatStatus', '暂时无法连接云端服务');
     const section = document.querySelector('.agent-context');
     if (section) {
       const title = section.querySelector('b');
@@ -1083,7 +1187,8 @@ async function generateAgentProposal(proposalType = activeAgentProposalType) {
     rationale: '模型建议不会直接修改任何数据，生成后仍需由你确认。',
   };
   renderAgentProposal(activeAgentProposal);
-  navigateTo('agentProposal');
+  switchAiFloatView('proposal');
+  if (!_aiFloatOpen) openAiFloat('proposal');
   try {
     const response = await createAgentProposal({
       proposalType: type,
@@ -1118,7 +1223,7 @@ async function openAgentProposal() {
     promptAgentLogin();
     return;
   }
-  navigateTo('agentProposal');
+  openAiFloat('proposal');
   try {
     renderAgentProposal(await loadLatestAgentProposal());
   } catch (error) {
@@ -1468,7 +1573,23 @@ function bindEvents() {
     navigateTo('home');
   });
   document.getElementById('prepNavBtn').addEventListener('click', () => navigateTo('prep'));
-  document.getElementById('practiceNavBtn').addEventListener('click', () => { navigateTo('practice'); renderPracticeProgress(); });
+  document.getElementById('practiceNavBtn').addEventListener('click', () => { navigateTo('practice'); renderPracticeProgress(); updateWrongAnalysis(); });
+
+  // 错题集：筛选 + 移除
+  document.getElementById('practiceScreen')?.addEventListener('click', (e) => {
+    const filterTab = e.target.closest('.mistake-filter-tab');
+    if (filterTab) {
+      const filter = filterTab.dataset.mistakeFilter || 'all';
+      renderMistakeCollection(filter);
+      return;
+    }
+    const removeBtn = e.target.closest('[data-remove-mistake]');
+    if (removeBtn) {
+      const id = removeBtn.dataset.removeMistake;
+      if (id) removeFromMistakeBook(id);
+      return;
+    }
+  });
   const profileNavButton = document.getElementById('profileNavBtn');
   profileNavButton.addEventListener('pointerup', (event) => {
     if (event.button !== 0) return;
@@ -1484,24 +1605,24 @@ function bindEvents() {
     button.textContent = '✓ 已打卡（本机）';
     button.disabled = true;
   });
-  document.getElementById('prepStatsBtn').addEventListener('click', openAgentProposal);
-  document.getElementById('agentChatBackBtn').addEventListener('click', () => navigateTo('agentProposal'));
-  document.getElementById('agentProposalBackBtn').addEventListener('click', () => navigateTo('prep'));
+  document.getElementById('prepStatsBtn').addEventListener('click', () => openAiFloat('proposal'));
   document.getElementById('agentPlanLink')?.addEventListener('click', () => generateAgentProposal());
-  document.getElementById('agentMessages').addEventListener('click', (event) => {
+  document.getElementById('agentMessages')?.addEventListener('click', (event) => {
     if (event.target.closest('[data-create-agent-proposal]')) generateAgentProposal();
   });
-  document.getElementById('agentOpenChatBtn').addEventListener('click', openAgentChat);
+  document.getElementById('agentOpenChatBtn')?.addEventListener('click', () => switchAiFloatView('chat'));
   document.querySelectorAll('[data-agent-prompt]').forEach((button) => {
     button.addEventListener('click', () => askAgent(button.dataset.agentPrompt, button.dataset.agentProposalType));
   });
-  document.getElementById('agentChatForm').addEventListener('submit', (event) => {
+  document.getElementById('agentChatForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
-    askAgent(document.getElementById('agentChatInput').value);
+    const input = document.getElementById('agentChatInput');
+    if (input) askAgent(input.value);
   });
-  document.getElementById('agentAdjustProposalBtn').addEventListener('click', openAgentChat);
-  document.getElementById('agentApplyProposalBtn').addEventListener('click', async () => {
+  document.getElementById('agentAdjustProposalBtn')?.addEventListener('click', openAgentChat);
+  document.getElementById('agentApplyProposalBtn')?.addEventListener('click', async () => {
     const button = document.getElementById('agentApplyProposalBtn');
+    if (!button) return;
     if (!activeAgentProposal?.id || activeAgentProposal.status !== 'pending') return;
     button.disabled = true;
     button.textContent = '正在应用…';
@@ -1529,6 +1650,57 @@ function bindEvents() {
       alert(error instanceof Error ? error.message : '应用计划失败，请稍后再试。');
     }
   });
+
+  // AI 悬浮窗事件
+  const agentFab = document.getElementById('agentFloatingFab');
+  const agentBackdrop = document.getElementById('agentFloatingBackdrop');
+  const agentPanel = document.getElementById('agentFloatingPanel');
+
+  if (agentFab) {
+    agentFab.addEventListener('click', () => {
+      if (_aiFloatOpen) { closeAiFloat(); }
+      else { openAgentChat(); }
+    });
+  }
+
+  if (agentBackdrop) {
+    agentBackdrop.addEventListener('click', closeAiFloat);
+  }
+
+  // 点击气泡直接关闭
+  const welcomeBubble = document.getElementById('agentWelcomeBubble');
+  if (welcomeBubble) {
+    welcomeBubble.addEventListener('click', () => {
+      clearTimeout(_aiFloatCloseTimer);
+      welcomeBubble.classList.add('is-faded');
+      localStorage.setItem('ai_float_welcomed', '1');
+    });
+  }
+
+  if (agentPanel) {
+    agentPanel.addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action]')?.dataset?.action;
+      if (action === 'switch-dock') switchAiDock();
+      if (action === 'close-float') closeAiFloat();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _aiFloatOpen) closeAiFloat();
+  });
+
+  // prepNavBtn: float 展开时先关闭，再进入备考页
+  const prepNavBtnEl = document.getElementById('prepNavBtn');
+  if (prepNavBtnEl) {
+    prepNavBtnEl.addEventListener('click', (e) => {
+      if (_aiFloatOpen) {
+        e.stopImmediatePropagation();
+        closeAiFloat();
+        setTimeout(() => navigateTo('prep'), 260);
+      }
+    }, true);
+  }
+
   document.getElementById('themeToggleBtn').addEventListener('click', toggleStudyTheme);
   document.getElementById('myOpenAuthBtn').addEventListener('click', () => {
     document.getElementById('myAuthForm').classList.remove('hidden');
@@ -1623,14 +1795,31 @@ function bindEvents() {
         navigateTo('exam');
         return;
       }
+      if (action === '专项刷题') {
+        const subject = button.dataset.chapter || 'math';
+        navigateTo('exam');
+        setTimeout(() => {
+          switchExamSubject(subject);
+          enterTopicSelectMode(subject);
+        }, 80);
+        return;
+      }
       if (action === '单词系统') {
         navigateTo('word');
         return;
       }
       if (action === '错题本') {
-        navigateTo('exam');
         const subject = button.dataset.subject || 'math';
-        setTimeout(() => switchExamSubject(subject), 50);
+        startMistakeReview(subject);
+        return;
+      }
+      if (button.id === 'allWrongBtn') {
+        const { total, bySubject } = (() => {
+          try { const raw = localStorage.getItem('mistake_book_v2'); const book = raw ? JSON.parse(raw) : []; const by = {}; book.forEach(e => { const s = e.subject || 'math'; if (!by[s]) by[s] = []; by[s].push(e); }); return { total: book.length, bySubject: by }; } catch { return { total: 0, bySubject: {} }; }
+        })();
+        if (total === 0) { alert('暂无错题记录'); return; }
+        const top = Object.entries(bySubject).sort((a, b) => b[1].length - a[1].length)[0];
+        startMistakeReview(top[0]);
         return;
       }
       alert(`${action || '题库功能'}正在准备中，学习记录会同步到这里。`);
@@ -1804,6 +1993,10 @@ function bindEvents() {
   });
   document.getElementById('importBtn').addEventListener('click', handleImport);
 
+  // 初始化 FAB 位置
+  const fab = document.getElementById('agentFloatingFab');
+  if (fab) fab.className = `agent-fab is-idle is-docked-${_aiFloatDock}`;
+
 }
 
 // ==================== 搜索 ====================
@@ -1960,7 +2153,7 @@ function initHistoryNav() {
     const view = (e.state && e.state.view) || 'home';
     hideDetail();
     hideModal();
-    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'word', 'exam', 'agentChat', 'agentProposal'].includes(view)) setActiveScreen(view);
+    if (['home', 'prep', 'practice', 'results', 'fail', 'my', 'word', 'exam'].includes(view)) setActiveScreen(view);
     restoreFooterNavAfterOverlay();
   });
 }
@@ -1979,7 +2172,7 @@ function initWordSystem() {
   const wordResult = document.getElementById('wordResult');
   const sentenceResult = document.getElementById('sentenceResult');
 
-  if (!wordBackBtn) return;
+  if (!wordBackBtn || !wordLookupTab || !sentenceAnalyzeTab || !wordSearchForm || !wordSearchInput || !sentenceAnalyzeForm || !sentenceInput) return;
 
   wordBackBtn.addEventListener('click', () => navigateTo('practice'));
 
@@ -2014,22 +2207,46 @@ function initWordSystem() {
 
 async function lookupWord(word) {
   const resultEl = document.getElementById('wordResult');
-  const inputEl = document.getElementById('wordSearchInput');
+  if (!resultEl) return;
   resultEl.innerHTML = '<div class="word-loading">查询中...</div>';
 
   try {
-    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    const baseUrl = import.meta.env.DEV ? '/dict' : 'https://api.dictionaryapi.dev';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch(`${baseUrl}/api/v2/entries/en/${encodeURIComponent(word)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
     if (!resp.ok) {
-      throw new Error(resp.status === 404 ? `未查询到"${word}"的信息，请检查拼写是否正确。` : '查询失败，请稍后重试。');
+      throw new Error(resp.status === 404 ? `未查询到"${word}"的信息，请检查拼写是否正确。` : `查询失败(${resp.status})，请稍后重试。`);
     }
     const data = await resp.json();
     renderWordData(data[0]);
   } catch (err) {
-    resultEl.innerHTML = `<div class="word-error">${err.message}</div>`;
+    if (err.name === 'AbortError') {
+      resultEl.innerHTML = '<div class="word-error">查询超时，请检查网络连接后重试。</div>';
+    } else {
+      resultEl.innerHTML = `<div class="word-error">${err.message}</div>`;
+    }
+  }
+}
+
+async function translateEnToZh(text) {
+  try {
+    const baseUrl = import.meta.env.DEV ? '/translate' : 'https://api.mymemory.translated.net';
+    const resp = await fetch(`${baseUrl}/get?q=${encodeURIComponent(text)}&langpair=en|zh`);
+    if (!resp.ok) return '';
+    const data = await resp.json();
+    return data?.responseData?.translatedText || '';
+  } catch {
+    return '';
   }
 }
 
 function renderWordData(data) {
+  const el = document.getElementById('wordResult');
+  if (!el) return;
   const phonetic = data.phonetics?.find(p => p.text)?.text || '';
   const audioUrl = data.phonetics?.find(p => p.audio)?.audio || '';
   const meanings = data.meanings || [];
@@ -2067,6 +2284,7 @@ function renderWordData(data) {
   // Head
   html += '<div class="word-result-head">';
   html += `<h2>${data.word || ''}</h2>`;
+  html += '<span id="wordCnHead" class="word-cn-head">翻译中...</span>';
   if (phonetic) html += `<span>${phonetic}</span>`;
   if (audioUrl) {
     html += `<button class="word-speaker-btn" type="button" onclick="new Audio('${audioUrl}').play()">🔊</button>`;
@@ -2075,7 +2293,7 @@ function renderWordData(data) {
 
   // Definitions
   if (defLines.length) {
-    html += `<p class="word-result-defs"><strong>【释义】</strong><br>${defLines.map((d, i) => `${i + 1}. ${d}`).join('<br>')}</p>`;
+    html += `<p class="word-result-defs"><strong>【释义】</strong><br>${defLines.map((d, i) => `${i + 1}. ${d}<br><small class="word-cn" data-def-idx="${i}">翻译中...</small>`).join('<br>')}</p>`;
   }
 
   // Word forms
@@ -2103,7 +2321,21 @@ function renderWordData(data) {
   }
 
   html += '</div>';
-  document.getElementById('wordResult').innerHTML = html;
+  el.innerHTML = html;
+
+  // 异步获取中文翻译
+  translateEnToZh(data.word).then(zh => {
+    const headCn = el.querySelector('#wordCnHead');
+    if (headCn && zh) headCn.textContent = zh;
+  });
+  const defTexts = meanings.flatMap(m => m.definitions.slice(0, 2).map(d => d.definition));
+  if (defTexts.length) {
+    defTexts.forEach(async (defText, i) => {
+      const zh = await translateEnToZh(defText);
+      const cnEl = el.querySelector(`.word-cn[data-def-idx="${i}"]`);
+      if (cnEl && zh) cnEl.textContent = zh;
+    });
+  }
 }
 
 function analyzeSentence(sentence) {
@@ -2141,7 +2373,8 @@ function analyzeSentence(sentence) {
   html += '</div>';
 
   html += '</div>';
-  document.getElementById('sentenceResult').innerHTML = html;
+  const sentenceEl = document.getElementById('sentenceResult');
+  if (sentenceEl) sentenceEl.innerHTML = html;
 }
 
 function guessPartsOfSpeech(words) {
@@ -2179,15 +2412,93 @@ let _examActiveSubject = 'math';
 // Per-subject quiz state
 const _quizState = {};
 
+// Per-subject chapter filter ('all' or chapter name)
+const _chapterFilter = { math: 'all', politics: 'all', english: 'all' };
+
+// Per-subject topic filter (Set of topic names) for targeted practice
+const _topicFilter = { math: new Set(), politics: new Set(), english: new Set() };
+
+// Per-subject mistake review mode: when set, getFilteredQuestions returns these instead of full bank
+const _mistakeReviewQuestions = {};
+let _mistakeFilter = 'all';
+
+function getFilteredQuestions(subject) {
+  if (_mistakeReviewQuestions[subject] && _mistakeReviewQuestions[subject].length > 0) {
+    return _mistakeReviewQuestions[subject];
+  }
+  let all = QUIZ_BANK[subject] || [];
+  const chapterFilter = _chapterFilter[subject] || 'all';
+  if (chapterFilter !== 'all') {
+    all = all.filter(q => q.chapter === chapterFilter);
+  }
+  const topics = _topicFilter[subject];
+  if (topics && topics.size > 0) {
+    all = all.filter(q => topics.has(q.topic));
+  }
+  return all;
+}
+
 function getQuizState(subject) {
   if (!_quizState[subject]) {
-    _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false };
+    _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false, answers: {} };
   }
   return _quizState[subject];
 }
 
 function resetQuizState(subject) {
-  _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false };
+  _quizState[subject] = { index: 0, score: 0, wrongIds: new Set(), answered: false, answers: {} };
+}
+
+function enterTopicSelectMode(subject) {
+  _topicFilter[subject] = new Set();
+  const panel = document.getElementById(`topicSelectPanel_${subject}`);
+  if (panel) {
+    panel.classList.remove('hidden');
+    panel.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+    const countEl = document.getElementById(`topicSelectCount_${subject}`);
+    if (countEl) countEl.textContent = '0';
+    panel.querySelector('.exam-start-btn')?.setAttribute('disabled', '');
+  }
+  // Hide chapter nav and topic cloud
+  const subjectPanel = document.getElementById({ math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' }[subject]);
+  if (subjectPanel) {
+    const chapterScroll = subjectPanel.querySelector('.exam-chapter-scroll');
+    const topicCloud = subjectPanel.querySelector('.exam-topic-cloud');
+    if (chapterScroll) chapterScroll.style.display = 'none';
+    if (topicCloud) topicCloud.style.display = 'none';
+  }
+}
+
+function exitTopicSelectMode(subject) {
+  _topicFilter[subject] = new Set();
+  const panel = document.getElementById(`topicSelectPanel_${subject}`);
+  if (panel) panel.classList.add('hidden');
+  const subjectPanel = document.getElementById({ math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' }[subject]);
+  if (subjectPanel) {
+    const chapterScroll = subjectPanel.querySelector('.exam-chapter-scroll');
+    const topicCloud = subjectPanel.querySelector('.exam-topic-cloud');
+    if (chapterScroll) chapterScroll.style.display = '';
+    if (topicCloud) topicCloud.style.display = '';
+  }
+}
+
+function updateTopicSelectCount(subject) {
+  const panel = document.getElementById(`topicSelectPanel_${subject}`);
+  if (!panel) return;
+  const checked = panel.querySelectorAll('input[type="checkbox"]:checked');
+  const count = checked.length;
+  const countEl = document.getElementById(`topicSelectCount_${subject}`);
+  if (countEl) countEl.textContent = String(count);
+  const startBtn = panel.querySelector('.exam-start-btn');
+  if (startBtn) {
+    if (count > 0) startBtn.removeAttribute('disabled');
+    else startBtn.setAttribute('disabled', '');
+  }
+}
+
+function isTopicSelectModeActive() {
+  const panel = document.getElementById(`topicSelectPanel_${_examActiveSubject}`);
+  return panel && !panel.classList.contains('hidden');
 }
 
 function initExamSystem() {
@@ -2196,26 +2507,47 @@ function initExamSystem() {
 
   examScreen.addEventListener('click', (e) => {
     const backBtn = e.target.closest('#examBackBtn');
-    if (backBtn) { navigateTo('practice'); return; }
+    if (backBtn) { clearMistakeReview(_examActiveSubject); navigateTo('practice'); return; }
 
     const tab = e.target.closest('.exam-subject-tab');
     if (tab) {
       const subject = tab.dataset.subject;
-      if (subject && subject !== _examActiveSubject) switchExamSubject(subject);
+      if (subject && subject !== _examActiveSubject) {
+        clearMistakeReview(_examActiveSubject);
+        switchExamSubject(subject);
+      }
       return;
     }
 
     const chip = e.target.closest('.exam-chapter-chip');
     if (chip) {
       const container = chip.closest('.exam-panel');
+      const chapterName = chip.dataset.chapterName;
       if (container) {
         container.querySelectorAll('.exam-chapter-chip').forEach(c => c.classList.remove('is-active'));
         chip.classList.add('is-active');
       }
+      // Update chapter filter and reset quiz
+      _chapterFilter[_examActiveSubject] = chip.dataset.chapterAll === 'true' ? 'all' : (chapterName || 'all');
+      const quizContainer = container?.querySelector('.exam-quiz-container');
+      if (quizContainer) {
+        const filtered = getFilteredQuestions(_examActiveSubject);
+        const startStrong = quizContainer.querySelector('.exam-quiz-start strong');
+        if (startStrong) startStrong.textContent = `共 ${filtered.length} 道真题`;
+        showQuizStart(quizContainer, _examActiveSubject);
+      }
       return;
     }
 
-    // Quiz action buttons (start, retry, review mistakes, next question)
+    // Topic checkbox changes
+    const topicCheckbox = e.target.closest('.exam-topic-checkbox input[type="checkbox"]');
+    if (topicCheckbox) {
+      const subject = topicCheckbox.dataset.subject || _examActiveSubject;
+      updateTopicSelectCount(subject);
+      return;
+    }
+
+    // Quiz action buttons (start, retry, review mistakes, next question, prev question)
     const actionBtn = e.target.closest('[data-action]');
     if (actionBtn) {
       const action = actionBtn.dataset.action;
@@ -2223,8 +2555,47 @@ function initExamSystem() {
       const subject = quizContainer?.dataset.subject || _examActiveSubject;
       if (action === 'start-quiz') startQuiz(subject);
       if (action === 'next-question') nextQuestion(subject);
+      if (action === 'prev-question') prevQuestion(subject);
       if (action === 'retry-quiz') retryQuiz(subject);
       if (action === 'review-mistakes') reviewMistakes(subject);
+      if (action === 'start-topic-quiz') {
+        const panel = document.getElementById(`topicSelectPanel_${subject}`);
+        if (!panel) return;
+        const checked = panel.querySelectorAll('input[type="checkbox"]:checked');
+        _topicFilter[subject] = new Set(Array.from(checked).map(cb => cb.dataset.topic));
+        if (_topicFilter[subject].size === 0) return;
+        // Hide topic panel and start quiz
+        exitTopicSelectMode(subject);
+        const qc = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+        if (qc) {
+          const filtered = getFilteredQuestions(subject);
+          const startStrong = qc.querySelector('.exam-quiz-start strong');
+          if (startStrong) startStrong.textContent = `专项刷题 · 共 ${filtered.length} 道`;
+          showQuizStart(qc, subject);
+          startQuiz(subject);
+        }
+      }
+      if (action === 'exit-topic-mode') {
+        const s = quizContainer?.dataset.subject || _examActiveSubject;
+        exitTopicSelectMode(s);
+        const qc2 = document.querySelector(`#examPanel${s === 'math' ? 'Math' : s === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+        if (qc2) {
+          const filtered2 = getFilteredQuestions(s);
+          const startStrong2 = qc2.querySelector('.exam-quiz-start strong');
+          if (startStrong2) startStrong2.textContent = `共 ${filtered2.length} 道真题`;
+          showQuizStart(qc2, s);
+        }
+      }
+      return;
+    }
+
+    // Question navigator dot clicks
+    const navDot = e.target.closest('.exam-quiz-nav-dot');
+    if (navDot) {
+      const quizContainer = navDot.closest('.exam-quiz-container');
+      const subject = quizContainer?.dataset.subject || _examActiveSubject;
+      const idx = parseInt(navDot.dataset.questionIndex, 10);
+      if (!isNaN(idx)) jumpToQuestion(subject, idx);
       return;
     }
 
@@ -2242,6 +2613,13 @@ function initExamSystem() {
 
 function switchExamSubject(subject) {
   _examActiveSubject = subject;
+  _chapterFilter[subject] = 'all';
+  // Check if currently in topic select mode
+  const wasTopicMode = isTopicSelectModeActive();
+  _topicFilter[subject] = new Set();
+  if (wasTopicMode) {
+    enterTopicSelectMode(subject);
+  }
   document.querySelectorAll('.exam-subject-tab').forEach(t => {
     t.classList.toggle('is-active', t.dataset.subject === subject);
   });
@@ -2249,9 +2627,18 @@ function switchExamSubject(subject) {
   const panelMap = { math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' };
   const panel = document.getElementById(panelMap[subject]);
   if (panel) panel.classList.remove('hidden');
+  // Reset chapter chips to all-selected
+  panel?.querySelectorAll('.exam-chapter-chip').forEach((c, i) => {
+    c.classList.toggle('is-active', i === 0);
+  });
   // Reset quiz UI when switching subjects
   const quizContainer = panel?.querySelector('.exam-quiz-container');
-  if (quizContainer) showQuizStart(quizContainer, subject);
+  if (quizContainer) {
+    const filtered = getFilteredQuestions(subject);
+    const startStrong = quizContainer.querySelector('.exam-quiz-start strong');
+    if (startStrong) startStrong.textContent = `共 ${filtered.length} 道真题`;
+    showQuizStart(quizContainer, subject);
+  }
 }
 
 // ========== Quiz Engine ==========
@@ -2281,7 +2668,7 @@ function showQuizStart(quizContainer, subject) {
 }
 
 function renderCurrentQuestion(quizContainer, subject) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const st = getQuizState(subject);
   const q = questions[st.index];
   if (!q) return;
@@ -2290,12 +2677,17 @@ function renderCurrentQuestion(quizContainer, subject) {
   const optionsEl = quizContainer.querySelector('.exam-quiz-options');
   const feedbackEl = quizContainer.querySelector('.exam-quiz-feedback');
   const nextBtn = quizContainer.querySelector('.exam-quiz-next');
+  const prevBtn = quizContainer.querySelector('.exam-quiz-prev');
   const typeLabel = { '选择': '单选', '多选': '多选', '填空': '填空', '解答': '解答', '证明': '证明', '阅读': '阅读', '完形': '完形', '翻译': '翻译', '新题型': '新题型', '写作': '写作' };
   const typeIcons = { '解答': '📐', '证明': '🔷', '填空': '✏️', '选择': '📋', '多选': '📋', '阅读': '📖', '完形': '✏️', '翻译': '📝', '新题型': '📋', '写作': '✍️' };
 
-  if (feedbackEl) { feedbackEl.classList.add('hidden'); feedbackEl.innerHTML = ''; }
-  if (nextBtn) nextBtn.classList.add('hidden');
-  st.answered = false;
+  const prevAnswer = st.answers[st.index];
+  const wasAnswered = !!prevAnswer;
+
+  if (feedbackEl) { feedbackEl.classList.remove('hidden'); feedbackEl.innerHTML = ''; }
+  if (nextBtn) { nextBtn.classList.toggle('hidden', !wasAnswered || prevAnswer?.isCorrect); }
+  if (prevBtn) prevBtn.classList.toggle('hidden', st.index <= 0);
+  st.answered = wasAnswered;
 
   let questionHTML = '';
   if (q.passage) {
@@ -2310,20 +2702,83 @@ function renderCurrentQuestion(quizContainer, subject) {
 
   if (optionsEl && q.options) {
     const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
-    optionsEl.innerHTML = q.options.map((o, i) => `
-      <button type="button" class="exam-quiz-option" data-option="${labels[i]}">
-        <span class="exam-quiz-option-letter">${labels[i]}</span>
+    const correctAnswer = String(q.answer).trim().toUpperCase();
+    optionsEl.innerHTML = q.options.map((o, i) => {
+      const label = labels[i];
+      let cls = 'exam-quiz-option';
+      if (wasAnswered) {
+        if (label === correctAnswer) cls += ' is-correct';
+        if (label === prevAnswer.selectedOption && !prevAnswer.isCorrect) cls += ' is-wrong';
+      }
+      const disabled = wasAnswered ? 'disabled' : '';
+      return `<button type="button" class="${cls}" data-option="${label}" ${disabled}>
+        <span class="exam-quiz-option-letter">${label}</span>
         <span class="exam-quiz-option-text">${o.replace(/^[A-F][.、]\s*/, '')}</span>
-      </button>
-    `).join('');
+      </button>`;
+    }).join('');
     optionsEl.style.display = '';
   } else if (optionsEl) {
     optionsEl.style.display = 'none';
   }
+
+  // Restore feedback for already-answered questions
+  if (wasAnswered && feedbackEl) {
+    const correctAnswer = String(q.answer).trim().toUpperCase();
+    if (prevAnswer.isCorrect) {
+      feedbackEl.innerHTML = `<div class="exam-quiz-correct-banner">✓ 回答正确！</div>
+        <div class="exam-quiz-explanation"><strong>解析：</strong>${q.solution}</div>
+        ${q.tips ? `<div class="exam-quiz-tips"><strong>💡 提示：</strong>${q.tips}</div>` : ''}`;
+    } else {
+      feedbackEl.innerHTML = `<div class="exam-quiz-wrong-banner">✗ 回答错误</div>
+        <div class="exam-quiz-explanation"><strong>正确答案：${correctAnswer}</strong><br><strong>解析：</strong>${q.solution}</div>
+        ${q.tips ? `<div class="exam-quiz-tips"><strong>💡 提示：</strong>${q.tips}</div>` : ''}`;
+    }
+  }
+
+  renderQuestionNavigator(quizContainer, subject);
+  updateProgress(subject);
+}
+
+function renderQuestionNavigator(quizContainer, subject) {
+  const navEl = quizContainer.querySelector('.exam-quiz-navigator');
+  if (!navEl) return;
+  const questions = getFilteredQuestions(subject);
+  const st = getQuizState(subject);
+  navEl.innerHTML = questions.map((q, i) => {
+    const answer = st.answers[i];
+    let cls = 'exam-quiz-nav-dot';
+    if (i === st.index) cls += ' is-current';
+    else if (answer?.isCorrect) cls += ' is-correct';
+    else if (answer && !answer.isCorrect) cls += ' is-wrong';
+    return `<button type="button" class="${cls}" data-question-index="${i}" aria-label="第${i+1}题">${i + 1}</button>`;
+  }).join('');
+}
+
+function prevQuestion(subject) {
+  const st = getQuizState(subject);
+  if (st.index <= 0) return;
+  st.index--;
+
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+  renderCurrentQuestion(quizContainer, subject);
+  quizContainer.querySelector('.exam-quiz-question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function jumpToQuestion(subject, index) {
+  const questions = getFilteredQuestions(subject);
+  const st = getQuizState(subject);
+  if (index < 0 || index >= questions.length || index === st.index) return;
+  st.index = index;
+
+  const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
+  if (!quizContainer) return;
+  renderCurrentQuestion(quizContainer, subject);
+  quizContainer.querySelector('.exam-quiz-question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function handleAnswer(subject, selectedOption) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const st = getQuizState(subject);
   const q = questions[st.index];
   if (!q || st.answered) return;
@@ -2331,6 +2786,7 @@ function handleAnswer(subject, selectedOption) {
 
   const correctAnswer = String(q.answer).trim().toUpperCase();
   const isCorrect = selectedOption === correctAnswer;
+  st.answers[st.index] = { selectedOption, isCorrect };
 
   const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
   if (!quizContainer) return;
@@ -2348,6 +2804,10 @@ function handleAnswer(subject, selectedOption) {
   const nextBtn = quizContainer.querySelector('.exam-quiz-next');
   if (isCorrect) {
     st.score++;
+    // In mistake review mode, correct answers remove the question from mistake book
+    if (_mistakeReviewQuestions[subject]?.length > 0) {
+      removeFromMistakeBook(q.id);
+    }
     if (feedbackEl) {
       feedbackEl.classList.remove('hidden');
       feedbackEl.innerHTML = `<div class="exam-quiz-correct-banner">✓ 回答正确！</div>
@@ -2369,12 +2829,14 @@ function handleAnswer(subject, selectedOption) {
     if (nextBtn) nextBtn.classList.remove('hidden');
   }
 
+  renderQuestionNavigator(quizContainer, subject);
   updateProgress(subject);
   recordQuizProgress(subject, st);
+  updateWrongAnalysis();
 }
 
 function nextQuestion(subject) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const st = getQuizState(subject);
   st.index++;
 
@@ -2387,23 +2849,26 @@ function nextQuestion(subject) {
   }
 
   renderCurrentQuestion(quizContainer, subject);
-  updateProgress(subject);
   quizContainer.querySelector('.exam-quiz-question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function updateProgress(subject) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const st = getQuizState(subject);
+  const total = questions.length;
+  const answeredCount = Object.keys(st.answers).length;
+  const correctCount = Object.values(st.answers).filter(a => a?.isCorrect).length;
+  st.score = correctCount;
   const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
   if (!quizContainer) return;
   const counter = quizContainer.querySelector('.exam-quiz-counter');
   const bar = quizContainer.querySelector('.exam-quiz-progress-bar i');
-  if (counter) counter.textContent = `${Math.min(st.index + 1, questions.length)} / ${questions.length}`;
-  if (bar) bar.style.width = `${((st.index) / questions.length) * 100}%`;
+  if (counter) counter.textContent = `${Math.min(st.index + 1, total)} / ${total}`;
+  if (bar) bar.style.width = `${(answeredCount / total) * 100}%`;
 }
 
 function showQuizSummary(quizContainer, subject) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const st = getQuizState(subject);
   const activeEl = quizContainer.querySelector('.exam-quiz-active');
   const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
@@ -2415,14 +2880,32 @@ function showQuizSummary(quizContainer, subject) {
   const title = summaryEl.querySelector('.exam-quiz-summary-title');
   const detail = summaryEl.querySelector('.exam-quiz-summary-detail');
 
+  const isMistakeReview = _mistakeReviewQuestions[subject]?.length > 0;
   if (icon) icon.textContent = pct >= 80 ? '🎉' : pct >= 50 ? '📚' : '💪';
-  if (title) title.textContent = pct >= 80 ? `太棒了！正确率 ${pct}%` : pct >= 50 ? `继续加油！正确率 ${pct}%` : `再接再厉！正确率 ${pct}%`;
-  if (detail) detail.textContent = `${questions.length} 题中答对 ${st.score} 题${st.wrongIds.size > 0 ? `，${st.wrongIds.size} 道错题已加入错题本` : ''}`;
+  if (title) title.textContent = isMistakeReview
+    ? `错题复习完成！正确率 ${pct}%`
+    : pct >= 80 ? `太棒了！正确率 ${pct}%` : pct >= 50 ? `继续加油！正确率 ${pct}%` : `再接再厉！正确率 ${pct}%`;
+  if (detail) {
+    const remaining = loadMistakeBook().filter(e => e.subject === subject).length;
+    detail.textContent = isMistakeReview
+      ? `${questions.length} 道错题中答对 ${st.score} 题${remaining > 0 ? `，还有 ${remaining} 道错题待消灭` : '，错题已全部消灭！🎉'}`
+      : `${questions.length} 题中答对 ${st.score} 题${st.wrongIds.size > 0 ? `，${st.wrongIds.size} 道错题已加入错题本` : ''}`;
+  }
 
   recordQuizProgress(subject, st);
+  updateWrongAnalysis();
 }
 
 function retryQuiz(subject) {
+  // In mistake review mode, reload from current mistake book
+  if (_mistakeReviewQuestions[subject]?.length > 0) {
+    const book = loadMistakeBook().filter(e => e.subject === subject);
+    if (book.length > 0) {
+      _mistakeReviewQuestions[subject] = book.map(entryToQuestion);
+    } else {
+      clearMistakeReview(subject);
+    }
+  }
   const quizContainer = document.querySelector(`#examPanel${subject === 'math' ? 'Math' : subject === 'politics' ? 'Politics' : 'English'} .exam-quiz-container`);
   if (!quizContainer) return;
   const summaryEl = quizContainer.querySelector('.exam-quiz-summary');
@@ -2435,7 +2918,76 @@ function retryQuiz(subject) {
 }
 
 function reviewMistakes(subject) {
-  navigateTo('practice');
+  const st = getQuizState(subject);
+  if (st.wrongIds.size === 0) { navigateTo('practice'); return; }
+  const book = loadMistakeBook();
+  const wrongIds = Array.from(st.wrongIds);
+  const mistakes = book.filter(e => wrongIds.includes(e.questionId));
+  if (mistakes.length === 0) { navigateTo('practice'); return; }
+  _mistakeReviewQuestions[subject] = mistakes.map(entryToQuestion);
+  _chapterFilter[subject] = 'all';
+  updateMistakeReviewUI(subject, mistakes.length, '本组错题', '错题重练 · 彻底搞懂', '🔄');
+}
+
+// Convert a mistake-book entry back to quiz question format
+function entryToQuestion(e) {
+  return {
+    id: e.questionId, type: e.type || '选择', chapter: e.chapter || '', topic: e.topic || '',
+    difficulty: 'P0', year: '', question: e.question, options: e.options || [],
+    answer: e.correctAnswer, solution: e.solution || '', tips: e.tips || '',
+  };
+}
+
+function startMistakeReview(subject) {
+  const book = loadMistakeBook();
+  const mistakes = book.filter(e => e.subject === subject);
+  if (mistakes.length === 0) {
+    alert((SUBJECT_LABELS[subject] || subject) + '暂无错题记录');
+    return;
+  }
+  _mistakeReviewQuestions[subject] = mistakes.map(entryToQuestion);
+  _chapterFilter[subject] = 'all';
+  navigateTo('exam');
+  setTimeout(() => {
+    switchExamSubject(subject);
+    updateMistakeReviewUI(subject, mistakes.length, '错题复习', '消灭薄弱环节 · 每题都是软肋', '🔴');
+  }, 100);
+}
+
+function clearMistakeReview(subject) {
+  delete _mistakeReviewQuestions[subject];
+}
+
+function updateMistakeReviewUI(subject, count, strongText, smallText, icon) {
+  const panel = document.getElementById({ math: 'examPanelMath', politics: 'examPanelPolitics', english: 'examPanelEnglish' }[subject]);
+  if (!panel) return;
+  const quizContainer = panel.querySelector('.exam-quiz-container');
+  if (!quizContainer) return;
+  const strong = quizContainer.querySelector('.exam-quiz-start strong');
+  if (strong) strong.textContent = `${strongText} ${count} 道`;
+  const small = quizContainer.querySelector('.exam-quiz-start small');
+  if (small) small.textContent = smallText;
+  const iconEl = quizContainer.querySelector('.exam-quiz-start-icon');
+  if (iconEl) iconEl.textContent = icon;
+  showQuizStart(quizContainer, subject);
+}
+
+function removeFromMistakeBook(questionId) {
+  const book = loadMistakeBook();
+  const filtered = book.filter(e => e.questionId !== questionId);
+  if (filtered.length === book.length) return;
+  try {
+    localStorage.setItem(MISTAKE_BOOK_KEY, JSON.stringify(filtered));
+  } catch { /* quota exceeded */ }
+  // Also remove from active mistake review if present
+  Object.keys(_mistakeReviewQuestions).forEach(sub => {
+    if (_mistakeReviewQuestions[sub]) {
+      _mistakeReviewQuestions[sub] = _mistakeReviewQuestions[sub].filter(q => q.id !== questionId);
+    }
+  });
+  renderMistakeCollection();
+  updateWrongAnalysis();
+  renderPracticeProgress();
 }
 
 // ========== Mistake Book ==========
@@ -2475,6 +3027,120 @@ function getMistakeCount() {
   return loadMistakeBook().length;
 }
 
+// ==================== AI 错题分析 ====================
+
+function analyzeMistakes() {
+  const book = loadMistakeBook();
+  if (book.length === 0) {
+    return { text: '暂无错题记录，继续保持！✨', hasData: false };
+  }
+
+  const SUBJECT_NAMES = { math: '数学', politics: '政治', english: '英语' };
+  const bySubject = {};
+  book.forEach(e => {
+    const s = e.subject || 'other';
+    if (!bySubject[s]) bySubject[s] = { total: 0, byChapter: {}, byType: {} };
+    bySubject[s].total++;
+    const ch = e.chapter || '未知';
+    bySubject[s].byChapter[ch] = (bySubject[s].byChapter[ch] || 0) + 1;
+    const t = e.type || '选择';
+    bySubject[s].byType[t] = (bySubject[s].byType[t] || 0) + 1;
+  });
+
+  const topSubject = Object.entries(bySubject).sort((a, b) => b[1].total - a[1].total)[0];
+  if (!topSubject) return { text: '暂无错题记录，继续保持！✨', hasData: false };
+  const subjectName = SUBJECT_NAMES[topSubject[0]] || topSubject[0];
+
+  const worstChapter = Object.entries(topSubject[1].byChapter).sort((a, b) => b[1] - a[1])[0];
+  const worstType = Object.entries(topSubject[1].byType).sort((a, b) => b[1] - a[1])[0];
+
+  const total = book.length;
+  const recentCount = book.filter(e => (Date.now() - e.addedAt) < 7 * 24 * 3600 * 1000).length;
+
+  let text = `${subjectName} ${topSubject[1].total} 道错题`;
+  if (worstChapter) text += `，${worstChapter[0]} 章节最薄弱（${worstChapter[1]}题）`;
+  if (worstType && worstType[0] !== '选择') text += `，${worstType[0]}题型需加强`;
+  if (recentCount > 0) text += `。近7天新增 ${recentCount} 道`;
+  text += '，建议针对性刷题巩固。';
+
+  return { text, hasData: true };
+}
+
+function updateWrongAnalysis() {
+  const btn = document.getElementById('wrongAnalysisBtn');
+  if (!btn) return;
+  const small = btn.querySelector('small');
+  if (!small) return;
+  const analysis = analyzeMistakes();
+  small.textContent = analysis.text;
+  renderMistakeCollection();
+}
+
+// ==================== 错题集详情列表 ====================
+
+function renderMistakeCollection(filter = null) {
+  if (filter === null) filter = _mistakeFilter;
+  else _mistakeFilter = filter;
+  const listEl = document.getElementById('mistakeDetailList');
+  const countEl = document.getElementById('mistakeTotalCount');
+  const tabs = document.querySelectorAll('#mistakeFilterTabs .mistake-filter-tab');
+  if (!listEl) return;
+
+  const book = loadMistakeBook();
+  const filtered = filter === 'all' ? book : book.filter(e => e.subject === filter);
+
+  // Update count
+  if (countEl) countEl.textContent = book.length > 0 ? `（共 ${book.length} 道）` : '';
+
+  // Update filter tab counts
+  tabs.forEach(tab => {
+    const f = tab.dataset.mistakeFilter;
+    const count = f === 'all' ? book.length : book.filter(e => e.subject === f).length;
+    const label = { all: '全部', math: '数学', politics: '政治', english: '英语' }[f] || f;
+    tab.textContent = `${label} ${count}`;
+    tab.classList.toggle('is-active', f === filter);
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="mistake-empty">${filter === 'all' ? '暂无错题记录，继续加油！✨' : '该科目暂无错题 ✨'}</div>`;
+    return;
+  }
+
+  const SUBJECT_META = { math: { name: '数学', color: '#d96c5f' }, politics: { name: '政治', color: '#d99b3d' }, english: { name: '英语', color: '#6d7bd6' } };
+
+  listEl.innerHTML = filtered.map(e => {
+    const meta = SUBJECT_META[e.subject] || { name: e.subject || '未知', color: '#888' };
+    const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const userOptIdx = labels.indexOf(e.userAnswer);
+    const userOptText = userOptIdx >= 0 && e.options?.[userOptIdx]
+      ? e.options[userOptIdx].replace(/^[A-F][.、]\s*/, '')
+      : '';
+    const correctOptIdx = labels.indexOf(e.correctAnswer);
+    const correctOptText = correctOptIdx >= 0 && e.options?.[correctOptIdx]
+      ? e.options[correctOptIdx].replace(/^[A-F][.、]\s*/, '')
+      : (e.correctAnswer || '');
+    const optionsHtml = e.options?.length
+      ? `<div class="mistake-card-answers">
+          <div class="mistake-card-a is-wrong"><b>你的答案 ${escapeHtml(e.userAnswer || '')}</b> ${escapeHtml(userOptText)}</div>
+          <div class="mistake-card-a is-correct"><b>正确答案 ${escapeHtml(e.correctAnswer || '')}</b> ${escapeHtml(correctOptText)}</div>
+        </div>`
+      : '';
+    const solutionHtml = e.solution
+      ? `<div class="mistake-card-solution"><strong>解析：</strong>${escapeHtml(e.solution)}</div>`
+      : '';
+    return `<div class="mistake-card" data-mistake-id="${escapeHtml(e.questionId)}">
+      <div class="mistake-card-head">
+        <span class="mistake-card-badge" style="background:${meta.color}20;color:${meta.color}">${meta.name} · ${escapeHtml(e.chapter || '')}</span>
+        <span class="mistake-card-type">${escapeHtml(e.type || '选择')}题</span>
+        <button type="button" class="mistake-card-remove" data-remove-mistake="${escapeHtml(e.questionId)}" aria-label="移除错题">×</button>
+      </div>
+      <p class="mistake-card-q">${escapeHtml(e.question)}</p>
+      ${optionsHtml}
+      ${solutionHtml}
+    </div>`;
+  }).join('');
+}
+
 // ==================== 练习进度追踪 ====================
 const PRACTICE_PROGRESS_KEY = 'practice_progress_v1';
 const SUBJECT_LABELS = { math: '数学', politics: '政治', english: '英语' };
@@ -2497,7 +3163,7 @@ function savePracticeProgress(data) {
 }
 
 function recordQuizProgress(subject, quizState) {
-  const questions = QUIZ_BANK[subject] || [];
+  const questions = getFilteredQuestions(subject);
   const total = questions.length;
   const viewed = quizState.index + 1;
   const progress = loadPracticeProgress() || {};
@@ -2521,8 +3187,8 @@ function recordQuizProgress(subject, quizState) {
 }
 
 function countQuestionsBySubject(subject) {
-  const counts = { math: 5, politics: 8, english: 6 };
-  return counts[subject] || 0;
+  const bank = QUIZ_BANK[subject] || [];
+  return bank.length;
 }
 
 function renderPracticeProgress() {
@@ -2561,9 +3227,8 @@ function renderPracticeProgress() {
       ? `${scoreInfo} · 已完成 ${pct}%${mc > 0 ? ` · 错题 ${mc}` : ''}`
       : `${total} 道真题待练习`;
   }
+  updateWrongAnalysis();
 }
-
-// ==================== 自动更新检测 ====================
 const LOCAL_VERSION = '4.3';
 const UPDATE_CHECK_URL = 'https://forever322.github.io/kaoyan-app/version.json';
 const DISMISSED_KEY = 'update_dismissed_v';
