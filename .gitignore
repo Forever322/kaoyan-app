@@ -56,3 +56,6 @@ npm-debug.log*
 !tools/data-maintenance/*.json
 *.cjs
 !tools/data-maintenance/*.cjs
+
+# Claude Code local files
+.claude/

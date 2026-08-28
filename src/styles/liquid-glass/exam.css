@@ -243,3 +243,56 @@ body[data-study-theme='night'] .exam-topic-select-count{color:#c8d4eb}
 body[data-study-theme='night'] .exam-topic-select-count b{color:#d9ff42}
 body[data-study-theme='night'] .exam-topic-select-actions .exam-start-btn{background:#d9ff42;color:#11233a}
 body[data-study-theme='night'] .exam-topic-select-actions .exam-start-btn:disabled{opacity:.45}
+
+/* ---------- 历年真题：年份分卷 ---------- */
+.exam-year-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.exam-year-tab{display:grid;gap:1px;padding:10px 6px;color:#000;border:1px solid #dde7e0;border-radius:14px;background:#fff;text-align:center;transition:all .18s ease}
+.exam-year-tab strong{font-size:.78rem;font-weight:800;letter-spacing:.02em}
+.exam-year-tab small{color:#5a6b60;font-size:.5rem}
+.exam-year-tab.is-active{color:#fff;border-color:#2f6b50;background:#2f6b50}
+.exam-year-tab.is-active small{color:rgba(255,255,255,.75)}
+
+.exam-paper-list{margin-top:12px}
+.exam-year-group{display:grid;gap:8px}
+.exam-paper-card{display:flex;gap:10px;align-items:center;width:100%;padding:12px;color:#000;border:1px solid #e3e9e5;border-radius:16px;background:#fff;text-align:left;transition:all .15s ease}
+.exam-paper-card:active{transform:scale(.985)}
+.exam-paper-card.is-empty{opacity:.45;pointer-events:none}
+.exam-paper-icon{display:grid;place-items:center;width:34px;height:34px;flex-shrink:0;color:#2f6b50;border-radius:11px;background:#ddeee4;font-size:.8rem;font-style:normal;font-weight:700}
+.exam-paper-icon.politics{color:#a66b16;background:#fff3d9}
+.exam-paper-icon.english{color:#1a5c8f;background:#dceaf7}
+.exam-paper-body{display:grid;gap:3px;min-width:0;flex:1}
+.exam-paper-body strong{font-size:.68rem}
+.exam-paper-types{display:flex;flex-wrap:wrap;gap:4px}
+.exam-paper-type{padding:2px 6px;color:#5a6b60;border-radius:6px;background:#f2f6f3;font-size:.48rem;font-weight:600}
+.exam-paper-progress{color:#5a6b60;font-size:.5rem}
+.exam-paper-progress.is-done{color:#2f6b50;font-weight:700}
+.exam-paper-count{flex-shrink:0;color:#2f6b50;font-size:.9rem;font-style:normal;font-weight:800}
+.exam-paper-count b{font-size:.5rem;font-weight:600}
+
+.exam-paper-runner-head{display:flex;gap:10px;align-items:center;margin-top:12px}
+.exam-paper-exit{padding:6px 12px;color:#2f6b50;border:1px solid #a8d5bc;border-radius:11px;background:#dcefe3;font-size:.58rem;font-weight:700}
+.exam-paper-runner-head strong{font-size:.7rem}
+
+/* 主观题：无选项，用「查看解析」代替作答 */
+.exam-quiz-reveal{margin-bottom:12px;text-align:center}
+.exam-reveal-btn{padding:9px 24px;color:#2f6b50;border:1.5px dashed #a8d5bc;border-radius:14px;background:#f4faf6;font-size:.62rem;font-weight:700}
+.exam-reveal-btn:active{transform:scale(.97)}
+.exam-quiz-reveal-banner{padding:8px 12px;color:#1a5c8f;border-radius:11px;background:#dceaf7;font-size:.62rem;font-weight:700}
+.exam-quiz-nav-dot.is-viewed{border-color:#7fa8cc;background:#eaf3fa;color:#1a5c8f}
+
+body[data-study-theme='night'] .exam-year-tab{border-color:rgba(194,222,255,.15);background:rgba(123,185,255,.08);color:#eaf2ff}
+body[data-study-theme='night'] .exam-year-tab small{color:#c8d4eb}
+body[data-study-theme='night'] .exam-year-tab.is-active{border-color:#d9ff42;background:#d9ff42;color:#11233a}
+body[data-study-theme='night'] .exam-year-tab.is-active small{color:rgba(17,35,58,.7)}
+body[data-study-theme='night'] .exam-paper-card{border-color:rgba(194,222,255,.15);background:rgba(123,185,255,.08);color:#eaf2ff}
+body[data-study-theme='night'] .exam-paper-icon{color:#11233a;background:#d9ff42}
+body[data-study-theme='night'] .exam-paper-icon.politics,
+body[data-study-theme='night'] .exam-paper-icon.english{color:#11233a;background:#7bb9ff}
+body[data-study-theme='night'] .exam-paper-type{color:#c8d4eb;background:rgba(194,222,255,.12)}
+body[data-study-theme='night'] .exam-paper-progress{color:#c8d4eb}
+body[data-study-theme='night'] .exam-paper-progress.is-done{color:#d9ff42}
+body[data-study-theme='night'] .exam-paper-count{color:#d9ff42}
+body[data-study-theme='night'] .exam-paper-exit{color:#d9ff42;border-color:#d9ff42;background:transparent}
+body[data-study-theme='night'] .exam-reveal-btn{color:#d9ff42;border-color:#d9ff42;background:transparent}
+body[data-study-theme='night'] .exam-quiz-reveal-banner{color:#11233a;background:#7bb9ff}
+body[data-study-theme='night'] .exam-quiz-nav-dot.is-viewed{border-color:#7bb9ff;background:rgba(123,185,255,.15);color:#7bb9ff}

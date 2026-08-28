@@ -1,4 +1,5 @@
 import { CHAPTER_MAP, DIFFICULTY_LEVELS, CORE_TAGS } from '../data/brush-data.js';
+import { RECENT_EXAM_YEARS, RECENT_TOTAL, BANK_TOTAL } from '../data/exam-papers.js';
 
 function getMistakeStats() {
   try {
@@ -28,22 +29,23 @@ function getPracticeCount() {
 function renderPracticeEntries() {
   const tags = CORE_TAGS.slice(0, 4);
   const icons = ['📜', '📖', '📐', '📚'];
-  const actions = ['历年真题', '专项刷题', '错题本', '单词系统'];
+  const actions = ['历年真题', '专项练习', '错题本', '单词系统'];
   const { total: mistakeTotal } = getMistakeStats();
   const practiceInfo = getPracticeCount();
+  const oldest = RECENT_EXAM_YEARS[RECENT_EXAM_YEARS.length - 1];
+  const newest = RECENT_EXAM_YEARS[0];
   const subtitles = [
-    '英语一 · 2010—2026',
-    '按知识点智能组卷',
+    `${oldest}—${newest} · ${RECENT_TOTAL} 题分卷`,
+    `全部 ${BANK_TOTAL} 题 · 按知识点组卷`,
     mistakeTotal > 0 ? `${mistakeTotal} 题待复习` : '暂无错题',
     practiceInfo ? `已完成 ${practiceInfo.pct}%` : '今日 120 / 200',
   ];
-  return tags.map((tag, i) => {
-    const chapter = CHAPTER_MAP.find(c => c.name === tag);
-    const p0Count = chapter ? chapter.p0.length : 0;
-    const p1Count = chapter ? (chapter.p1 || []).length : 0;
-    return `<button type="button" data-practice-action="${actions[i]}" data-chapter="${chapter?.id || ''}">
-      <i>${icons[i]}</i><strong>${actions[i]}</strong>
-      <small>${subtitles[i]} · P0×${p0Count} P1×${p1Count}</small>
+  return actions.map((action, i) => {
+    // data-chapter 仍沿用 CORE_TAGS 映射，供「专项练习」带出默认科目
+    const chapter = CHAPTER_MAP.find(c => c.name === tags[i]);
+    return `<button type="button" data-practice-action="${action}" data-chapter="${chapter?.id || ''}">
+      <i>${icons[i]}</i><strong>${action}</strong>
+      <small>${subtitles[i]}</small>
     </button>`;
   }).join('');
 }

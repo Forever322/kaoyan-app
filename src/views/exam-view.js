@@ -1,193 +1,49 @@
-import { EXAM_SUBJECTS, EXAM_CHAPTERS, SAMPLE_MATH_QUESTIONS, SAMPLE_POLITICS_QUESTIONS, SAMPLE_ENGLISH_QUESTIONS } from '../data/exam-data.js';
+import {
+  RECENT_EXAM_YEARS,
+  PAPER_SUBJECTS,
+  RECENT_TOTAL,
+  getPaperMeta,
+} from '../data/exam-papers.js';
+import { renderQuizPanel } from './quiz-panel.js';
 
-export const QUIZ_QUESTIONS = {
-  math: SAMPLE_MATH_QUESTIONS,
-  politics: SAMPLE_POLITICS_QUESTIONS,
-  english: SAMPLE_ENGLISH_QUESTIONS,
-};
+function renderYearTabs() {
+  return RECENT_EXAM_YEARS.map((year, i) => `
+    <button type="button" class="exam-year-tab ${i === 0 ? 'is-active' : ''}" data-exam-year="${year}" role="tab">
+      <strong>${year}</strong>
+      <small>考研真题</small>
+    </button>
+  `).join('');
+}
 
-function renderSubjectTabs(activeSubject) {
-  return EXAM_SUBJECTS.map(s => `
-    <button type="button" class="exam-subject-tab ${s.id === activeSubject ? 'is-active' : ''}" data-subject="${s.id}">
-      <b>${s.icon}</b>
-      <span>
-        <strong>${s.name}</strong>
-        <small>${s.desc}</small>
+function renderTypeChips(byType) {
+  return Object.entries(byType)
+    .map(([type, n]) => `<span class="exam-paper-type">${type} ${n}</span>`)
+    .join('');
+}
+
+function renderPaperCard(year, subject) {
+  const meta = getPaperMeta(year, subject.id);
+  const disabled = meta.count === 0;
+  return `
+    <button type="button" class="exam-paper-card${disabled ? ' is-empty' : ''}"
+      data-paper-year="${year}" data-paper-subject="${subject.id}" ${disabled ? 'disabled' : ''}>
+      <i class="exam-paper-icon ${subject.id}">${subject.icon}</i>
+      <span class="exam-paper-body">
+        <strong>${year} 年${subject.name}</strong>
+        <small class="exam-paper-types">${disabled ? '暂无试题' : renderTypeChips(meta.byType)}</small>
+        <small class="exam-paper-progress" data-paper-progress="${year}:${subject.id}"></small>
       </span>
+      <em class="exam-paper-count">${meta.count}<b>题</b></em>
     </button>
+  `;
+}
+
+function renderYearGroups() {
+  return RECENT_EXAM_YEARS.map((year, i) => `
+    <div class="exam-year-group ${i === 0 ? '' : 'hidden'}" data-year-group="${year}">
+      ${PAPER_SUBJECTS.map(s => renderPaperCard(year, s)).join('')}
+    </div>
   `).join('');
-}
-
-function renderChapterNav(chapters) {
-  if (!chapters || !chapters.length) return '';
-  const allChip = `<button type="button" class="exam-chapter-chip is-active" data-chapter-name="全部" data-chapter-all="true">全部</button>`;
-  const chapterChips = chapters.map((ch, i) => `
-    <button type="button" class="exam-chapter-chip" data-chapter-name="${ch.name}">
-      ${ch.name}${ch.weight ? ` (${ch.weight})` : ''}
-    </button>
-  `).join('');
-  return allChip + chapterChips;
-}
-
-function renderTopicTags(topics) {
-  if (!topics || !topics.length) return '';
-  const allTopics = [];
-  topics.forEach(t => {
-    if (t.p0) t.p0.forEach(item => allTopics.push({ name: item, level: 'P0' }));
-    if (t.topics) t.topics.forEach(item => allTopics.push({ name: item.name || item, level: 'P0' }));
-  });
-  if (topics[0] && typeof topics[0] === 'string') {
-    return topics.map(t => `<span class="exam-topic-tag">${t}</span>`).join('');
-  }
-  return allTopics.slice(0, 20).map(t =>
-    `<span class="exam-topic-tag ${t.level === 'P0' ? 'is-p0' : ''}">${t.name}</span>`
-  ).join('');
-}
-
-function renderQuizPanel(subject) {
-  const questions = QUIZ_QUESTIONS[subject] || [];
-  return `
-    <div class="exam-quiz-container" data-subject="${subject}">
-      <div class="exam-quiz-start">
-        <div class="exam-quiz-start-icon">📝</div>
-        <strong>共 ${questions.length} 道真题</strong>
-        <small>选择题 · 点击选项即可作答</small>
-        <button type="button" class="exam-start-btn" data-action="start-quiz">开始刷题</button>
-      </div>
-      <div class="exam-quiz-active hidden">
-        <div class="exam-quiz-progress">
-          <div class="exam-quiz-progress-bar"><i style="width:0%"></i></div>
-          <span class="exam-quiz-counter">1 / ${questions.length}</span>
-        </div>
-        <div class="exam-quiz-navigator"></div>
-        <div class="exam-quiz-question"></div>
-        <div class="exam-quiz-options"></div>
-        <div class="exam-quiz-feedback hidden"></div>
-        <div class="exam-quiz-nav-row">
-          <button type="button" class="exam-quiz-prev hidden" data-action="prev-question">‹ 上一题</button>
-          <button type="button" class="exam-quiz-next hidden" data-action="next-question">下一题 ›</button>
-        </div>
-      </div>
-      <div class="exam-quiz-summary hidden">
-        <div class="exam-quiz-summary-icon"></div>
-        <strong class="exam-quiz-summary-title"></strong>
-        <small class="exam-quiz-summary-detail"></small>
-        <div class="exam-quiz-summary-actions">
-          <button type="button" class="exam-start-btn" data-action="retry-quiz">重新刷题</button>
-          <button type="button" class="exam-start-btn is-outline" data-action="review-mistakes">查看错题</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderTopicSelectPanel(chapters, subject) {
-  if (!chapters || !chapters.length) return '';
-  return `
-    <div class="exam-topic-select-panel hidden" id="topicSelectPanel_${subject}">
-      <div class="exam-topic-select-header">
-        <strong>📖 选择知识点（可多选）</strong>
-        <small>勾选后只刷这些考点 · <button type="button" class="exam-topic-exit-btn" data-action="exit-topic-mode">返回真题浏览</button></small>
-      </div>
-      <div class="exam-topic-select-chapters">
-        ${chapters.map(ch => `
-          <details class="exam-topic-chapter-group">
-            <summary class="exam-topic-chapter-summary">
-              <span>${ch.name}</span>
-              <em>${ch.topics?.length || 0}个知识点</em>
-            </summary>
-            <div class="exam-topic-checkboxes">
-              ${(ch.topics || []).map(t => {
-                const topicName = t.name || t;
-                const p0Tags = Array.isArray(t.p0) ? t.p0 : [];
-                return `<label class="exam-topic-checkbox">
-                  <input type="checkbox" data-topic="${topicName}" data-subject="${subject}" data-chapter="${ch.name}">
-                  <span>
-                    <strong>${topicName}</strong>
-                    ${p0Tags.length ? `<small>${p0Tags.slice(0, 3).join(' · ')}</small>` : ''}
-                  </span>
-                </label>`;
-              }).join('')}
-            </div>
-          </details>
-        `).join('')}
-      </div>
-      <div class="exam-topic-select-actions">
-        <span class="exam-topic-select-count">已选 <b id="topicSelectCount_${subject}">0</b> 个知识点</span>
-        <button type="button" class="exam-start-btn" data-action="start-topic-quiz">开始专项刷题</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderMathContent() {
-  const chapters = EXAM_CHAPTERS.math;
-  return `
-    <div class="exam-chapter-scroll">
-      ${renderChapterNav(chapters)}
-    </div>
-    ${renderTopicSelectPanel(chapters, 'math')}
-    <div class="exam-topic-cloud">
-      <p class="exam-topic-label">高频考点 (P0)</p>
-      <div class="exam-topic-tags">
-        ${renderTopicTags(chapters.flatMap(ch => ch.topics))}
-      </div>
-    </div>
-    ${renderQuizPanel('math')}
-  `;
-}
-
-function renderPoliticsContent() {
-  const chapters = EXAM_CHAPTERS.politics;
-  const allP0 = [];
-  chapters.forEach(ch => {
-    (ch.topics || []).forEach(t => {
-      (t.p0 || []).forEach(item => allP0.push({ name: item, level: 'P0' }));
-    });
-    (ch.p1 || []).forEach(item => allP0.push({ name: item, level: 'P1' }));
-  });
-
-  return `
-    <div class="exam-chapter-scroll">
-      ${renderChapterNav(chapters.map(ch => ({ id: ch.id, name: ch.name, desc: ch.desc })))}
-    </div>
-    ${renderTopicSelectPanel(chapters, 'politics')}
-    <div class="exam-topic-cloud">
-      <p class="exam-topic-label">高频考点 (P0)</p>
-      <div class="exam-topic-tags">
-        ${allP0.length ? allP0.slice(0, 24).map(t =>
-          `<span class="exam-topic-tag ${t.level === 'P0' ? 'is-p0' : ''}">${t.name}</span>`
-        ).join('') : ''}
-      </div>
-    </div>
-    ${renderQuizPanel('politics')}
-  `;
-}
-
-function renderEnglishContent() {
-  const chapters = EXAM_CHAPTERS.english;
-  const allP0 = [];
-  chapters.forEach(ch => {
-    (ch.topics || []).forEach(t => {
-      (t.p0 || []).forEach(item => allP0.push({ name: item, level: 'P0' }));
-    });
-  });
-
-  return `
-    <div class="exam-chapter-scroll">
-      ${renderChapterNav(chapters.map(ch => ({ id: ch.id, name: ch.name, weight: ch.weight })))}
-    </div>
-    ${renderTopicSelectPanel(chapters, 'english')}
-    <div class="exam-topic-cloud">
-      <p class="exam-topic-label">高频考点 (P0)</p>
-      <div class="exam-topic-tags">
-        ${allP0.slice(0, 24).map(t =>
-          `<span class="exam-topic-tag ${t.level === 'P0' ? 'is-p0' : ''}">${t.name}</span>`
-        ).join('')}
-      </div>
-    </div>
-    ${renderQuizPanel('english')}
-  `;
 }
 
 export function examView() {
@@ -195,22 +51,26 @@ export function examView() {
     <section id="examScreen" class="app-screen exam-screen" aria-label="历年真题">
       <header class="study-topbar">
         <button id="examBackBtn" class="study-icon-btn" type="button" aria-label="返回题库">←</button>
-        <div><h1>历年真题</h1><p>考研数学 · 政治 · 英语真题训练</p></div>
+        <div>
+          <h1>历年真题</h1>
+          <p>${RECENT_EXAM_YEARS[RECENT_EXAM_YEARS.length - 1]}—${RECENT_EXAM_YEARS[0]} · ${RECENT_TOTAL} 题 · 逐题解析</p>
+        </div>
       </header>
       <main class="study-main">
-        <div class="exam-subject-tabs" role="tablist">
-          ${renderSubjectTabs('math')}
+        <div id="examPaperPicker" class="exam-paper-picker">
+          <div class="exam-year-tabs" role="tablist">
+            ${renderYearTabs()}
+          </div>
+          <div class="exam-paper-list">
+            ${renderYearGroups()}
+          </div>
         </div>
-        <div id="examSubjectContent" class="exam-subject-content">
-          <div id="examPanelMath" class="exam-panel">
-            ${renderMathContent()}
+        <div id="examPaperRunner" class="exam-paper-runner hidden">
+          <div class="exam-paper-runner-head">
+            <button type="button" class="exam-paper-exit" data-action="exit-paper">‹ 换一卷</button>
+            <strong id="examPaperTitle"></strong>
           </div>
-          <div id="examPanelPolitics" class="exam-panel hidden">
-            ${renderPoliticsContent()}
-          </div>
-          <div id="examPanelEnglish" class="exam-panel hidden">
-            ${renderEnglishContent()}
-          </div>
+          ${renderQuizPanel('math')}
         </div>
       </main>
     </section>
